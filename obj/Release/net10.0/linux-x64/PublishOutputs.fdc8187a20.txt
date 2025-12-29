@@ -1,0 +1,2 @@
+/home/qunerum/Dokumenty/QEngine/QEngine/bin/Release/net10.0/linux-x64/publish/QEngine.pdb
+/home/qunerum/Dokumenty/QEngine/QEngine/bin/Release/net10.0/linux-x64/publish/QEngine

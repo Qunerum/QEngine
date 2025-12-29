@@ -1,0 +1,14 @@
+/home/qunerum/Dokumenty/QEngine/QEngine/bin/Debug/net10.0/QEngine
+/home/qunerum/Dokumenty/QEngine/QEngine/bin/Debug/net10.0/QEngine.deps.json
+/home/qunerum/Dokumenty/QEngine/QEngine/bin/Debug/net10.0/QEngine.runtimeconfig.json
+/home/qunerum/Dokumenty/QEngine/QEngine/bin/Debug/net10.0/QEngine.dll
+/home/qunerum/Dokumenty/QEngine/QEngine/bin/Debug/net10.0/QEngine.pdb
+/home/qunerum/Dokumenty/QEngine/QEngine/obj/Debug/net10.0/QEngine.GeneratedMSBuildEditorConfig.editorconfig
+/home/qunerum/Dokumenty/QEngine/QEngine/obj/Debug/net10.0/QEngine.AssemblyInfoInputs.cache
+/home/qunerum/Dokumenty/QEngine/QEngine/obj/Debug/net10.0/QEngine.AssemblyInfo.cs
+/home/qunerum/Dokumenty/QEngine/QEngine/obj/Debug/net10.0/QEngine.csproj.CoreCompileInputs.cache
+/home/qunerum/Dokumenty/QEngine/QEngine/obj/Debug/net10.0/QEngine.dll
+/home/qunerum/Dokumenty/QEngine/QEngine/obj/Debug/net10.0/refint/QEngine.dll
+/home/qunerum/Dokumenty/QEngine/QEngine/obj/Debug/net10.0/QEngine.pdb
+/home/qunerum/Dokumenty/QEngine/QEngine/obj/Debug/net10.0/QEngine.genruntimeconfig.cache
+/home/qunerum/Dokumenty/QEngine/QEngine/obj/Debug/net10.0/ref/QEngine.dll
