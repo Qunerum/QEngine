@@ -28,13 +28,13 @@
 
             if (!commands.TryGetValue(name, out var cmd))
             {
-                Console.WriteLine($"Unknown command: {name}");
+                Writer.Write($"&4Unknown command: &6{name}");
                 return;
             }
 
             if (cmd.RequiresProject && projectRoot == null)
             {
-                Console.WriteLine("Error: not a QE project directory (qe.project.json not found).");
+                Writer.Write($"&4Error: not a &eQEngine &4project directory ({QEngineData.projFile} not found).");
                 return;
             }
 
@@ -44,7 +44,7 @@
         public void ListCommands()
         {
             foreach (var c in commands.Values)
-                Console.WriteLine($"{c.Name} - {c.Description}");
+                Writer.Write($" &2> &e{c.Name} &7- {c.Description}");
         }
     }
 
@@ -58,7 +58,7 @@
             var dir = new DirectoryInfo(Directory.GetCurrentDirectory());
             while (dir != null)
             {
-                if (File.Exists(Path.Combine(dir.FullName, "qe.project.json")))
+                if (File.Exists(Path.Combine(dir.FullName, QEngineData.projFile)))
                     return dir.FullName;
                 dir = dir.Parent;
             }
@@ -83,18 +83,19 @@
 
             // Rejestracja komend
             registry.Register(new NewProjectCommand());
+            //registry.Register(new OpenCommand());
             registry.Register(new BuildCommand());
-            registry.Register(new RunCommand());
-            registry.Register(new BuildRunCommand());
 
             // Alias bar -> buildrun
             registry.Alias("bar", "buildrun");
 
             if (args.Length == 0)
             {
-                Console.WriteLine($"= = = > QEngine {QEngineData.version}");
-                Console.WriteLine("= > Available commands:");
+                Console.Clear();
+                Writer.Write($"&2= = = > &eQEngine &7{QEngineData.version}");
+                Writer.Write("&2= = > &6Available commands:");
                 registry.ListCommands();
+                Console.WriteLine();
                 return;
             }
 
@@ -104,5 +105,53 @@
 
             registry.Execute(commandName, commandArgs, projectRoot);
         }
+    }
+
+    public static class Writer
+    {
+        static Dictionary<char, ConsoleColor> clrs = new()
+        {
+            { '0', ConsoleColor.Black }, { '8', ConsoleColor.Gray },
+            { '1', ConsoleColor.DarkBlue }, { '9', ConsoleColor.Blue },
+            { '2', ConsoleColor.DarkGreen }, { 'a', ConsoleColor.Green },
+            { '3', ConsoleColor.DarkCyan }, { 'b', ConsoleColor.Cyan },
+            { '4', ConsoleColor.DarkRed }, { 'c', ConsoleColor.Red },
+            { '5', ConsoleColor.DarkMagenta }, { 'd', ConsoleColor.Magenta },
+            { '6', ConsoleColor.DarkYellow }, { 'e', ConsoleColor.Yellow },
+            { '7', ConsoleColor.DarkGray }, { 'f', ConsoleColor.White },
+        };
+        public static void Write(string msg)
+        {
+            string[] ws = msg.Split('&');
+            foreach (var w in ws)
+            {
+                if (string.IsNullOrEmpty(w))
+                    continue;
+                if (clrs.TryGetValue(w[0], out var clr))
+                {
+                    Console.ForegroundColor = clr;
+                    if (w.Length > 1)
+                        Console.Write(w[1..]);
+                }
+                else { Console.Write(w); }
+            }
+            Console.WriteLine();
+            Console.ResetColor();
+        }
+    }
+
+    public static class FileManager
+    {
+        public static void CopyDirectory(string sourceDir, string targetDir)
+        {
+            Directory.CreateDirectory(targetDir);
+
+            foreach (var file in Directory.GetFiles(sourceDir))
+                File.Copy(file, Path.Combine(targetDir, Path.GetFileName(file)), true);
+
+            foreach (var dir in Directory.GetDirectories(sourceDir))
+                CopyDirectory(dir, Path.Combine(targetDir, Path.GetFileName(dir)));
+        }
+
     }
 }

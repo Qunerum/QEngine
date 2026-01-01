@@ -12,3 +12,4 @@
 /home/qunerum/Dokumenty/QEngine/QEngine/obj/Release/net10.0/linux-x64/QEngine.pdb
 /home/qunerum/Dokumenty/QEngine/QEngine/obj/Release/net10.0/linux-x64/QEngine.genruntimeconfig.cache
 /home/qunerum/Dokumenty/QEngine/QEngine/obj/Release/net10.0/linux-x64/ref/QEngine.dll
+/home/qunerum/Dokumenty/QEngine/QEngine/obj/Release/net10.0/linux-x64/QEngine.sourcelink.json
