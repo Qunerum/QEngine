@@ -63,11 +63,19 @@ class NewProjectCommand : ICommand
         Directory.CreateDirectory(Path.Combine(name, "Scripts"));
         Directory.CreateDirectory(Path.Combine(name, ".EngineScripts"));
         
-        File.WriteAllText(Path.Combine(name, ".EngineScripts", "Assets.cs"), Scripts.AssetsCs);
-        File.WriteAllText(Path.Combine(name, ".EngineScripts", "Core.cs"), Scripts.CoreCs);
-        File.WriteAllText(Path.Combine(name, ".EngineScripts", "QEngine.cs"), Scripts.QEngineCs);
-        File.WriteAllText(Path.Combine(name, ".EngineScripts", "Renderer.cs"), Scripts.RendererCs);
+        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var engineDir = Path.Combine(home, ".local", "share", "qengine");
         
+        Writer.Write($"&7Copying 'Assets.cs'...");
+        File.WriteAllText(Path.Combine(name, ".EngineScripts", "Assets.cs"), File.ReadAllText(Path.Combine(engineDir, "Libs", "Assets.cs")));
+        Writer.Write($"&7Copying 'Core.cs'...");
+        File.WriteAllText(Path.Combine(name, ".EngineScripts", "Core.cs"), File.ReadAllText(Path.Combine(engineDir, "Libs", "Core.cs")));
+        Writer.Write($"&7Copying 'QEngine.cs'...");
+        File.WriteAllText(Path.Combine(name, ".EngineScripts", "QEngine.cs"), File.ReadAllText(Path.Combine(engineDir, "Libs", "QEngine.cs")));
+        Writer.Write($"&7Copying 'Renderer.cs'...");
+        File.WriteAllText(Path.Combine(name, ".EngineScripts", "Renderer.cs"), File.ReadAllText(Path.Combine(engineDir, "Libs", "Renderer.cs")));
+        
+        Writer.Write($"&7Creating 'MainScene.cs'...");
         File.WriteAllText(Path.Combine(name, "Scripts", "MainScene.cs"),
             "using QEngine;\n" +
             "using QEngine.GUI;\n\n" +
@@ -82,6 +90,7 @@ class NewProjectCommand : ICommand
             "    }\n" +
             "}");
 
+        Writer.Write($"&7Creating '.qeproject'...");
         File.WriteAllText(Path.Combine(name, QEngineData.projFile),
             "{\n" +
             $"    \"name\": \"{name}\",\n" +

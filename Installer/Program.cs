@@ -1,11 +1,12 @@
-﻿using System;
-using System.IO;
-using System.Diagnostics;
+﻿using System.Diagnostics;
+using System.IO.Compression;
 
 public class QEInstaller
 {
     static void Main()
     {
+        string ver = "0.1.0";
+        
         var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
 
         var engineDir = Path.Combine(home, ".local", "share", "qengine");
@@ -21,10 +22,18 @@ public class QEInstaller
 
         // 2. Download DLL
         Write("§7Downloading QEngine.dll...");
-        Run($"curl -L https://github.com/Qunerum/QEngine/releases/download/Installer/QEngine.dll -o \"{engineDir}/QEngine.dll\"");
+        Run($"curl -L https://github.com/Qunerum/QEngine/releases/download/{ver}/QEngine.dll -o \"{engineDir}/QEngine.dll\"");
+        Write("§7Downloading Libs.zip...");
+        Run($"curl -L https://github.com/Qunerum/QEngine/releases/download/{ver}/Libs.zip -o \"{engineDir}/Libs.zip\"");
+        Write("§7Extracting Libs...");
+        if (Directory.Exists($"{engineDir}/Libs"))
+            Directory.Delete($"{engineDir}/Libs", true);
+        ZipFile.ExtractToDirectory($"{engineDir}/Libs.zip", $"{engineDir}/Libs");
+        Write("&7Deleting Libs.zip...");
+        File.Delete($"{engineDir}/Libs.zip");
 
         // 3. Create qe command
-        Write("§7Creating qe command...");
+        Write("§7Creating 'qe' command...");
 
         string js = 
 @"{
@@ -52,10 +61,8 @@ public class QEInstaller
         // 4. Make executable
         Run($"chmod +x \"{qeCmd}\"");
 
+        Write($"§aQEngine v{ver} installed!");
         Write("§aInstallation complete!");
-        Write("§7Restart terminal or run:");
-        Write("§e  export PATH=\"$HOME/.local/bin:$PATH\"");
-        Write("§7Then use: §eqe");
         
         Run("echo 'export PATH=\"$HOME/.local/bin:$PATH\"' >> ~/.bashrc");
         Run("source ~/.bashrc");

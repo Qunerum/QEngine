@@ -13,3 +13,18 @@
 /home/qunerum/Dokumenty/QEngine/QEngine/Engine/obj/Release/net8.0/linux-x64/QEngine.pdb
 /home/qunerum/Dokumenty/QEngine/QEngine/Engine/obj/Release/net8.0/linux-x64/QEngine.genruntimeconfig.cache
 /home/qunerum/Dokumenty/QEngine/QEngine/Engine/obj/Release/net8.0/linux-x64/ref/QEngine.dll
+/home/qunerum/Dokumenty/QEngine/QEngine/Engine CLI/bin/Release/net8.0/linux-x64/QEngine
+/home/qunerum/Dokumenty/QEngine/QEngine/Engine CLI/bin/Release/net8.0/linux-x64/QEngine.deps.json
+/home/qunerum/Dokumenty/QEngine/QEngine/Engine CLI/bin/Release/net8.0/linux-x64/QEngine.runtimeconfig.json
+/home/qunerum/Dokumenty/QEngine/QEngine/Engine CLI/bin/Release/net8.0/linux-x64/QEngine.dll
+/home/qunerum/Dokumenty/QEngine/QEngine/Engine CLI/bin/Release/net8.0/linux-x64/QEngine.pdb
+/home/qunerum/Dokumenty/QEngine/QEngine/Engine CLI/obj/Release/net8.0/linux-x64/QEngine.GeneratedMSBuildEditorConfig.editorconfig
+/home/qunerum/Dokumenty/QEngine/QEngine/Engine CLI/obj/Release/net8.0/linux-x64/QEngine.AssemblyInfoInputs.cache
+/home/qunerum/Dokumenty/QEngine/QEngine/Engine CLI/obj/Release/net8.0/linux-x64/QEngine.AssemblyInfo.cs
+/home/qunerum/Dokumenty/QEngine/QEngine/Engine CLI/obj/Release/net8.0/linux-x64/QEngine.csproj.CoreCompileInputs.cache
+/home/qunerum/Dokumenty/QEngine/QEngine/Engine CLI/obj/Release/net8.0/linux-x64/QEngine.sourcelink.json
+/home/qunerum/Dokumenty/QEngine/QEngine/Engine CLI/obj/Release/net8.0/linux-x64/QEngine.dll
+/home/qunerum/Dokumenty/QEngine/QEngine/Engine CLI/obj/Release/net8.0/linux-x64/refint/QEngine.dll
+/home/qunerum/Dokumenty/QEngine/QEngine/Engine CLI/obj/Release/net8.0/linux-x64/QEngine.pdb
+/home/qunerum/Dokumenty/QEngine/QEngine/Engine CLI/obj/Release/net8.0/linux-x64/QEngine.genruntimeconfig.cache
+/home/qunerum/Dokumenty/QEngine/QEngine/Engine CLI/obj/Release/net8.0/linux-x64/ref/QEngine.dll

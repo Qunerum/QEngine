@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("QEngine")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+b43977098b2064c589f9fce1c693b7219f814550")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+9a4b411671d6b14b921296179a0ebba3f3717484")]
 [assembly: System.Reflection.AssemblyProductAttribute("QEngine")]
 [assembly: System.Reflection.AssemblyTitleAttribute("QEngine")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

@@ -12,3 +12,4 @@
 /home/qunerum/Dokumenty/QEngine/QEngine/Installer/obj/Release/net8.0/linux-x64/QEngineInstallator.pdb
 /home/qunerum/Dokumenty/QEngine/QEngine/Installer/obj/Release/net8.0/linux-x64/QEngineInstallator.genruntimeconfig.cache
 /home/qunerum/Dokumenty/QEngine/QEngine/Installer/obj/Release/net8.0/linux-x64/ref/QEngineInstallator.dll
+/home/qunerum/Dokumenty/QEngine/QEngine/Installer/obj/Release/net8.0/linux-x64/QEngineInstallator.sourcelink.json

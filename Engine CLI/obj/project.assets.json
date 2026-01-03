@@ -82,11 +82,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "/home/qunerum/Dokumenty/QEngine/QEngine/Engine/QEngine.csproj",
+      "projectUniqueName": "/home/qunerum/Dokumenty/QEngine/QEngine/Engine CLI/QEngine.csproj",
       "projectName": "QEngine",
-      "projectPath": "/home/qunerum/Dokumenty/QEngine/QEngine/Engine/QEngine.csproj",
+      "projectPath": "/home/qunerum/Dokumenty/QEngine/QEngine/Engine CLI/QEngine.csproj",
       "packagesPath": "/home/qunerum/.nuget/packages/",
-      "outputPath": "/home/qunerum/Dokumenty/QEngine/QEngine/Engine/obj/",
+      "outputPath": "/home/qunerum/Dokumenty/QEngine/QEngine/Engine CLI/obj/",
       "projectStyle": "PackageReference",
       "configFilePaths": [
         "/home/qunerum/.nuget/NuGet/NuGet.Config"
@@ -143,19 +143,7 @@
             "version": "[8.0.22, 8.0.22]"
           },
           {
-            "name": "Microsoft.AspNetCore.App.Runtime.linux-x64",
-            "version": "[8.0.22, 8.0.22]"
-          },
-          {
-            "name": "Microsoft.NETCore.App.Crossgen2.linux-x64",
-            "version": "[8.0.22, 8.0.22]"
-          },
-          {
             "name": "Microsoft.NETCore.App.Host.linux-x64",
-            "version": "[8.0.22, 8.0.22]"
-          },
-          {
-            "name": "Microsoft.NETCore.App.Runtime.linux-x64",
             "version": "[8.0.22, 8.0.22]"
           }
         ],
