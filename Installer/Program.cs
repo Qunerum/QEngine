@@ -21,7 +21,7 @@ public class QEInstaller
 
         // 2. Download DLL
         Write("§7Downloading QEngine.dll...");
-        Run($"curl -L https://github.com/Qunerum/QEngine/releases/latest/download/QEngine.dll -o \"{engineDir}/QEngine.dll\"");
+        Run($"curl -L https://github.com/Qunerum/QEngine/releases/download/Installer/QEngine.dll -o \"{engineDir}/QEngine.dll\"");
 
         // 3. Create qe command
         Write("§7Creating qe command...");
