@@ -8,6 +8,7 @@ using Avalonia.Threading;
 using Avalonia.Media;
 
 using QEngine;
+using QEngine.GUI;
 using QEngine.Input;
 using QEngine.Mathematics;
 
@@ -113,26 +114,33 @@ public sealed class GameView : Control
                             img.sprite.Height * obj.transform.scale.y
                         )
                     );
-                    //ctx.FillRectangle(color, new Rect(obj.transform.position.x, obj.transform.position.y, img.sprite.Width, img.sprite.Height));
                 }
                 else { ctx.FillRectangle(img.color._clr,
-                    new Rect(pos.x - img.size.x / 2, pos.y - img.size.y / 2, img.size.x, img.size.y)); }
+                    CenterRect(pos, img.size, img.transform.scale)); }
             } 
             // = = = = = TEXT = = = = = 
             if (obj.TryGetComponent(out Text text))
             { 
-                ctx.DrawText(new(text.text, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, new Typeface("Arial"),
-                        text.fontSize, text.color._clr), new Point(pos.x, pos.y));
+                var formatted = new FormattedText(
+                    text.text,
+                    CultureInfo.InvariantCulture,
+                    FlowDirection.LeftToRight,
+                    new Typeface("Arial"),
+                    text.fontSize,
+                    text.color._clr
+                );
+                var x = pos.x - formatted.Width / 2;
+                var y = pos.y - formatted.Height / 2;
+                ctx.DrawText(formatted, new Point(x, y));
             } 
             // = = = = = BUTTON = = = = = 
             if (obj.TryGetComponent(out Button button))
             {
-                Rect r = new Rect(pos.x - button.size.x / 2 * button.transform.scale.x,
-                    pos.y - button.size.y / 2 * button.transform.scale.y, button.size.x, button.size.y);
+                Rect r = CenterRect(pos, button.size, button.transform.scale);
                 Vector2Int mp = Input.mousePosition;
-                bool isOn = isOnUI(button, button.size.x, button.size.y);
+                bool isOn = isOnUI(button.transform.position, button.size, button.transform.scale);
                 if (Input.mouseLeft && isOn && !button.isOn) { button.isOn = true; button.onClick?.Invoke(); }
-                if (!Input.mouseLeft && isOn && button.isOn) { button.isOn = false; }
+                if (!Input.mouseLeft && button.isOn) { button.isOn = false; }
                 
                 if (isOn && !button.isEnter) { button.isEnter = true; button.onPointerEnter?.Invoke(); }
                 if (!isOn && button.isEnter) { button.isEnter = false; button.onPointerExit?.Invoke(); }
@@ -143,8 +151,7 @@ public sealed class GameView : Control
             if (obj.TryGetComponent(out Slider slider))
             {
                 Vector2Int mp = Input.mousePosition;
-                Rect r = new(pos.x - slider.size.x / 2 * slider.transform.scale.x,
-                    pos.y - slider.size.y / 2 * slider.transform.scale.y, slider.size.x, slider.size.y);
+                Rect r = CenterRect(pos, slider.size, slider.transform.scale);
                 ctx.FillRectangle(slider.backgroundColor._clr, r);
                 // Fill 
                 float fillPer = slider.GetValue() / (slider.GetMax() - slider.GetMin()) * slider.size.x;
@@ -157,25 +164,84 @@ public sealed class GameView : Control
                 double mouseMax = slider.transform.position.x + slider.size.x / 2 * slider.transform.scale.x;
                 float valMouse = QMath.Round(QMath.Remap(mp.x, (float)mouseMin, (float)mouseMax, slider.GetMin(), slider.GetMax()), slider.valueDecimals);
                 
-                if (isOnUI(slider, slider.size.x, slider.size.y) && Input.mouseLeft && !slider.isHolding) { slider.isHolding = true; }
+                if (isOnUI(slider.transform.position, slider.size, slider.transform.scale) && Input.mouseLeft && !slider.isHolding) { slider.isHolding = true; }
                 if (!Input.mouseLeft && slider.isHolding) { slider.isHolding = false; }
                 
                 if (slider.isHolding) { slider.SetValue(valMouse); }
             }
+            // < = = = = = > DROPDOWN < = = = = = >
+            if (obj.TryGetComponent(out Dropdown dropdown))
+            {
+                dropdown.option = Math.Clamp(dropdown.option, 0, dropdown.options.Count - 1);
+                Rect r = CenterRect(pos, dropdown.size, dropdown.transform.scale);
+                bool isOn = isOnUI(dropdown.transform.position, dropdown.size, dropdown.transform.scale);
+                Console.WriteLine(Input.mousePosition);
+                Console.WriteLine(isOn);
+                Console.WriteLine("===");
+                ctx.FillRectangle(dropdown.color._clr, r);
+                
+                var formatted = new FormattedText(
+                    dropdown.options[dropdown.option],
+                    CultureInfo.InvariantCulture,
+                    FlowDirection.LeftToRight,
+                    new Typeface("Arial"),
+                    dropdown.labelFontSize,
+                    dropdown.labelFontColor._clr
+                );
+                var x = pos.x - formatted.Width / 2;
+                var y = pos.y - formatted.Height / 2;
+                ctx.DrawText(formatted, new Point(x, y));
+                
+                if (Input.mouseLeft && isOn && !dropdown.isOn) { dropdown.isOn = true; dropdown.isOpened = !dropdown.isOpened; }
+                if (!Input.mouseLeft && isOn && dropdown.isOn) { dropdown.isOn = false; }
+
+                if (dropdown.isOpened)
+                {
+                    for (int o = 1; o <= dropdown.options.Count; o++)
+                    {
+                        float down = dropdown.optionsDistance + (dropdown.optionSize.y + dropdown.optionsDistance) * o;
+                        Vector2 oCenterWorld = new(dropdown.transform.position.x, dropdown.transform.position.y - down);
+                        Vector2 oCenterScreen = new(pos.x, pos.y + down);
+                        Rect or = CenterRect(oCenterScreen, dropdown.optionSize, dropdown.transform.scale);
+                        bool oisOn = isOnUI(oCenterWorld, dropdown.optionSize, dropdown.transform.scale);
+                        if (Input.mouseLeft && oisOn) { dropdown.isOpened = false; dropdown.option = o - 1; }
+                        
+                        var oFormatted = new FormattedText(
+                            dropdown.options[o-1],
+                            CultureInfo.InvariantCulture,
+                            FlowDirection.LeftToRight,
+                            new Typeface("Arial"),
+                            dropdown.optionFontSize,
+                            dropdown.optionFontColor._clr
+                        );
+                        ctx.FillRectangle(dropdown.optionColor._clr, or);
+                        
+                        var ox = oCenterScreen.x - oFormatted.Width / 2; var oy = oCenterScreen.y - oFormatted.Height / 2;
+                        ctx.DrawText(oFormatted, new Point(ox, oy));
+                    }
+                }
+            }
         }
     }
+    static Rect CenterRect(Vector2 center, Vector2 size, Vector2 scale)
+    {
+        float w = size.x * scale.x;
+        float h = size.y * scale.y;
+        return new Rect(center.x - w / 2, center.y - h / 2, w, h);
+    }
 
-    public bool isOnUI(Component component, float sizeX, float sizeY)
+    public bool isOnUI(Vector2 center, Vector2 size, Vector2 scale)
     {
         Vector2Int mp = Input.mousePosition;
-        float left = -sizeX / 2 + component.transform.position.x;
-        float right = sizeX / 2 + component.transform.position.x;
-        float up = sizeY / 2 + component.transform.position.y;
-        float bottom = -sizeY / 2 + component.transform.position.y;
-        return 
-            mp.x > left && mp.x < right &&
-            mp.y < up && mp.y > bottom;  
+        float halfW = size.x * scale.x / 2;
+        float halfH = size.y * scale.y / 2;
+        return
+            mp.x >= center.x - halfW &&
+            mp.x <= center.x + halfW &&
+            mp.y >= center.y - halfH &&
+            mp.y <= center.y + halfH;
     }
+
 }
 public class App : Application
 {

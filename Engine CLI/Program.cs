@@ -83,8 +83,9 @@
 
             // Rejestracja komend
             registry.Register(new NewProjectCommand());
-            //registry.Register(new OpenCommand());
+            registry.Register(new RunCommand());
             registry.Register(new BuildCommand());
+            registry.Register(new BARCommand());
 
             // Alias bar -> buildrun
             registry.Alias("bar", "buildrun");

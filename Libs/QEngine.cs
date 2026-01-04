@@ -138,15 +138,13 @@ namespace QEngine.GUI
     public class Button : Component
     {
         public Vector2 size = new(100, 100);
-        public string text = "Button...";
-        public int fontSize = 16;
-        public Color textColor = new(255);
         public Color color = new(255);
 
         public bool isOn = false;
         public bool isEnter = false;
 
         public Action onClick;
+        
         public Action onPointerEnter;
         public Action onPointerExit;
     }
@@ -175,6 +173,36 @@ namespace QEngine.GUI
         public float SetMax(float max) => maxRange = max;
         public float SetValue(float value) => this.value = Math.Clamp(value, minRange, maxRange);
     }
+    public class Dropdown : Component
+    {
+        public Vector2 size = new(200, 30);
+        public Color color = new(255);
+        
+        public float labelFontSize = 16;
+        public Color labelFontColor = new(0);
+
+        public Vector2 optionSize = new(180, 20);
+        public Color optionColor = new(200);
+        public float optionFontSize = 12;
+        public Color optionFontColor = new(0);
+
+        public float optionsDistance = 5;
+
+        public int option = 0;
+
+        public List<string> options = new() { "Option A", "Option B", "Option C" };
+
+        public bool isOn = false;
+        public bool isOpened = false;
+
+        public void Clear() => options.Clear();
+        public void AddOption(string option) => options.Add(option);
+        public void RemoveOption(int index) => options.RemoveAt(index);
+    }
+    public class InputField : Component
+    {
+        
+    }
     #endregion
     
     #region Variables
@@ -188,7 +216,6 @@ namespace QEngine.GUI
             r = rgb; g = rgb; b = rgb; this.a = a; 
             _clr = new(new Avalonia.Media.Color(a, rgb, rgb, rgb));
         }
-
         public Color(byte r, byte g, byte b, byte a = 255)
         {
             this.r = r; this.g = g; this.b = b; this.a = a;

@@ -5,12 +5,6 @@
 using System.Text.Json;
 using QEConsole;
 
-class ProjectData
-{
-    public string name { get; set; }
-    public string engineVersion { get; set; }
-}
-
 class NewProjectCommand : ICommand
 {
     public string Name => "new";
@@ -153,16 +147,41 @@ class BuildCommand : ICommand
     }
 }
 
-class OpenCommand : ICommand
+class RunCommand : ICommand
 {
-    public string Name => "open";
-    public string Description => "Open project";
+    public string Name => "run";
+    public string Description => "Run project";
     public bool RequiresProject => true;
 
     public void Execute(string[] args, string? projectRoot)
     {
-        Writer.Write($"&7Opening project at '{projectRoot}'...");
-        //Open
-        Writer.Write("&2Project opened!");
+        Writer.Write($"&7Running project at '{projectRoot}'...");
+        Writer.Write($"&7Reading project data from '.qeproject' at '{projectRoot}'...");
+        using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(projectRoot, ".qeproject")));
+        JsonElement root = doc.RootElement;
+        string projectName = root.GetProperty("name").GetString()!;
+        Writer.Write($"&7Project name is '{projectName}'");
+        Writer.Write($"&7Running 'Build/{projectName}'...");
+        Terminal.RunCommand($"Build/{projectName}");
+    }
+}
+class BARCommand : ICommand
+{
+    public string Name => "buildrun";
+    public string Description => "build and run project";
+    public bool RequiresProject => true;
+
+    public void Execute(string[] args, string? projectRoot)
+    {
+        if (args.Length == 1 && new[] { "win", "windows", "linux" }.Contains(args[0].ToLower()))
+        {
+            Terminal.RunCommand("qe", $"build {args[0]}");
+            Terminal.RunCommand("qe", "run");
+        } else 
+        {
+            Writer.Write($"&4Usage: qe buildrun <platform>"); 
+            Writer.Write($"&4Available platforms: Windows/Win , Linux");
+            
+        }
     }
 }

@@ -1,0 +1,12 @@
+{
+  "version": 2,
+  "dgSpecHash": "szLvikGikxBSlerNQAwdcyZIp+1O6VsieDqaxNqCyaL5zHF4SyFpd1PRCZxyQc9Sz+1g8evKRTyZsqis9UzQUA==",
+  "success": true,
+  "projectFilePath": "/home/qunerum/Dokumenty/QEngine/QEngine/Installer Linux/QEngineInstallator.csproj",
+  "expectedPackageFiles": [
+    "/home/qunerum/.nuget/packages/microsoft.net.illink.tasks/8.0.22/microsoft.net.illink.tasks.8.0.22.nupkg.sha512",
+    "/home/qunerum/.nuget/packages/microsoft.aspnetcore.app.ref/8.0.22/microsoft.aspnetcore.app.ref.8.0.22.nupkg.sha512",
+    "/home/qunerum/.nuget/packages/microsoft.netcore.app.host.linux-x64/8.0.22/microsoft.netcore.app.host.linux-x64.8.0.22.nupkg.sha512"
+  ],
+  "logs": []
+}
