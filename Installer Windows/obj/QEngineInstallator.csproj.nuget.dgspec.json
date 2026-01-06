@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "/home/qunerum/Dokumenty/QEngine/QEngine/Installer Linux kopia/QEngineInstallator.csproj": {}
+    "/home/qunerum/Dokumenty/QEngine/QEngine/Installer Windows/QEngineInstallator.csproj": {}
   },
   "projects": {
-    "/home/qunerum/Dokumenty/QEngine/QEngine/Installer Linux kopia/QEngineInstallator.csproj": {
+    "/home/qunerum/Dokumenty/QEngine/QEngine/Installer Windows/QEngineInstallator.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "/home/qunerum/Dokumenty/QEngine/QEngine/Installer Linux kopia/QEngineInstallator.csproj",
+        "projectUniqueName": "/home/qunerum/Dokumenty/QEngine/QEngine/Installer Windows/QEngineInstallator.csproj",
         "projectName": "QEngineInstallator",
-        "projectPath": "/home/qunerum/Dokumenty/QEngine/QEngine/Installer Linux kopia/QEngineInstallator.csproj",
+        "projectPath": "/home/qunerum/Dokumenty/QEngine/QEngine/Installer Windows/QEngineInstallator.csproj",
         "packagesPath": "/home/qunerum/.nuget/packages/",
-        "outputPath": "/home/qunerum/Dokumenty/QEngine/QEngine/Installer Linux kopia/obj/",
+        "outputPath": "/home/qunerum/Dokumenty/QEngine/QEngine/Installer Windows/obj/",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "/home/qunerum/.nuget/NuGet/NuGet.Config"
@@ -37,14 +37,6 @@
       "frameworks": {
         "net8.0": {
           "targetAlias": "net8.0",
-          "dependencies": {
-            "Microsoft.NET.ILLink.Tasks": {
-              "suppressParent": "All",
-              "target": "Package",
-              "version": "[8.0.22, )",
-              "autoReferenced": true
-            }
-          },
           "imports": [
             "net461",
             "net462",
@@ -60,10 +52,6 @@
             {
               "name": "Microsoft.AspNetCore.App.Ref",
               "version": "[8.0.22, 8.0.22]"
-            },
-            {
-              "name": "Microsoft.NETCore.App.Host.win-x64",
-              "version": "[8.0.22, 8.0.22]"
             }
           ],
           "frameworkReferences": {
@@ -72,11 +60,6 @@
             }
           },
           "runtimeIdentifierGraphPath": "/var/run/host/usr/share/dotnet/sdk/8.0.122/PortableRuntimeIdentifierGraph.json"
-        }
-      },
-      "runtimes": {
-        "win-x64": {
-          "#import": []
         }
       }
     }

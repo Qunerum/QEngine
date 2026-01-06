@@ -8,97 +8,165 @@ using QEConsole;
 class NewProjectCommand : ICommand
 {
     public string Name => "new";
-    public string Description => "Create new project: qe new project <name>";
+    public string Description => "Create new project / scene / script / component: qe create new ...";
     public bool RequiresProject => false;
 
     public void Execute(string[] args, string? _)
     {
-        if (args.Length < 2 || args[0] != "project")
+        string type = args[0].Trim().ToLower();
+        if (args.Length != 2 || !new[] { "project", "scene", "script", "component" }.Contains(type))
         {
-            Writer.Write("&4Usage: &6qe new project <name>");
+            Writer.Write("&4Usage: &6qe new project <proj name>");
+            Writer.Write("&4Usage: &6qe new scene <scene name>");
+            Writer.Write("&4Usage: &6qe new script <script name>");
+            Writer.Write("&4Usage: &6qe new component <component name>");
             return;
         }
+        string name = args[1].Replace('-', '_');
 
-        string name = args[1].Replace(" ", "");
-        Directory.CreateDirectory(name);
+        switch (type)
+        {
+            case "project":
+                Directory.CreateDirectory(name);
+                Terminal.RunCommand("dotnet", $"new avalonia.app -n {name}"); // Create project
 
-        Terminal.RunCommand("dotnet", $"new avalonia.app -n {name}"); // Create project
+                File.Delete(Path.Combine(name, "App.axaml"));
+                File.Delete(Path.Combine(name, "App.axaml.cs")); // Delete App.axaml and App.axaml.cs
+                File.Delete(Path.Combine(name, "MainWindow.axaml"));
+                File.Delete(Path.Combine(name, "MainWindow.axaml.cs")); // Delete MainWindow.axaml and MainWindow.axaml.cs
+                File.Delete(Path.Combine(name, "Program.cs"));
+                File.Delete(Path.Combine(name, "app.manifest")); // Delete Program.cs and app.manifest
 
-        File.Delete(Path.Combine(name, "App.axaml")); File.Delete(Path.Combine(name, "App.axaml.cs")); // Delete App.axaml and App.axaml.cs
-        File.Delete(Path.Combine(name, "MainWindow.axaml")); File.Delete(Path.Combine(name, "MainWindow.axaml.cs")); // Delete MainWindow.axaml and MainWindow.axaml.cs
-        File.Delete(Path.Combine(name, "Program.cs")); File.Delete(Path.Combine(name, "app.manifest")); // Delete Program.cs and app.manifest
+                File.WriteAllText(Path.Combine(name, $"{name}.csproj"),
+                    "" +
+                    "<Project Sdk=\"Microsoft.NET.Sdk\">\n" +
+                    "    <PropertyGroup>\n" +
+                    "        <OutputType>WinExe</OutputType>\n" +
+                    "        <TargetFramework>net8.0</TargetFramework>\n" +
+                    "        <Nullable>enable</Nullable>\n" +
+                    "        <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>\n" +
+                    "        <DebugType>none</DebugType>\n" +
+                    "        <RuntimeIdentifiers>win-x64;linux-x64</RuntimeIdentifiers>\n" +
+                    "        <PublishSingleFile>true</PublishSingleFile>\n" +
+                    "        <SelfContained>true</SelfContained>\n" +
+                    "        <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>\n" +
+                    "        <PublishTrimmed>false</PublishTrimmed>\n" +
+                    "    </PropertyGroup>\n" +
+                    "\n" +
+                    "    <ItemGroup>\n" +
+                    "        <Compile Include=\".EngineScripts\\**\\*.cs\" />\n" +
+                    "        \n" +
+                    "        <PackageReference Include=\"Avalonia\" Version=\"11.3.10\"/>\n" +
+                    "        <PackageReference Include=\"Avalonia.Desktop\" Version=\"11.3.10\"/>\n" +
+                    "        <PackageReference Include=\"Avalonia.Themes.Fluent\" Version=\"11.3.10\"/>\n" +
+                    "        <PackageReference Include=\"Avalonia.Fonts.Inter\" Version=\"11.3.10\"/>\n" +
+                    "    </ItemGroup>\n" +
+                    "</Project>");
+                Directory.CreateDirectory(Path.Combine(name, "Assets"));
+                Directory.CreateDirectory(Path.Combine(name, "Scripts"));
+                Directory.CreateDirectory(Path.Combine(name, ".EngineScripts"));
 
-        File.WriteAllText(Path.Combine(name, $"{name}.csproj"),
-            "" +
-            "<Project Sdk=\"Microsoft.NET.Sdk\">\n" +
-            "    <PropertyGroup>\n" +
-            "        <OutputType>WinExe</OutputType>\n" +
-            "        <TargetFramework>net8.0</TargetFramework>\n" +
-            "        <Nullable>enable</Nullable>\n" +
-            "        <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>\n" +
-            "        <DebugType>none</DebugType>\n" +
-            "        <RuntimeIdentifiers>win-x64;linux-x64</RuntimeIdentifiers>\n" +
-            "        <PublishSingleFile>true</PublishSingleFile>\n" +
-            "        <SelfContained>true</SelfContained>\n" +
-            "        <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>\n" +
-            "        <PublishTrimmed>false</PublishTrimmed>\n" +
-            "    </PropertyGroup>\n" +
-            "\n" +
-            "    <ItemGroup>\n" +
-            "        <Compile Include=\".EngineScripts\\**\\*.cs\" />\n" +
-            "        \n" +
-            "        <PackageReference Include=\"Avalonia\" Version=\"11.3.10\"/>\n" +
-            "        <PackageReference Include=\"Avalonia.Desktop\" Version=\"11.3.10\"/>\n" +
-            "        <PackageReference Include=\"Avalonia.Themes.Fluent\" Version=\"11.3.10\"/>\n" +
-            "        <PackageReference Include=\"Avalonia.Fonts.Inter\" Version=\"11.3.10\"/>\n" +
-            "    </ItemGroup>\n" +
-            "</Project>");
-        Directory.CreateDirectory(Path.Combine(name, "Assets"));
-        Directory.CreateDirectory(Path.Combine(name, "Scripts"));
-        Directory.CreateDirectory(Path.Combine(name, ".EngineScripts"));
-        
-        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        var engineDir = Path.Combine(home, ".local", "share", "qengine");
-        
-        Writer.Write($"&7Copying 'Assets.cs'...");
-        File.WriteAllText(Path.Combine(name, ".EngineScripts", "Assets.cs"), File.ReadAllText(Path.Combine(engineDir, "Libs", "Assets.cs")));
-        Writer.Write($"&7Copying 'Core.cs'...");
-        File.WriteAllText(Path.Combine(name, ".EngineScripts", "Core.cs"), File.ReadAllText(Path.Combine(engineDir, "Libs", "Core.cs")));
-        Writer.Write($"&7Copying 'QEngine.cs'...");
-        File.WriteAllText(Path.Combine(name, ".EngineScripts", "QEngine.cs"), File.ReadAllText(Path.Combine(engineDir, "Libs", "QEngine.cs")));
-        Writer.Write($"&7Copying 'Renderer.cs'...");
-        File.WriteAllText(Path.Combine(name, ".EngineScripts", "Renderer.cs"), File.ReadAllText(Path.Combine(engineDir, "Libs", "Renderer.cs")));
-        
-        Writer.Write($"&7Creating 'MainScene.cs'...");
-        File.WriteAllText(Path.Combine(name, "Scripts", "MainScene.cs"),
-            "using QEngine;\n" +
-            "using QEngine.GUI;\n\n" +
-            $"public class MainScene : QEScene\n" +
-            "{\n" +
-            "    public override void Init()\n" +
-            "    {\n" +
-            "        Game.title = \"Your Game Title\";\n" +
-            "        Game.size = new(800, 600);\n" +
-            "        \n" +
-            "        CreateObject(\"Object\").AddComponent<Image>().color = new(100);\n" +
-            "    }\n" +
-            "}");
+                var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                var engineDir = Path.Combine(home, ".local", "share", "qengine");
 
-        Writer.Write($"&7Creating '.qeproject'...");
-        File.WriteAllText(Path.Combine(name, QEngineData.projFile),
-            "{\n" +
-            $"    \"name\": \"{name}\",\n" +
-            $"    \"engineVersion\": \"{QEngineData.version}\"\n" +
-            "}"); // Project file
+                Writer.Write($"&7Copying 'Assets.cs'...");
+                File.WriteAllText(Path.Combine(name, ".EngineScripts", "Assets.cs"),
+                    File.ReadAllText(Path.Combine(engineDir, "Libs", "Assets.cs")));
+                Writer.Write($"&7Copying 'Core.cs'...");
+                File.WriteAllText(Path.Combine(name, ".EngineScripts", "Core.cs"),
+                    File.ReadAllText(Path.Combine(engineDir, "Libs", "Core.cs")));
+                Writer.Write($"&7Copying 'QEngine.cs'...");
+                File.WriteAllText(Path.Combine(name, ".EngineScripts", "QEngine.cs"),
+                    File.ReadAllText(Path.Combine(engineDir, "Libs", "QEngine.cs")));
+                Writer.Write($"&7Copying 'Renderer.cs'...");
+                File.WriteAllText(Path.Combine(name, ".EngineScripts", "Renderer.cs"),
+                    File.ReadAllText(Path.Combine(engineDir, "Libs", "Renderer.cs")));
 
-        Writer.Write($"&2Project '{name}' created!");
+                Writer.Write($"&7Creating 'MainScene.cs'...");
+                File.WriteAllText(Path.Combine(name, "Scripts", "MainScene.cs"),
+                    "using QEngine;\n" +
+                    "using QEngine.GUI;\n\n" +
+                    $"public class MainScene : QEScene\n" +
+                    "{\n" +
+                    "    public override void Init()\n" +
+                    "    {\n" +
+                    "        Game.title = \"Your Game Title\";\n" +
+                    "        Game.size = new(800, 600);\n" +
+                    "        \n" +
+                    "        CreateObject(\"Object\").AddComponent<Image>().color = new(100);\n" +
+                    "    }\n" +
+                    "}");
+
+                Writer.Write($"&7Creating '.qeproject'...");
+                File.WriteAllText(Path.Combine(name, QEngineData.projFile),
+                    "{\n" +
+                    $"    \"name\": \"{name}\",\n" +
+                    $"    \"engineVersion\": \"{QEngineData.version}\"\n" +
+                    "}"); // Project file
+
+                Writer.Write($"&2Project '{name}' created!");
+                break;
+            case "scene":
+                if (File.Exists(Path.Combine(_, ".qeproject")))
+                {
+                    Writer.Write($"&7Creating '{name}.cs'...");
+                    File.WriteAllText(Path.Combine(_, "Scripts", $"{name}.cs"),
+                        "using QEngine;\n" +
+                        $"public class {name} : QEScene\n" +
+                        "{\n" +
+                        "    public override void Init()\n" +
+                        "    {\n" +
+                        "        //Your code here\n" +
+                        "    }\n" +
+                        "}");
+                }
+                break;
+            case "script":
+                if (File.Exists(Path.Combine(_, ".qeproject")))
+                {
+                    Writer.Write($"&7Creating '{name}.cs'...");
+                    File.WriteAllText(Path.Combine(_, "Scripts", $"{name}.cs"),
+                        "using QEngine;\n" +
+                        $"public class {name} : QEScript\n" +
+                        "{\n" +
+                        "    public override void Init()\n" +
+                        "    {\n" +
+                        "        //Your code here\n" +
+                        "    }\n" +
+                        "    public override void Update()\n" +
+                        "    {\n" +
+                        "        //Your code here\n" +
+                        "    }\n" +
+                        "}");
+                }
+                break;
+            case "component":
+                if (File.Exists(Path.Combine(_, ".qeproject")))
+                {
+                    Writer.Write($"&7Creating '{name}.cs'...");
+                    File.WriteAllText(Path.Combine(_, "Scripts", $"{name}.cs"),
+                        "using QEngine;\n" +
+                        $"public class {name} : Component\n" +
+                        "{\n" +
+                        "    public override void Init()\n" +
+                        "    {\n" +
+                        "        //Your code here\n" +
+                        "    }\n" +
+                        "    public override void Update()\n" +
+                        "    {\n" +
+                        "        //Your code here\n" +
+                        "    }\n" +
+                        "}");
+                }
+                break;
+        }
     }
 }
 
 class BuildCommand : ICommand
 {
     public string Name => "build";
-    public string Description => "Build current project";
+    public string Description => "Build current project: qe build";
     public bool RequiresProject => true;
 
     public void Execute(string[] args, string? projectRoot)
@@ -150,7 +218,7 @@ class BuildCommand : ICommand
 class RunCommand : ICommand
 {
     public string Name => "run";
-    public string Description => "Run project";
+    public string Description => "Run project: qe run";
     public bool RequiresProject => true;
 
     public void Execute(string[] args, string? projectRoot)
@@ -168,7 +236,7 @@ class RunCommand : ICommand
 class BARCommand : ICommand
 {
     public string Name => "buildrun";
-    public string Description => "build and run project";
+    public string Description => "Build and run project: qe buildrun or qe bar";
     public bool RequiresProject => true;
 
     public void Execute(string[] args, string? projectRoot)
@@ -181,7 +249,32 @@ class BARCommand : ICommand
         {
             Writer.Write($"&4Usage: qe buildrun <platform>"); 
             Writer.Write($"&4Available platforms: Windows/Win , Linux");
-            
         }
+    }
+}
+
+class SearchCommand : ICommand
+{
+    public string Name => "search";
+    public string Description => "Search projects: qe search";
+    public bool RequiresProject => false;
+
+    public void Execute(string[] args, string? projectRoot)
+    {
+        var roots = FileManager.GetSearchRoots();
+
+        var results = new List<string>();
+
+        foreach (var root in roots)
+        {
+            if (!Directory.Exists(root))
+                continue;
+            try
+            { int i = 0; foreach (var file in Directory.EnumerateFiles(root, "*.qeproject", SearchOption.AllDirectories)) 
+                { i++; results.Add($"{i}. {Path.GetDirectoryName(file)!}"); } } catch { } 
+        }
+        if (results.Count == 0) { Writer.Write("&4No QEngine projects found."); return; }
+        Writer.Write("&6Found projects:");
+        foreach (var p in results) { Writer.Write("&7 - &e" + p); }
     }
 }

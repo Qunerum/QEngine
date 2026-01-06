@@ -86,6 +86,7 @@
             registry.Register(new RunCommand());
             registry.Register(new BuildCommand());
             registry.Register(new BARCommand());
+            registry.Register(new SearchCommand());
 
             // Alias bar -> buildrun
             registry.Alias("bar", "buildrun");
@@ -152,6 +153,22 @@
 
             foreach (var dir in Directory.GetDirectories(sourceDir))
                 CopyDirectory(dir, Path.Combine(targetDir, Path.GetFileName(dir)));
+        }
+        public static List<string> GetSearchRoots()
+        {
+            var home = Environment.GetFolderPath(
+                Environment.SpecialFolder.UserProfile);
+
+            var roots = new List<string>
+            {
+                home,
+                Path.Combine(home, "Documents"),
+                Path.Combine(home, "Projects"),
+                Path.Combine(home, "Dev"),
+                Path.Combine(home, "Games")
+            };
+
+            return roots;
         }
 
     }
