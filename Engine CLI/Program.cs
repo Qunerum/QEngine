@@ -71,7 +71,7 @@
     // -------------------------
     public static class QEngineData
     {
-        public static string version = "0.1.1";
+        public static string version = "0.2.0";
         public static string projFile = ".qeproject";
     }
     

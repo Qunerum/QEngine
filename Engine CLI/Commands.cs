@@ -2,6 +2,7 @@
 // Komendy
 // -------------------------
 
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using QEConsole;
 
@@ -67,7 +68,12 @@ class NewProjectCommand : ICommand
                 Directory.CreateDirectory(Path.Combine(name, ".EngineScripts"));
 
                 var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-                var engineDir = Path.Combine(home, ".local", "share", "qengine");
+                string engineDir = "";
+
+                if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                { engineDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "qengine"); } else
+                if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+                { engineDir = Path.Combine(home, ".local", "share", "qengine"); }
 
                 Writer.Write($"&7Copying 'Assets.cs'...");
                 File.WriteAllText(Path.Combine(name, ".EngineScripts", "Assets.cs"),
@@ -86,14 +92,14 @@ class NewProjectCommand : ICommand
                 File.WriteAllText(Path.Combine(name, "Scripts", "MainScene.cs"),
                     "using QEngine;\n" +
                     "using QEngine.GUI;\n\n" +
-                    $"public class MainScene : QEScene\n" +
+                    "public class MainScene : QEScene\n" +
                     "{\n" +
                     "    public override void Init()\n" +
                     "    {\n" +
                     "        Game.title = \"Your Game Title\";\n" +
                     "        Game.size = new(800, 600);\n" +
                     "        \n" +
-                    "        CreateObject(\"Object\").AddComponent<Image>().color = new(100);\n" +
+                    "        var obj = new GameObject(\"Object\").AddComponent<Image>().color = new(100);\n" +
                     "    }\n" +
                     "}");
 
@@ -276,5 +282,34 @@ class SearchCommand : ICommand
         if (results.Count == 0) { Writer.Write("&4No QEngine projects found."); return; }
         Writer.Write("&6Found projects:");
         foreach (var p in results) { Writer.Write("&7 - &e" + p); }
+    }
+}
+
+class UpdateCommand : ICommand
+{
+    public string Name => "update";
+    public string Description => "Update project: qe update";
+    public bool RequiresProject => true;
+    public void Execute(string[] args, string? projectRoot)
+    {
+        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        string engineDir = "";
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        { engineDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "qengine"); } else
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+        { engineDir = Path.Combine(home, ".local", "share", "qengine"); }
+
+        Writer.Write($"&7Copying 'Assets.cs'...");
+        File.WriteAllText(Path.Combine(projectRoot, ".EngineScripts", "Assets.cs"),
+            File.ReadAllText(Path.Combine(engineDir, "Libs", "Assets.cs")));
+        Writer.Write($"&7Copying 'Core.cs'...");
+        File.WriteAllText(Path.Combine(projectRoot, ".EngineScripts", "Core.cs"),
+            File.ReadAllText(Path.Combine(engineDir, "Libs", "Core.cs")));
+        Writer.Write($"&7Copying 'QEngine.cs'...");
+        File.WriteAllText(Path.Combine(projectRoot, ".EngineScripts", "QEngine.cs"),
+            File.ReadAllText(Path.Combine(engineDir, "Libs", "QEngine.cs")));
+        Writer.Write($"&7Copying 'Renderer.cs'...");
+        File.WriteAllText(Path.Combine(projectRoot, ".EngineScripts", "Renderer.cs"),
+            File.ReadAllText(Path.Combine(engineDir, "Libs", "Renderer.cs")));
     }
 }

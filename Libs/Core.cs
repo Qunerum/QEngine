@@ -26,7 +26,7 @@ public static class SceneManager
     
     public static void AddScene(string name, QEScene scene)
     {
-        scene.Name = name;
+        scene.name = name;
         if (!scenes.ContainsKey(name))
             scenes.Add(name, scene);
     }

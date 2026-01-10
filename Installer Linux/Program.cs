@@ -5,7 +5,7 @@ public class QEInstaller
 {
     static void Main()
     {
-        string ver = "0.1.1";
+        string ver = "0.2.0";
         
         var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
 

@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("QEngineInstallator")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+008a52db7e61790da26d21be3511424dc4eb4dd6")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+e46a4674f496ac56772c72d8bcc3a2af16cb1a02")]
 [assembly: System.Reflection.AssemblyProductAttribute("QEngineInstallator")]
 [assembly: System.Reflection.AssemblyTitleAttribute("QEngineInstallator")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

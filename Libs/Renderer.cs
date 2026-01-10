@@ -15,6 +15,7 @@ using QEngine.Mathematics;
 using Image = QEngine.GUI.Image;
 using Text = QEngine.GUI.Text;
 using Button = QEngine.GUI.Button;
+using Color = QEngine.GUI.Color;
 using Slider = QEngine.GUI.Slider;
 
 public sealed class GameWindow : Window
@@ -27,6 +28,8 @@ public sealed class GameWindow : Window
         Height = Game.size.y;
         Title = Game.title;
 
+        TextInput += Input.SetTextInput;
+        
         PointerMoved += OnPointerMoved;
         PointerPressed += OnPointerPressed;
         PointerReleased += OnPointerReleased;
@@ -78,6 +81,7 @@ public sealed class GameWindow : Window
         timer.Tick += (_, _) =>
         {
             _view.Update();
+            Input.Update();
             _view.InvalidateVisual();
         };
 
@@ -95,10 +99,10 @@ public sealed class GameView : Control
             return;
         base.Render(ctx);
         
-        for (int i = 0; i < SceneManager.actualScene.getObjects().Count; i++)
+        for (int i = 0; i < SceneManager.actualScene.GetObjects().Count; i++)
         {
-            GameObject obj = SceneManager.actualScene.getObjects()[i];
-            Vector2 pos = new(obj.transform.position.x + Game.size.x / 2, -obj.transform.position.y + Game.size.y / 2);
+            GameObject obj = SceneManager.actualScene.GetObjects()[i];
+            Vector2 pos = new(obj.transform.position.x - SceneManager.actualScene.cameraPosition.x + Game.size.x / 2, -obj.transform.position.y + SceneManager.actualScene.cameraPosition.y + Game.size.y / 2);
             // = = = = = IMAGE = = = = = 
             if (obj.TryGetComponent(out Image img))
             { 
@@ -118,6 +122,31 @@ public sealed class GameView : Control
                 else { ctx.FillRectangle(img.color._clr,
                     CenterRect(pos, img.size, img.transform.scale)); }
             } 
+            // = = = = = SHAPE 2D = = = = =
+            if (obj.TryGetComponent(out Shape2D shape))
+            {
+                if (shape.GetVertices().Count < 2)
+                    return;
+                var geo = new StreamGeometry();
+                using (var ctxGeo = geo.Open())
+                {
+                    var t = obj.transform;
+
+                    Point Transform(Vector2 v)
+                    {
+                        float x = v.x * t.scale.x + pos.x;
+                        float y = -v.y * t.scale.y + pos.y;
+                        return new Point(x, y);
+                    }
+
+                    ctxGeo.BeginFigure(Transform(shape.GetVertices()[0]), true);
+
+                    for (int j = 1; j < shape.GetVertices().Count; j++)
+                        ctxGeo.LineTo(Transform(shape.GetVertices()[j]));
+                    ctxGeo.EndFigure(true);
+                }
+                ctx.DrawGeometry(shape.color._clr, null, geo);
+            }
             // = = = = = TEXT = = = = = 
             if (obj.TryGetComponent(out Text text))
             { 
@@ -137,20 +166,11 @@ public sealed class GameView : Control
             if (obj.TryGetComponent(out Button button))
             {
                 Rect r = CenterRect(pos, button.size, button.transform.scale);
-                Vector2Int mp = Input.mousePosition;
-                bool isOn = isOnUI(button.transform.position, button.size, button.transform.scale);
-                if (Input.mouseLeft && isOn && !button.isOn) { button.isOn = true; button.onClick?.Invoke(); }
-                if (!Input.mouseLeft && button.isOn) { button.isOn = false; }
-                
-                if (isOn && !button.isEnter) { button.isEnter = true; button.onPointerEnter?.Invoke(); }
-                if (!isOn && button.isEnter) { button.isEnter = false; button.onPointerExit?.Invoke(); }
-
                 ctx.FillRectangle(button.color._clr, r);
             }
             // = = = = = SLIDER = = = = =  
             if (obj.TryGetComponent(out Slider slider))
             {
-                Vector2Int mp = Input.mousePosition;
                 Rect r = CenterRect(pos, slider.size, slider.transform.scale);
                 ctx.FillRectangle(slider.backgroundColor._clr, r);
                 // Fill 
@@ -159,25 +179,12 @@ public sealed class GameView : Control
                 // Handle
                 double hw = 10;
                 ctx.FillRectangle(slider.handleColor._clr, new(r.X + fillPer - hw / 2, r.Y - 5, hw, slider.size.y + 10));
-
-                double mouseMin = slider.transform.position.x - slider.size.x / 2 * slider.transform.scale.x;
-                double mouseMax = slider.transform.position.x + slider.size.x / 2 * slider.transform.scale.x;
-                float valMouse = QMath.Round(QMath.Remap(mp.x, (float)mouseMin, (float)mouseMax, slider.GetMin(), slider.GetMax()), slider.valueDecimals);
-                
-                if (isOnUI(slider.transform.position, slider.size, slider.transform.scale) && Input.mouseLeft && !slider.isHolding) { slider.isHolding = true; }
-                if (!Input.mouseLeft && slider.isHolding) { slider.isHolding = false; }
-                
-                if (slider.isHolding) { slider.SetValue(valMouse); }
             }
-            // < = = = = = > DROPDOWN < = = = = = >
+            // < = = = = = > DROPDOWN < = = = = = > 
             if (obj.TryGetComponent(out Dropdown dropdown))
             {
                 dropdown.option = Math.Clamp(dropdown.option, 0, dropdown.options.Count - 1);
                 Rect r = CenterRect(pos, dropdown.size, dropdown.transform.scale);
-                bool isOn = isOnUI(dropdown.transform.position, dropdown.size, dropdown.transform.scale);
-                Console.WriteLine(Input.mousePosition);
-                Console.WriteLine(isOn);
-                Console.WriteLine("===");
                 ctx.FillRectangle(dropdown.color._clr, r);
                 
                 var formatted = new FormattedText(
@@ -192,9 +199,6 @@ public sealed class GameView : Control
                 var y = pos.y - formatted.Height / 2;
                 ctx.DrawText(formatted, new Point(x, y));
                 
-                if (Input.mouseLeft && isOn && !dropdown.isOn) { dropdown.isOn = true; dropdown.isOpened = !dropdown.isOpened; }
-                if (!Input.mouseLeft && isOn && dropdown.isOn) { dropdown.isOn = false; }
-
                 if (dropdown.isOpened)
                 {
                     for (int o = 1; o <= dropdown.options.Count; o++)
@@ -220,6 +224,19 @@ public sealed class GameView : Control
                         ctx.DrawText(oFormatted, new Point(ox, oy));
                     }
                 }
+            }
+            // < = = = = = > INPUT FIELD < = = = = = > 
+            if (obj.TryGetComponent(out InputField inputField))
+            {
+                Rect r = CenterRect(pos, inputField.size, inputField.transform.scale);
+                ctx.FillRectangle(inputField.color._clr, r);
+                
+                string txt = inputField.text.Length > 0 ? inputField.text : inputField.labelText;
+                Color clr = inputField.text.Length > 0 ? inputField.textColor : inputField.labelTextColor; 
+                float fSize = inputField.text.Length > 0 ? inputField.textFontSize : inputField.labelTextFontSize;
+                var formatted = new FormattedText(txt, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, new Typeface("Arial"), fSize, clr._clr);
+                var x = pos.x - formatted.Width / 2; var y = pos.y - formatted.Height / 2;
+                ctx.DrawText(formatted, new Point(x, y));
             }
         }
     }
