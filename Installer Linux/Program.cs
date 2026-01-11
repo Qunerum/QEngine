@@ -5,7 +5,7 @@ public class QEInstaller
 {
     static void Main()
     {
-        string ver = "0.2.0";
+        string ver = "0.2.1";
         
         var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
 
@@ -16,6 +16,8 @@ public class QEInstaller
 
         Write("§a<==== §6QEngine Installer §a====>");
 
+        Run("dotnet new install Avalonia.Templates");
+        
         // 1. Create directories
         Run($"mkdir -p \"{engineDir}\"");
         Run($"mkdir -p \"{binDir}\"");

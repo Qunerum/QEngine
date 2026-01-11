@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Avalonia;
 using QEngine;
+using QEngine.GUI;
 
 internal class GameCore
 {
@@ -18,6 +19,7 @@ public static class Game
 {
     public static string title = "QEngine Game";
     public static Vector2Int size = new(1280, 720);
+    public static Color background = new(0);
 }
 public static class SceneManager
 {

@@ -6,6 +6,8 @@ using Avalonia;
 using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
+
+using QEngine.GUI;
 using QEngine.Mathematics;
 using Key = QEngine.Input.Key;
 
@@ -16,6 +18,8 @@ namespace QEngine
     {
         public float x, y;
         public Vector2(float x = 0, float y = 0) { this.x = x; this.y = y; }
+
+        public bool isZero => x == 0 && y == 0;
         
         public override string ToString() => $"({x}, {y})";
         
@@ -317,6 +321,59 @@ namespace QEngine.GUI
     
 }
 
+namespace QEngine.Animations
+{
+    public class Animation
+    {
+        List<Sprite> Frames = new();
+        int framesPerSecond = 1;
+        public void AddFrame(Sprite frame) => Frames.Add(frame);
+        public void AddFrames(List<Sprite> frames) { foreach (var f in frames) Frames.Add(f); }
+        public Sprite GetFrame(int index) => Frames[Math.Clamp(index, 0, Frames.Count - 1)];
+        public int GetFPS() => framesPerSecond;
+        public void SetFPS(int fps) => framesPerSecond = fps;
+        public List<Sprite> GetFrames() => Frames;
+        public int GetFramesCount() => Frames.Count;
+        public void Clear() => Frames.Clear();
+        public void RemoveFrame(int index) => Frames.RemoveAt(Math.Clamp(index, 0, Frames.Count - 1));
+    }
+    public class Animator : Component
+    {
+        public bool isPaused = false;
+        Animation current = null;
+        int currentFrame = 0;
+        
+        float time = 0;
+        
+        Dictionary<string, Animation> animations = new();
+        
+        public Animation GetAnimation(string name) => animations[name];
+        public Animation AddAnimation(string name) { animations.Add(name, new()); return animations[name]; }
+        public void RemoveAnimation(string name) => animations.Remove(name);
+        public void AddFrame(string name, Sprite frame) => animations[name].AddFrame(frame);
+        public void AddFrames(string name, List<Sprite> frames) => animations[name].AddFrames(frames);
+        
+        public void Play(string name) { if (current != animations[name]) current = animations[name]; isPaused = false; }
+        public void Pause() => isPaused = true;
+        public void UnPause() => isPaused = false;
+        public void Reset() => currentFrame = 0;
+        
+        public override void Update()
+        {
+            if (current == null || isPaused) return;
+            time += 1 / 60f;
+            float timeToNext = 1f / current.GetFPS();
+            if (time >= timeToNext)
+            {
+                currentFrame++; time -= timeToNext;
+                if (currentFrame >= current.GetFrames().Count) { currentFrame = 0; }
+                if (gameObject.TryGetComponent(out Image img))
+                { img.sprite = current.GetFrame(currentFrame); }
+            }
+        }
+    }
+}
+
 namespace QEngine.Mathematics
 {
     public static class QMath
@@ -358,7 +415,45 @@ namespace QEngine.Input
         
         Insert, Delete, Home, End, PageUp, PageDown
     }
-    
+
+    public class AxisDataInt
+    {
+        List<Key> Left = new(), Right = new();
+        public AxisDataInt(Key left, Key right) { Left.Add(left); Right.Add(right); }
+        public AxisDataInt(List<Key> left, List<Key> right) { Left = left; Right = right; }
+        public void AddLeft(Key key) => Left.Add(key); public void AddRight(Key key) => Right.Add(key);
+        public int Get()
+        {
+            int v = 0;
+            bool left = false, right = false;
+            foreach (var l in Left) { if(!left && Input.Read(l)) left = true; }
+            foreach (var r in Right) { if(!right && Input.Read(r)) right = true; }
+            if (left) { v--; } if (right) { v++; }
+            return v;
+        }
+    }
+    public class AxisDataVector2
+    {
+        List<Key> Up = new(), Down = new(), Left = new(), Right = new();
+        public AxisDataVector2(Key up, Key bottom, Key left, Key right)
+        { Up.Add(up); Down.Add(bottom); Left.Add(left); Right.Add(right); }
+        public AxisDataVector2(List<Key> up, List<Key> bottom, List<Key> left, List<Key> right) 
+        { Up = up; Down = bottom; Left = left; Right = right; }
+        public void AddLeft(Key key) => Left.Add(key); public void AddRight(Key key) => Right.Add(key);
+        public void AddUp(Key key) => Up.Add(key); public void AddBottom(Key key) => Down.Add(key);
+        public Vector2 Get()
+        {
+            Vector2 v = new();
+            bool left = false, right = false, up = false, down = false;
+            foreach (var u in Up) { if(!up && Input.Read(u)) up = true; }
+            foreach (var d in Down) { if(!down && Input.Read(d)) down = true; }
+            foreach (var l in Left) { if(!left && Input.Read(l)) left = true; }
+            foreach (var r in Right) { if(!right && Input.Read(r)) right = true; }
+            if (down) { v.y--; } if (up) { v.y++; }
+            if (left) { v.x--; } if (right) { v.x++; }
+            return v;
+        }
+    }
     public static class Input
     {
         public static Vector2Int mousePosition = new();
@@ -367,6 +462,9 @@ namespace QEngine.Input
         
         static Dictionary<Key, bool> keys = new();
         static Dictionary<Key, bool> keysPrev = new();
+
+        static Dictionary<string, AxisDataInt> axisesInt = new();
+        static Dictionary<string, AxisDataVector2> axisesV2 = new();
 
         public static string sKey = "";
 
@@ -381,9 +479,20 @@ namespace QEngine.Input
             keysPrev = new(keys);
         }
         public static void Update() => keysPrev = new Dictionary<Key, bool>(keys);
+        
         public static bool Read(Key key) => keys[key];
         public static bool ReadDown(Key k)
             => Read(k) && (!keysPrev.TryGetValue(k, out var p) || !p);
+
+        public static void AddAxisInt(string name, Key left, Key right) => axisesInt.Add(name, new(left, right));
+        public static void AddAxisInt(string name, List<Key> left, List<Key> right) => axisesInt.Add(name, new(left, right));
+        public static int GetAxisInt(string name) => axisesInt.TryGetValue(name, out var v) ? v.Get() : 0;
+
+        public static void AddAxisVector2(string name, Key up, Key bottom, Key left, Key right) => 
+            axisesV2.Add(name, new(up, bottom, left, right));
+        public static void AddAxisVector2(string name, List<Key> up, List<Key> bottom, List<Key> left, List<Key> right) => 
+            axisesV2.Add(name, new(up, bottom, left, right));
+        public static Vector2 GetAxisVector2(string name) => axisesV2.TryGetValue(name, out var v) ? v.Get() : new();
 
         internal static void SetTextInput(object? sender, TextInputEventArgs e) { if (!string.IsNullOrEmpty(e.Text)) sKey = e.Text; }
         internal static void SetKeyDown(Key key) { keys[key] = true; onKeyDown?.Invoke(key); }

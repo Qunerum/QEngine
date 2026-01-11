@@ -94,7 +94,7 @@ public sealed class GameView : Control
     public void Update() { SceneManager.actualScene?.Update(); }
     public override void Render(DrawingContext ctx)
     {
-        ctx.FillRectangle(Brushes.Black, Bounds);
+        ctx.FillRectangle(Game.background._clr, Bounds);
         if (SceneManager.actualScene == null)
             return;
         base.Render(ctx);

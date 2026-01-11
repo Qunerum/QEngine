@@ -3,7 +3,7 @@ using Microsoft.Win32;
 
 public class QEInstallerWindows
 {
-    static readonly string Version = "0.2.0";
+    static readonly string Version = "0.2.1";
 
     static void Main()
     {
