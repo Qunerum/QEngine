@@ -1,2 +1,0 @@
-/home/qunerum/Dokumenty/QEngine/QEngine/Installer Linux/bin/Release/net8.0/linux-x64/publish/QEngineInstallator.pdb
-/home/qunerum/Dokumenty/QEngine/QEngine/Installer Linux/bin/Release/net8.0/linux-x64/publish/QEngineInstallator
