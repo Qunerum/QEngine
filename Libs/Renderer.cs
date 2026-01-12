@@ -1,3 +1,4 @@
+using System;
 using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
@@ -9,6 +10,7 @@ using Avalonia.Media;
 using QEngine;
 using QEngine.GUI;
 using QEngine.Input;
+using QEngine.Mathematics;
 
 using Image = QEngine.GUI.Image;
 using Text = QEngine.GUI.Text;
@@ -144,6 +146,23 @@ public sealed class GameView : Control
                     ctxGeo.EndFigure(true);
                 }
                 ctx.DrawGeometry(shape.color._clr, null, geo);
+            }
+            // = = = = = LINE DRAWER = = = = =
+            if (obj.TryGetComponent(out LineDrawer lineD))
+            {
+                var points = lineD.GetPoints();
+                if (points.Count < 2)
+                    continue;
+                var t = obj.transform;
+                Pen pen = new Pen(lineD.color._clr, lineD.lineThickness);
+
+                Point Transform(Vector2 v)
+                {
+                    float x = v.x * t.scale.x + pos.x;
+                    float y = -v.y * t.scale.y + pos.y;
+                    return new Point(x, y);
+                }
+                for (int j = 0; j < points.Count - 1; j++) { ctx.DrawLine(pen, Transform(points[j]), Transform(points[j + 1])); }
             }
             // = = = = = TEXT = = = = = 
             if (obj.TryGetComponent(out Text text))

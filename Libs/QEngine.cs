@@ -194,6 +194,17 @@ namespace QEngine.GUI
         public void AddVertex(Vector2 vertex) => vertices.Add(vertex);
         public void RemoveVertex(int index) => vertices.RemoveAt(Math.Clamp(index, 0, vertices.Count - 1));
     }
+
+    public class LineDrawer : Component
+    {
+        public float lineThickness = 5;
+        public Color color = new();
+        List<Vector2> points = new() { new(-50), new(50) };
+        public void Clear() => points.Clear();
+        public List<Vector2> GetPoints() => points;
+        public void AddPoint(Vector2 vertex) => points.Add(vertex);
+        public void RemovePoint(int index) => points.RemoveAt(Math.Clamp(index, 0, points.Count - 1));
+    }
     public class Text : Component
     {
         public string text = "Text...";
