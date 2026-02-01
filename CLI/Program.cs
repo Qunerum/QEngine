@@ -1,5 +1,11 @@
 ﻿namespace QEConsole
 {
+    public static class QEngineData
+    {
+        public static string version = "0.2.2";
+        public static string projFile = ".qeproject";
+    }
+    
     // -------------------------
     // Interfejs komendy
     // -------------------------
@@ -69,12 +75,6 @@
     // -------------------------
     // Program główny
     // -------------------------
-    public static class QEngineData
-    {
-        public static string version = "0.2.1";
-        public static string projFile = ".qeproject";
-    }
-    
     class Program
     {
         static void Main(string[] args)
