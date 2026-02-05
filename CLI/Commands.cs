@@ -1,7 +1,3 @@
-// -------------------------
-// Komendy
-// -------------------------
-
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using QEConsole;
@@ -27,16 +23,18 @@ class NewProjectCommand : ICommand
         switch (type)
         {
             case "project":
-                Directory.CreateDirectory(name);
                 var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
                 string engineDir = "";
 
                 if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) { engineDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "qengine"); } else
                 if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux)) { engineDir = Path.Combine(home, ".local", "share", "qengine"); }
 
-                Writer.Write($"&7Copying 'Assets.cs'...");
-                File.WriteAllText(Path.Combine(name, ".EngineScripts", "Assets.cs"),
-                    File.ReadAllText(Path.Combine(engineDir, "Libs", "Assets.cs")));
+                FileManager.CopyDirectory(Path.Combine(engineDir, "ProjectTemplate"), name);
+                
+                File.Copy(Path.Combine(name, "TemplateProject.csproj"), Path.Combine(name, $"{name}.csproj"), true);
+                File.Delete(Path.Combine(name, "TemplateProject.csproj"));
+                File.Delete(Path.Combine(name, ".qeproject"));
+                File.WriteAllText(Path.Combine(name, ".qeproject"), $"{{\n    \"name\": \"{name}\",\n    \"engineVersion\": \"{QEngineData.version}\"\n}}");
 
                 Writer.Write($"&2Project '{name}' created!");
                 break;
@@ -74,25 +72,6 @@ class NewProjectCommand : ICommand
                         "}");
                 }
                 break;
-            case "component":
-                if (File.Exists(Path.Combine(_, ".qeproject")))
-                {
-                    Writer.Write($"&7Creating '{name}.cs'...");
-                    File.WriteAllText(Path.Combine(_, "Scripts", $"{name}.cs"),
-                        "using QEngine;\n" +
-                        $"public class {name} : Component\n" +
-                        "{\n" +
-                        "    public override void Init()\n" +
-                        "    {\n" +
-                        "        //Your code here\n" +
-                        "    }\n" +
-                        "    public override void Update()\n" +
-                        "    {\n" +
-                        "        //Your code here\n" +
-                        "    }\n" +
-                        "}");
-                }
-                break;
         }
     }
 }
@@ -114,7 +93,7 @@ class BuildCommand : ICommand
         
         Writer.Write($"&7Building project at '{projectRoot}'...");
 
-        if (Directory.Exists(Path.Combine(projectRoot, "Build"))) { Directory.Delete(Path.Combine(projectRoot, "Build"), true); }
+        if (Directory.Exists(Path.Combine(projectRoot, "Build"))) { FileManager.ClearDirectory(Path.Combine(projectRoot, "Build")); }
 
         if (!Directory.Exists(Path.Combine(projectRoot, "Build")))
         {
@@ -144,6 +123,7 @@ class BuildCommand : ICommand
         
         Writer.Write($"&2Copying 'Assets' to 'Build/Assets'...");
         FileManager.CopyDirectory(Path.Combine(projectRoot, "Assets"), Path.Combine(projectRoot, "Build", "Assets"));
+        FileManager.CopyDirectory(Path.Combine(projectRoot, "Fonts"), Path.Combine(projectRoot, "Build", "Fonts"));
 
         Writer.Write("&2Build finished!");
     }
@@ -163,8 +143,8 @@ class RunCommand : ICommand
         JsonElement root = doc.RootElement;
         string projectName = root.GetProperty("name").GetString()!;
         Writer.Write($"&7Project name is '{projectName}'");
-        Writer.Write($"&7Running 'Build/{projectName}'...");
-        Terminal.RunCommand($"Build/{projectName}");
+        Writer.Write($"&7Running 'Build/{projectName}{(OperatingSystem.IsWindows() ? ".exe" : "")}'...");
+        Terminal.RunCommand($"Build/{projectName}{(OperatingSystem.IsWindows() ? ".exe" : "")}");
     }
 }
 class BARCommand : ICommand
@@ -175,14 +155,14 @@ class BARCommand : ICommand
 
     public void Execute(string[] args, string? projectRoot)
     {
-        if (args.Length == 1 && new[] { "win", "windows", "linux" }.Contains(args[0].ToLower()))
+        if (args.Length == 0)
         {
-            Terminal.RunCommand("qe", $"build {args[0]}");
+            Terminal.RunCommand("qe", $"build {(OperatingSystem.IsWindows() ? "win" : "linux")}");
             Terminal.RunCommand("qe", "run");
         } else 
         {
-            Writer.Write($"&4Usage: qe buildrun <platform>"); 
-            Writer.Write($"&4Available platforms: Windows/Win , Linux");
+            Writer.Write($"&4Usage: qe buildrun"); 
+            Writer.Write($"&4Usage: qe bar"); 
         }
     }
 }

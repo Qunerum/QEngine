@@ -4,7 +4,7 @@ namespace QEConsole
 {
     public static class QEngineData
     {
-        public static string version = "0.2.2";
+        public static string version = "0.3.0";
         public static string projFile = ".qeproject";
     }
     
@@ -140,17 +140,27 @@ namespace QEConsole
             Directory.CreateDirectory(targetDir);
 
             foreach (var file in Directory.GetFiles(sourceDir))
+            {
+                Writer.Write($"&7Copying '{Path.GetFileName(file)}'...");
                 File.Copy(file, Path.Combine(targetDir, Path.GetFileName(file)), true);
+            }
 
             foreach (var dir in Directory.GetDirectories(sourceDir))
+            {
+                Writer.Write($"&7Copying '{Path.GetFileName(dir)}'...");
                 CopyDirectory(dir, Path.Combine(targetDir, Path.GetFileName(dir)));
+            }
         }
-
         public static void ClearDirectory(string targetDir)
         {
-            Directory.GetFiles(targetDir).ToList().ForEach(File.Delete);
-            Directory.GetDirectories(targetDir).ToList().ForEach(Directory.Delete);
+            if (!Directory.Exists(targetDir))
+                return;
+            foreach (string file in Directory.GetFiles(targetDir))
+                File.Delete(file);
+            foreach (string dir in Directory.GetDirectories(targetDir))
+                Directory.Delete(dir, recursive: true);
         }
+
         public static List<string> GetSearchRoots()
         {
             var home = Environment.GetFolderPath(
