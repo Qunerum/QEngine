@@ -1,15 +1,13 @@
-﻿using System.Diagnostics;
-using System.IO.Compression;
+using QEngine;
+using QEngine.GUI;
 
-public class QEInstaller
+public class MainScene : QEScene
 {
-    static readonly string Version = "0.2.2";
-    static int os = OperatingSystem.IsLinux() ? 1 : OperatingSystem.IsWindows() ? 2 : 0;
-    static List<string> coms = new();
-    
-    static void Main()
+    public override void Init()
     {
-        coms.Add($"&7< = = = &6QEngine &eInstaller &7({(os == 1 ? "Linux" : os == 2 ? "Windows" : "UNKOWN")}) = = = >");
+        Game.title = $"QEngine ";
+        Game.SetResolution(800, 600);
+
         if (os == 0) 
             return;
 
@@ -44,16 +42,9 @@ public class QEInstaller
 
         CreateRuntimeConfig(engineDir);
         CreateCommand(engineDir);
-
-        coms.Add("&6QEngine &2installed successfully!");
-        coms.Add("&2Restart terminal to use '&6qe&2'...");
-        Print();
     }
-
-    static void Print() { Console.Clear(); foreach (var c in coms) Writer.Write(c); }
     
     // ---------- helpers ----------
-
     static async Task Download(string url, string path)
     {
         coms.Add("&7Downloading " + Path.GetFileName(path));
@@ -117,37 +108,5 @@ dotnet ""%~dp0QEngine.dll"" %*");
         Console.Write(p.StandardOutput.ReadToEnd());
         Console.Write(p.StandardError.ReadToEnd());
         p.WaitForExit();
-    }
-}
-public static class Writer
-{
-    static Dictionary<char, ConsoleColor> clrs = new()
-    {
-        { '0', ConsoleColor.Black }, { '8', ConsoleColor.Gray },
-        { '1', ConsoleColor.DarkBlue }, { '9', ConsoleColor.Blue },
-        { '2', ConsoleColor.DarkGreen }, { 'a', ConsoleColor.Green },
-        { '3', ConsoleColor.DarkCyan }, { 'b', ConsoleColor.Cyan },
-        { '4', ConsoleColor.DarkRed }, { 'c', ConsoleColor.Red },
-        { '5', ConsoleColor.DarkMagenta }, { 'd', ConsoleColor.Magenta },
-        { '6', ConsoleColor.DarkYellow }, { 'e', ConsoleColor.Yellow },
-        { '7', ConsoleColor.DarkGray }, { 'f', ConsoleColor.White },
-    };
-    public static void Write(string msg)
-    {
-        string[] ws = msg.Split('&');
-        foreach (var w in ws)
-        {
-            if (string.IsNullOrEmpty(w))
-                continue;
-            if (clrs.TryGetValue(w[0], out var clr))
-            {
-                Console.ForegroundColor = clr;
-                if (w.Length > 1)
-                    Console.Write(w[1..]);
-            }
-            else { Console.Write(w); }
-        }
-        Console.WriteLine();
-        Console.ResetColor();
     }
 }

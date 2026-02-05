@@ -9,7 +9,7 @@ using QEConsole;
 class NewProjectCommand : ICommand
 {
     public string Name => "new";
-    public string Description => "Create new project / scene / script / component: qe create new ...";
+    public string Description => "Create new project / scene / script: qe create new ...";
     public bool RequiresProject => false;
 
     public void Execute(string[] args, string? _)
@@ -20,7 +20,6 @@ class NewProjectCommand : ICommand
             Writer.Write("&4Usage: &6qe new project <proj name>");
             Writer.Write("&4Usage: &6qe new scene <scene name>");
             Writer.Write("&4Usage: &6qe new script <script name>");
-            Writer.Write("&4Usage: &6qe new component <component name>");
             return;
         }
         string name = args[1].Replace('-', '_');
@@ -29,86 +28,15 @@ class NewProjectCommand : ICommand
         {
             case "project":
                 Directory.CreateDirectory(name);
-                Terminal.RunCommand("dotnet", $"new avalonia.app -n {name}"); // Create project
-
-                File.Delete(Path.Combine(name, "App.axaml"));
-                File.Delete(Path.Combine(name, "App.axaml.cs")); // Delete App.axaml and App.axaml.cs
-                File.Delete(Path.Combine(name, "MainWindow.axaml"));
-                File.Delete(Path.Combine(name, "MainWindow.axaml.cs")); // Delete MainWindow.axaml and MainWindow.axaml.cs
-                File.Delete(Path.Combine(name, "Program.cs"));
-                File.Delete(Path.Combine(name, "app.manifest")); // Delete Program.cs and app.manifest
-
-                File.WriteAllText(Path.Combine(name, $"{name}.csproj"),
-                    "" +
-                    "<Project Sdk=\"Microsoft.NET.Sdk\">\n" +
-                    "    <PropertyGroup>\n" +
-                    "        <OutputType>WinExe</OutputType>\n" +
-                    "        <TargetFramework>net8.0</TargetFramework>\n" +
-                    "        <Nullable>enable</Nullable>\n" +
-                    "        <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>\n" +
-                    "        <DebugType>none</DebugType>\n" +
-                    "        <RuntimeIdentifiers>win-x64;linux-x64</RuntimeIdentifiers>\n" +
-                    "        <PublishSingleFile>true</PublishSingleFile>\n" +
-                    "        <SelfContained>true</SelfContained>\n" +
-                    "        <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>\n" +
-                    "        <PublishTrimmed>false</PublishTrimmed>\n" +
-                    "    </PropertyGroup>\n" +
-                    "\n" +
-                    "    <ItemGroup>\n" +
-                    "        <Compile Include=\".EngineScripts\\**\\*.cs\" />\n" +
-                    "        \n" +
-                    "        <PackageReference Include=\"Avalonia\" Version=\"11.3.10\"/>\n" +
-                    "        <PackageReference Include=\"Avalonia.Desktop\" Version=\"11.3.10\"/>\n" +
-                    "        <PackageReference Include=\"Avalonia.Themes.Fluent\" Version=\"11.3.10\"/>\n" +
-                    "        <PackageReference Include=\"Avalonia.Fonts.Inter\" Version=\"11.3.10\"/>\n" +
-                    "    </ItemGroup>\n" +
-                    "</Project>");
-                Directory.CreateDirectory(Path.Combine(name, "Assets"));
-                Directory.CreateDirectory(Path.Combine(name, "Scripts"));
-                Directory.CreateDirectory(Path.Combine(name, ".EngineScripts"));
-
                 var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
                 string engineDir = "";
 
-                if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-                { engineDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "qengine"); } else
-                if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-                { engineDir = Path.Combine(home, ".local", "share", "qengine"); }
+                if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) { engineDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "qengine"); } else
+                if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux)) { engineDir = Path.Combine(home, ".local", "share", "qengine"); }
 
                 Writer.Write($"&7Copying 'Assets.cs'...");
                 File.WriteAllText(Path.Combine(name, ".EngineScripts", "Assets.cs"),
                     File.ReadAllText(Path.Combine(engineDir, "Libs", "Assets.cs")));
-                Writer.Write($"&7Copying 'Core.cs'...");
-                File.WriteAllText(Path.Combine(name, ".EngineScripts", "Core.cs"),
-                    File.ReadAllText(Path.Combine(engineDir, "Libs", "Core.cs")));
-                Writer.Write($"&7Copying 'QEngine.cs'...");
-                File.WriteAllText(Path.Combine(name, ".EngineScripts", "QEngine.cs"),
-                    File.ReadAllText(Path.Combine(engineDir, "Libs", "QEngine.cs")));
-                Writer.Write($"&7Copying 'Renderer.cs'...");
-                File.WriteAllText(Path.Combine(name, ".EngineScripts", "Renderer.cs"),
-                    File.ReadAllText(Path.Combine(engineDir, "Libs", "Renderer.cs")));
-
-                Writer.Write($"&7Creating 'MainScene.cs'...");
-                File.WriteAllText(Path.Combine(name, "Scripts", "MainScene.cs"),
-                    "using QEngine;\n" +
-                    "using QEngine.GUI;\n\n" +
-                    "public class MainScene : QEScene\n" +
-                    "{\n" +
-                    "    public override void Init()\n" +
-                    "    {\n" +
-                    "        Game.title = \"Your Game Title\";\n" +
-                    "        Game.size = new(800, 600);\n" +
-                    "        \n" +
-                    "        var obj = new GameObject(\"Object\").AddComponent<Image>().color = new(100);\n" +
-                    "    }\n" +
-                    "}");
-
-                Writer.Write($"&7Creating '.qeproject'...");
-                File.WriteAllText(Path.Combine(name, QEngineData.projFile),
-                    "{\n" +
-                    $"    \"name\": \"{name}\",\n" +
-                    $"    \"engineVersion\": \"{QEngineData.version}\"\n" +
-                    "}"); // Project file
 
                 Writer.Write($"&2Project '{name}' created!");
                 break;

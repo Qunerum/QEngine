@@ -1,4 +1,6 @@
-﻿namespace QEConsole
+﻿using System.Diagnostics;
+
+namespace QEConsole
 {
     public static class QEngineData
     {
@@ -6,9 +8,6 @@
         public static string projFile = ".qeproject";
     }
     
-    // -------------------------
-    // Interfejs komendy
-    // -------------------------
     public interface ICommand
     {
         string Name { get; }
@@ -17,9 +16,6 @@
         void Execute(string[] args, string? projectRoot);
     }
 
-    // -------------------------
-    // Rejestr komend
-    // -------------------------
     class CommandRegistry
     {
         private readonly Dictionary<string, ICommand> commands = new();
@@ -54,9 +50,6 @@
         }
     }
 
-    // -------------------------
-    // Funkcja szukania projektu
-    // -------------------------
     static class ProjectHelper
     {
         public static string? FindProjectRoot()
@@ -72,9 +65,6 @@
         }
     }
 
-    // -------------------------
-    // Program główny
-    // -------------------------
     class Program
     {
         static void Main(string[] args)
@@ -155,6 +145,12 @@
             foreach (var dir in Directory.GetDirectories(sourceDir))
                 CopyDirectory(dir, Path.Combine(targetDir, Path.GetFileName(dir)));
         }
+
+        public static void ClearDirectory(string targetDir)
+        {
+            Directory.GetFiles(targetDir).ToList().ForEach(File.Delete);
+            Directory.GetDirectories(targetDir).ToList().ForEach(Directory.Delete);
+        }
         public static List<string> GetSearchRoots()
         {
             var home = Environment.GetFolderPath(
@@ -172,5 +168,31 @@
             return roots;
         }
 
+    }
+    public static class Terminal
+    {
+        public static void RunCommand(string command, string arguments = "")
+        {
+            var process = new Process();
+            process.StartInfo.FileName = command;
+            process.StartInfo.Arguments = arguments;
+            process.StartInfo.RedirectStandardOutput = true;
+            process.StartInfo.RedirectStandardError = true;
+            process.StartInfo.UseShellExecute = false;
+            process.StartInfo.CreateNoWindow = true;
+
+            process.Start();
+
+            string output = process.StandardOutput.ReadToEnd();
+            string error = process.StandardError.ReadToEnd();
+
+            process.WaitForExit();
+
+            if (!string.IsNullOrWhiteSpace(output))
+                Console.WriteLine(output);
+
+            if (!string.IsNullOrWhiteSpace(error))
+                Console.WriteLine("Error: " + error);
+        }
     }
 }
