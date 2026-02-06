@@ -84,10 +84,13 @@ class BuildCommand : ICommand
 
     public void Execute(string[] args, string? projectRoot)
     {
-        if (args.Length != 1 || !new[] { "win", "windows", "linux" }.Contains(args[0].ToLower()))
+        if (args.Length != 1 || !new[] { "win", "windows", "linux", "both" }.Contains(args[0].ToLower()))
         {
             Writer.Write($"&4Usage: qe build <platform>");
-            Writer.Write($"&4Available platforms: Windows/Win , Linux");
+            Writer.Write($"&4Available platforms: windows / win , linux , both");
+            Writer.Write($"&4> windows / win");
+            Writer.Write($"&4> linux");
+            Writer.Write($"&4> both");
             return;
         }
         
@@ -95,15 +98,36 @@ class BuildCommand : ICommand
 
         if (Directory.Exists(Path.Combine(projectRoot, "Build"))) { FileManager.ClearDirectory(Path.Combine(projectRoot, "Build")); }
 
-        if (!Directory.Exists(Path.Combine(projectRoot, "Build")))
-        {
-            Writer.Write($"&7Creating folder 'Build' at '{projectRoot}'...");
-            Directory.CreateDirectory(Path.Combine(projectRoot, "Build"));
-        }
-
         Console.ForegroundColor = ConsoleColor.DarkGray;
 
-        string plat = (args[0].ToLower() == "windows" || args[0].ToLower() == "win") ? "win-x64" : "linux-x64";
+        if (args[0].ToLower() != "both")
+        {
+            string plat = (args[0].ToLower() == "windows" || args[0].ToLower() == "win") ? "win-x64" : "linux-x64";
+            if (!Directory.Exists(Path.Combine(projectRoot, "Build", plat)))
+            {
+                Writer.Write($"&7Creating folder 'Build/{plat}' at '{projectRoot}'...");
+                Directory.CreateDirectory(Path.Combine(projectRoot, "Build", plat));
+            }
+            Build(plat, args, projectRoot);
+        }
+        else
+        {
+            if (!Directory.Exists(Path.Combine(projectRoot, "Build", "linux-x64")) || !Directory.Exists(Path.Combine(projectRoot, "Build", "win-x64")))
+            {
+                Writer.Write($"&7Creating folder 'Build/linux-x64' at '{projectRoot}'...");
+                Writer.Write($"&7Creating folder 'Build/win-x64' at '{projectRoot}'...");
+                Directory.CreateDirectory(Path.Combine(projectRoot, "Build", "linux-x64"));
+                Directory.CreateDirectory(Path.Combine(projectRoot, "Build", "win-x64"));
+            }
+            Build("win-x64", args, projectRoot);
+            Build("linux-x64", args, projectRoot);
+        }
+
+        Writer.Write("&2Build finished!");
+    }
+
+    void Build(string plat, string[] args, string? projectRoot)
+    {
         Terminal.RunCommand("dotnet", $"publish -c Release -r {plat}");
         //Copy assets
         Writer.Write($"&7Reading project data from '.qeproject' at '{projectRoot}'...");
@@ -112,20 +136,20 @@ class BuildCommand : ICommand
         string projectName = root.GetProperty("name").GetString()!;
         Writer.Write($"&7Project name is '{projectName}'");
 
-        Writer.Write($"&7Moving '{projectName}' to 'Build'...");
+        Writer.Write($"&7Moving '{projectName}' to 'Build/{plat}'...");
         string publishDir = Path.Combine(projectRoot, "bin", "Release", "net8.0", plat, "publish");
         var exeFile = Directory.GetFiles(publishDir)
             .FirstOrDefault(f => !f.EndsWith(".dll") && !f.EndsWith(".pdb") && !f.EndsWith(".json"));
         if (exeFile == null)
             throw new FileNotFoundException("Cannot find published executable in " + publishDir);
-        File.Move(exeFile, Path.Combine(projectRoot, "Build", Path.GetFileName(exeFile)), true);
-        Writer.Write($"&2'{projectName}' moved to 'Build' successfully!");
-        
-        Writer.Write($"&2Copying 'Assets' to 'Build/Assets'...");
-        FileManager.CopyDirectory(Path.Combine(projectRoot, "Assets"), Path.Combine(projectRoot, "Build", "Assets"));
-        FileManager.CopyDirectory(Path.Combine(projectRoot, "Fonts"), Path.Combine(projectRoot, "Build", "Fonts"));
+        File.Move(exeFile, Path.Combine(projectRoot, "Build", plat, Path.GetFileName(exeFile)), true);
+        Writer.Write($"&2'{projectName}' moved to 'Build/{plat}' successfully!");
 
-        Writer.Write("&2Build finished!");
+        Writer.Write($"&2Copying 'Assets' to 'Build/{plat}/Assets'...");
+        FileManager.CopyDirectory(Path.Combine(projectRoot, "Assets"),
+            Path.Combine(projectRoot, "Build", plat, "Assets"));
+        FileManager.CopyDirectory(Path.Combine(projectRoot, "Fonts"), 
+            Path.Combine(projectRoot, "Build", plat, "Fonts"));
     }
 }
 
@@ -143,8 +167,8 @@ class RunCommand : ICommand
         JsonElement root = doc.RootElement;
         string projectName = root.GetProperty("name").GetString()!;
         Writer.Write($"&7Project name is '{projectName}'");
-        Writer.Write($"&7Running 'Build/{projectName}{(OperatingSystem.IsWindows() ? ".exe" : "")}'...");
-        Terminal.RunCommand($"Build/{projectName}{(OperatingSystem.IsWindows() ? ".exe" : "")}");
+        Writer.Write($"&7Running 'Build/{(OperatingSystem.IsWindows() ? "win-x64" : "linux-x64")}/{projectName}{(OperatingSystem.IsWindows() ? ".exe" : "")}'...");
+        Terminal.RunCommand($"Build/{(OperatingSystem.IsWindows() ? "win-x64" : "linux-x64")}/{projectName}{(OperatingSystem.IsWindows() ? ".exe" : "")}");
     }
 }
 class BARCommand : ICommand

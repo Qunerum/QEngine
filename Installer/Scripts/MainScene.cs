@@ -10,7 +10,7 @@ using QEngine.Text;
 
 public class MainScene : QEScene
 {
-    static readonly string Version = "0.2.2";
+    static readonly string Version = "0.3.0-BETA";
     static int os = OperatingSystem.IsLinux() ? 1 : OperatingSystem.IsWindows() ? 2 : 0;
     
     public override void Init()
@@ -38,7 +38,7 @@ public class MainScene : QEScene
         progress.SetValue(0);
         progress.SetMax(8);
         
-        string zip = "Libs";
+        string zip = "ProjectTemplate";
 
         string engineDir = "";
         if (os == 1) { var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile); engineDir = Path.Combine(home, ".local", "share", "qengine"); } // Linux
@@ -101,6 +101,7 @@ public class MainScene : QEScene
     }
   }
 }");
+        File.WriteAllText(Path.Combine(dir, ".qenginedata"), Version);
     }
 
     static void CreateCommand(string dir)

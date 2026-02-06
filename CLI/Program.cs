@@ -4,7 +4,7 @@ namespace QEConsole
 {
     public static class QEngineData
     {
-        public static string version = "0.3.0";
+        public static string version = "#.#.#";
         public static string projFile = ".qeproject";
     }
     
@@ -69,6 +69,13 @@ namespace QEConsole
     {
         static void Main(string[] args)
         {
+            int os = OperatingSystem.IsLinux() ? 1 : OperatingSystem.IsWindows() ? 2 : 0;
+            string engineDir = "";
+            if (os == 1) { var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile); engineDir = Path.Combine(home, ".local", "share", "qengine"); } // Linux
+            else if (os == 2) { var home = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData); engineDir = Path.Combine(home, "qengine"); } // Windows
+            string[] lines = File.ReadAllLines(Path.Combine(engineDir, ".qenginedata"));
+            QEngineData.version = lines[0];
+            
             var registry = new CommandRegistry();
 
             // Rejestracja komend
