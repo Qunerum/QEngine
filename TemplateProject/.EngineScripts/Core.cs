@@ -18,7 +18,7 @@ using Veldrid.Sdl2;
 public static class Game
 {
     static Sdl2Window? win;
-    public static void Init(Sdl2Window window) { if (win != null) win = window; }
+    public static void Init(Sdl2Window window) { if (win == null) win = window; }
     
     /// <summary> The title displayed on the window title bar. </summary>
     public static string title = "QEngine 0.3.0 Game";
@@ -119,6 +119,8 @@ static class Core
             QRenderer.End();
             Input.data = string.Empty;
         }
+        gd.WaitForIdle();
+        gd.Dispose();
     }
     static void Update(float deltaTime)
     {
