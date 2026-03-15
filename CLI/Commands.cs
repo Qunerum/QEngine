@@ -29,7 +29,7 @@ class NewProjectCommand : ICommand
                 if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) { engineDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "qengine"); } else
                 if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux)) { engineDir = Path.Combine(home, ".local", "share", "qengine"); }
 
-                FileManager.CopyDirectory(Path.Combine(engineDir, "ProjectTemplate"), name);
+                FileManager.CopyDirectory(Path.Combine(engineDir, "TemplateProject"), name);
                 
                 File.Copy(Path.Combine(name, "TemplateProject.csproj"), Path.Combine(name, $"{name}.csproj"), true);
                 File.Delete(Path.Combine(name, "TemplateProject.csproj"));
@@ -214,34 +214,5 @@ class SearchCommand : ICommand
         if (results.Count == 0) { Writer.Write("&4No QEngine projects found."); return; }
         Writer.Write("&6Found projects:");
         foreach (var p in results) { Writer.Write("&7 - &e" + p); }
-    }
-}
-
-class UpdateCommand : ICommand
-{
-    public string Name => "update";
-    public string Description => "Update project: qe update";
-    public bool RequiresProject => true;
-    public void Execute(string[] args, string? projectRoot)
-    {
-        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        string engineDir = "";
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-        { engineDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "qengine"); } else
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-        { engineDir = Path.Combine(home, ".local", "share", "qengine"); }
-
-        Writer.Write($"&7Copying 'Assets.cs'...");
-        File.WriteAllText(Path.Combine(projectRoot, ".EngineScripts", "Assets.cs"),
-            File.ReadAllText(Path.Combine(engineDir, "Libs", "Assets.cs")));
-        Writer.Write($"&7Copying 'Core.cs'...");
-        File.WriteAllText(Path.Combine(projectRoot, ".EngineScripts", "Core.cs"),
-            File.ReadAllText(Path.Combine(engineDir, "Libs", "Core.cs")));
-        Writer.Write($"&7Copying 'QEngine.cs'...");
-        File.WriteAllText(Path.Combine(projectRoot, ".EngineScripts", "QEngine.cs"),
-            File.ReadAllText(Path.Combine(engineDir, "Libs", "QEngine.cs")));
-        Writer.Write($"&7Copying 'Renderer.cs'...");
-        File.WriteAllText(Path.Combine(projectRoot, ".EngineScripts", "Renderer.cs"),
-            File.ReadAllText(Path.Combine(engineDir, "Libs", "Renderer.cs")));
     }
 }

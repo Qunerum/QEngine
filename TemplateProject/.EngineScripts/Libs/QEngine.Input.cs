@@ -6,6 +6,7 @@ using Veldrid.Sdl2;
 
 namespace QEngine.Input
 {
+    /// <summary> Comprehensive list of supported keyboard keys, mapped from SDL2 input events. </summary>
     public enum Key
     {
         None,
@@ -30,12 +31,14 @@ namespace QEngine.Input
         
         Insert, Delete, Home, End, PageUp, PageDown
     }
+    /// <summary> Manages a 1D axis (e.g., Horizontal) using two sets of keys for negative and positive directions. </summary>
     public class AxisDataInt
     {
         List<Key> Left = new(), Right = new();
         public AxisDataInt(Key left, Key right) { Left.Add(left); Right.Add(right); }
         public AxisDataInt(List<Key> left, List<Key> right) { Left = left; Right = right; }
         public void AddLeft(Key key) => Left.Add(key); public void AddRight(Key key) => Right.Add(key);
+        /// <summary> Returns -1 if left is pressed, 1 if right is pressed, or 0 if both/none. </summary>
         public int Get()
         {
             int v = 0;
@@ -46,6 +49,10 @@ namespace QEngine.Input
             return v;
         }
     }
+    /// <summary> 
+    /// Manages a 2D axis (e.g., Movement) using four sets of keys. 
+    /// Useful for top-down or platformer movement vectors.
+    /// </summary>
     public class AxisDataVector2
     {
         List<Key> Up = new(), Down = new(), Left = new(), Right = new();
@@ -55,6 +62,7 @@ namespace QEngine.Input
         { Up = up; Down = bottom; Left = left; Right = right; }
         public void AddLeft(Key key) => Left.Add(key); public void AddRight(Key key) => Right.Add(key);
         public void AddUp(Key key) => Up.Add(key); public void AddBottom(Key key) => Down.Add(key);
+        /// <summary> Returns a normalized-like Vector2 based on the state of Up/Down/Left/Right keys. </summary>
         public Vector2 Get()
         {
             Vector2 v = new();
@@ -68,21 +76,28 @@ namespace QEngine.Input
             return v;
         }
     }
+    /// <summary> 
+    /// Static manager for keyboard and mouse states. 
+    /// Interfaces directly with the Sdl2Window to capture hardware events.
+    /// </summary>
     public static class Input
     {
+        /// <summary> True if the left mouse button is currently held down. </summary>
         public static bool mouseLeft = false;
+        /// <summary> True if the right mouse button is currently held down. </summary>
         public static bool mouseRight = false;
-
+        /// <summary> Set of currently pressed keys. Used for polling with <see cref="Read"/>. </summary>
         public static HashSet<Key> keys = new();
 
         static Dictionary<string, AxisDataInt> axisesInt = new();
         static Dictionary<string, AxisDataVector2> axisesV2 = new();
-
+        /// <summary> Triggered once when a key is first pressed. </summary>
         public static Action<Key>? onKeyDown;
+        /// <summary> Triggered once when a key is released. </summary>
         public static Action<Key>? onKeyUp;
-
+        /// <summary> String buffer for text input (used by InputField). </summary>
         public static string data = "";
-
+        /// <summary> Binds SDL2 window events to the Input manager. </summary>
         public static void Init(Sdl2Window window)
         {
             window.KeyDown += OnKeyDownInternal;
@@ -92,19 +107,36 @@ namespace QEngine.Input
             window.MouseDown += OnMouseDown;
             window.MouseUp += OnMouseUp;
         }
-
+        /// <summary> Returns true if the specified key is currently being held. </summary>
         public static bool Read(Key key) => keys.Contains(key);
-
+        /// <summary> Registers a 1D integer axis (e.g., "Horizontal") with a single key for each direction. </summary>
+        /// <param name="name">Unique identifier for the axis.</param>
+        /// <param name="left">Key that decreases the axis value.</param>
+        /// <param name="right">Key that increases the axis value.</param>
         public static void AddAxisInt(string name, Key left, Key right)
             => axisesInt[name] = new AxisDataInt(left, right);
+        /// <summary> 
+        /// Registers a 1D integer axis with multiple keys assigned to each direction. 
+        /// Allows for alternative control schemes (e.g., A and LeftArrow for the same axis). 
+        /// </summary>
         public static void AddAxisInt(string name, List<Key> left, List<Key> right)
             => axisesInt[name] = new AxisDataInt(left, right);
+        /// <summary> Retrieves the current state of a registered 1D axis. Returns -1, 0, or 1. </summary>
+        /// <returns> The calculated axis value, or 0 if the axis name is not found. </returns>
         public static int GetAxisInt(string name)
             => axisesInt.TryGetValue(name, out var v) ? v.Get() : 0;
+        /// <summary> Registers a 2D axis (e.g., "Movement") to be polled later. </summary>
         public static void AddAxisVector2(string name, Key up, Key bottom, Key left, Key right)
             => axisesV2[name] = new AxisDataVector2(up, bottom, left, right);
+        /// <summary> Registers a 2D vector axis (e.g., "Movement") with multiple keys for each of the four directions. </summary>
+        /// <param name="name">Unique identifier for the axis.</param>
+        /// <param name="up">Keys for the positive Y direction.</param>
+        /// <param name="bottom">Keys for the negative Y direction.</param>
+        /// <param name="left">Keys for the negative X direction.</param>
+        /// <param name="right">Keys for the positive X direction.</param>
         public static void AddAxisVector2(string name, List<Key> up, List<Key> bottom, List<Key> left, List<Key> right)
             => axisesV2[name] = new AxisDataVector2(up, bottom, left, right);
+        /// <summary> Retrieves the calculated Vector2 from a named axis. </summary>
         public static Vector2 GetAxisVector2(string name)
             => axisesV2.TryGetValue(name, out var v) ? v.Get() : new();
         
@@ -139,7 +171,7 @@ namespace QEngine.Input
             if (e.MouseButton == MouseButton.Left) mouseLeft = false;
             if (e.MouseButton == MouseButton.Right) mouseRight = false;
         }
-
+        /// <summary> Internally converts Veldrid's key format to QEngine's Key enum. </summary>
         static bool TryConvertKey(Veldrid.Key vk, out Key key)
         {
             string name = vk.ToString();
@@ -148,10 +180,12 @@ namespace QEngine.Input
             return Enum.TryParse(name, out key);
         }
     }
-
+    /// <summary> Global state of the system cursor, including its world-space converted position. </summary>
     public static class Cursor
     {
+        /// <summary> The current mouse position, adjusted to the game resolution and center-origin. </summary>
         public static Vector2Int position = new();
+        /// <summary> Toggles the visibility of the hardware cursor. </summary>
         public static bool isVisible = true;
         
     }

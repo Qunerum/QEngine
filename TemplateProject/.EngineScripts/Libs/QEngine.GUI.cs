@@ -12,9 +12,14 @@ using Key = QEngine.Input.Key;
 
 namespace QEngine.GUI
 {
+    /// <summary> Static utility class for UI calculations and shared rendering data. </summary>
     public static class GUI
     {
+        /// <summary> Standard index buffer for drawing rectangular UI elements (Quads). </summary>
         public static ushort[] quad = { 0, 1, 2, 0, 2, 3 };
+        /// <summary> Performs a point-in-rectangle check. Useful for mouse interaction with UI elements. </summary>
+        /// <param name="center">The world/screen position of the UI element.</param>
+        /// <param name="size">Width and Height of the element.</param>
         public static bool isOnUI(Vector2 center, Vector2 size)
         {
             Vector2 mp = new(Cursor.position.x, Cursor.position.y);
@@ -29,13 +34,15 @@ namespace QEngine.GUI
     }
 
     #region Variables
+    /// <summary> Represents an RGBA color using byte (0-255) precision. </summary>
     public struct Color
     {
         public byte r, g, b, a;
         public Color(byte rgb, byte a = 255) { r = rgb; g = rgb; b = rgb; this.a = a; }
         public Color(byte r, byte g, byte b, byte a = 255) { this.r = r; this.g = g; this.b = b; this.a = a; }
-        
+        /// <summary> Converts the byte-based color to a float-based Vector4 (0.0f to 1.0f). </summary>
         public Vector4 to01() => new Vector4(r, g, b, a) / 255f;
+        /// <summary> Converts the color to a Veldrid-compatible RgbaFloat format. </summary>
         public RgbaFloat toRgba() => new(r/255f, g/255f, b/255f, a/255f);
         
         public static Color Red => new(255, 0, 0);
@@ -44,7 +51,7 @@ namespace QEngine.GUI
         public static Color White => new(255);
         public static Color Black => new(0);
     }
-
+    /// <summary> Container for pixel data and UV coordinates used for texture rendering. </summary>
     public class Sprite
     {
         public int Width, Height;
@@ -56,6 +63,7 @@ namespace QEngine.GUI
     #endregion
     
     #region Components
+    /// <summary> Renders a 2D image or a colored placeholder quad if no sprite is assigned. </summary>
     public class Image : Component, IRenderable
     {
         public Vector2 size = new(100, 100);
@@ -77,6 +85,7 @@ namespace QEngine.GUI
             }
         }
     }
+    /// <summary> Component for rendering custom 2D polygons defined by vertices and indices. </summary>
     public class Shape2D : Component, IRenderable
     {
         List<Vector2> vertices = new() { new(0, 83.2f), new(-100, -80), new(100, -80) };
@@ -95,6 +104,10 @@ namespace QEngine.GUI
         public void RemoveIndice(int index) => indices.RemoveAt(Math.Clamp(index, 0, vertices.Count - 1));
         public void Draw() => QRenderer.DrawShape(transform.position,vertices.ToArray(), indices.ToArray(), color.to01());
     }
+    /// <summary> 
+    /// Interactive element that detects clicks and hover states. 
+    /// Provides Action callbacks for easy event handling. 
+    /// </summary>
     public class Button : Component, IRenderable
     {
         public Vector2 size = new(100, 100);
@@ -128,6 +141,7 @@ namespace QEngine.GUI
                 }, GUI.quad, color.to01());
         }
     }
+    /// <summary> Horizontal selector for numerical values. Supports range remapping and custom handle visuals. </summary>
     public class Slider : Component, IRenderable
     {
         public Vector2 size = new(200, 20);
@@ -198,6 +212,7 @@ namespace QEngine.GUI
             
         }
     }
+    /// <summary> List-based selector that expands to show multiple options when clicked. </summary>
     public class Dropdown : Component, IRenderable
     {
         public Vector2 size = new(200, 30);
@@ -271,6 +286,7 @@ namespace QEngine.GUI
             }
         }
     }
+    /// <summary> Text input box that captures keyboard data and manages the backspace buffer. </summary>
     public class InputField : Component, IRenderable
     {
         public Vector2 size = new(200, 30);
@@ -315,6 +331,7 @@ namespace QEngine.GUI
     }
 
     #region Particle System
+    /// <summary> Runtime data for a single particle, including its current velocity and remaining lifetime. </summary>
     public class ParticleData
     {
         public Vector2 position = new();
@@ -349,6 +366,10 @@ namespace QEngine.GUI
             size = p.size;
         }
     }
+    /// <summary> 
+    /// High-performance emitter that spawns and updates particles. 
+    /// Supports curves for Color, Speed, and Size based on the particle's normalized lifetime.
+    /// </summary>
     public class ParticleSystem : Component, IRenderable
     {
         public bool isPlaying = false;
@@ -363,8 +384,8 @@ namespace QEngine.GUI
         public List<float> speedByLifetime = new();
         public List<float> sizeByLifetime = new();
 
-        public int minAngle = 0;
-        public int maxAngle = 360;
+        /// <summary> Degrees for random emission direction (0-360). </summary>
+        public int minAngle = 0, maxAngle = 360;
 
         public int maxParticles = 1000;
         
@@ -376,7 +397,7 @@ namespace QEngine.GUI
         public void StopImmediate() { particles.Clear(); isPlaying = false; }
         public List<ParticleData> GetParticles() => particles;
         Random r = new();
-
+        /// <summary> Spawns a specified number of particles immediately. </summary>
         public void Emit(int count = 1)
         {
             for (int i = 0; i < count; i++)
@@ -445,6 +466,10 @@ namespace QEngine.GUI
                 }
             }
         }
+        /// <summary> 
+        /// Calculates the current value of a parameter (Size/Speed/Color) based on progress (0.0 to 1.0). 
+        /// Performs linear interpolation between list elements.
+        /// </summary>
         static float EvaluateByLifetime(float start, List<float> values, float t)
         {
             if (values == null || values.Count == 0)

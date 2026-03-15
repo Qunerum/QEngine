@@ -84,7 +84,6 @@ namespace QEConsole
             registry.Register(new BuildCommand());
             registry.Register(new BARCommand());
             registry.Register(new SearchCommand());
-            registry.Register(new UpdateCommand());
 
             // Alias bar -> buildrun
             registry.Alias("bar", "buildrun");
