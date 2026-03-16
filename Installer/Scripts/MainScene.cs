@@ -10,7 +10,7 @@ using QEngine.Text;
 
 public class MainScene : QEScene
 {
-    static readonly string Version = "0.3.0";
+    static readonly string Version = "0.3.1";
     static int os = OperatingSystem.IsLinux() ? 1 : OperatingSystem.IsWindows() ? 2 : 0;
 
     public override void Init()
