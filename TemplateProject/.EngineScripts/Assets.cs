@@ -61,7 +61,7 @@ public static class Assets
             Console.WriteLine($"> Sprite: {s.Key} with size {s.Value.Width}x{s.Value.Height}");
         Console.WriteLine("< = = = > Initalized Fonts < = = = >");
         foreach (var f in _fonts)
-            Console.WriteLine($"> Font: {f.Key} with {f.Value.glyphs.Count} glyphs");
+            Console.WriteLine($"> Font: '{f.Key}' with {f.Value.glyphs.Count} glyphs");
     }
     static bool calcFont = false;
     public static void CalculateFonts(Vector2Int size)
