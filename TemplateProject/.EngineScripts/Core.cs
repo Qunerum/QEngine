@@ -141,12 +141,14 @@ static class Core
         }
     }
 }
-
-/// <summary> Provides coordinate transformation utilities between pixel space and Normalized Device Coordinates (NDC). </summary>
+/// <summary> Static class controlling the game's viewport, translation, and magnification. </summary>
 public static class Camera
 {
+    /// <summary> The current world-space position of the camera. </summary>
     public static Vector2 position = new();
-    public static float Zoom = 1.0f; // Zmień na 1.0f jako domyślny
+    
+    /// <summary> The zoom level of the camera. 1.0 is default, higher is closer. </summary>
+    public static float zoom = 1.0f;
 
     /// <summary> 
     /// WORLD SPACE: Converts world pixels to NDC, accounting for Camera Position and Zoom.
@@ -154,7 +156,7 @@ public static class Camera
     /// </summary>
     public static Vector2 WorldToNDC(Vector2 worldPos)
     {
-        Vector2 viewPos = (worldPos - position) * Zoom;
+        Vector2 viewPos = (worldPos - position) * zoom;
         return new Vector2(
             viewPos.x / (Game.resolution.x / 2f), 
             -(viewPos.y / (Game.resolution.y / 2f)) // Minus dla poprawnego Y w Veldrid
@@ -168,7 +170,7 @@ public static class Camera
     public static Vector2 ScreenToNDC(Vector2 screenPos) => new Vector2(screenPos.x / (Game.resolution.x / 2f), -(screenPos.y / (Game.resolution.y / 2f)));
     
     /// <summary> Scales size for the world (with zoom). </summary>
-    public static Vector2 WorldSizeToNDC(Vector2 pixelSize) => new((pixelSize.x * Zoom) / (Game.resolution.x / 2f), (pixelSize.y * Zoom) / (Game.resolution.y / 2f));
+    public static Vector2 WorldSizeToNDC(Vector2 pixelSize) => new((pixelSize.x * zoom) / (Game.resolution.x / 2f), (pixelSize.y * zoom) / (Game.resolution.y / 2f));
     /// <summary> Scales size for UI (constant size). </summary>
     public static Vector2 ScreenSizeToNDC(Vector2 pixelSize) => new(pixelSize.x / (Game.resolution.x / 2f), pixelSize.y / (Game.resolution.y / 2f));
 }

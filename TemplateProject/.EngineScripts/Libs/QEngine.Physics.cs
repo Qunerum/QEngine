@@ -40,7 +40,7 @@ namespace QEngine.Physics
                 }
             }
         }
-
+        /// <summary> Calculates and applies collision response between two rigidbodies and their colliders. </summary>
         static void Resolve(Rigidbody2D? rb1, BoxCollider2D? b1, Rigidbody2D? rb2, BoxCollider2D? b2)
         {
             if (rb1 == null || rb2 == null || b1 == null || b2 == null) return;

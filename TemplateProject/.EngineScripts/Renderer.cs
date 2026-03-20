@@ -139,6 +139,7 @@ namespace QEngine.Dev.Renderer
         }
     }
     // ================= DATA =================
+    /// <summary> Data container for a shape submitted for batch rendering. </summary>
     public struct BatchedShape
     {
         public Vector2 pixelCenter;
@@ -147,6 +148,7 @@ namespace QEngine.Dev.Renderer
         public Vector4 color;
         public bool isUI;
     }
+    /// <summary> Data container for a sprite submitted for batch rendering. </summary>
     public struct BatchedSprite
     {
         public Sprite sprite;

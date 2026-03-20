@@ -12,7 +12,9 @@ namespace QEngine.Mathematics
     {
         /// <summary> Maps a value from one range [inMin, inMax] to another [outMin, outMax]. </summary>
         public static float Remap(float value, float inMin, float inMax, float outMin, float outMax) => (value - inMin) / (inMax - inMin) * (outMax - outMin) + outMin;
+        /// <summary> Rounds a float value to a specified number of decimal places. </summary>
         public static float Round(float value, int decimals) => MathF.Round(value, decimals);
+        /// <summary> Rounds both components of a Vector2 to a specified number of decimal places. </summary>
         public static Vector2 Round(Vector2 value, int decimals) => new(Round(value.x, decimals), Round(value.y, decimals));
         /// <summary> Converts an angle in degrees to a normalized direction vector. </summary>
         public static Vector2 AngleToVector(float angleDeg)
