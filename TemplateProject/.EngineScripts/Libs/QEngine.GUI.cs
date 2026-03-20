@@ -9,6 +9,7 @@ using QEngine.Mathematics;
 using QEngine.Text;
 
 using Key = QEngine.Input.Key;
+// ReSharper disable All
 
 namespace QEngine.GUI
 {
@@ -67,22 +68,37 @@ namespace QEngine.GUI
     public class Image : Component, IRenderable
     {
         public Vector2 size = new(100, 100);
-        public Sprite sprite;
+        public Sprite? sprite;
         public Color color = Color.White;
 
+        public bool isUI { get; set; } = false;
         public void Draw()
         {
+            if (transform == null) return;
             if (sprite != null)
             { QRenderer.DrawSprite(sprite, sprite.uv, transform.position, size, color.to01()); } else
             {
                 QRenderer.DrawShape(transform.position,
-                    new Vector2[] {
-                        new(-size.x / 2, -size.y / 2),
+                    [new(-size.x / 2, -size.y / 2),
                         new(size.x / 2, -size.y / 2),
                         new(size.x / 2, size.y / 2),
-                        new(-size.x / 2, size.y / 2)
-                    }, GUI.quad, color.to01());
+                        new(-size.x / 2, size.y / 2)], GUI.quad, color.to01(), isUI);
             }
+        }
+    }
+    public class LineRenderer : Component, IRenderable
+    {
+        public List<Vector2> vertexs = [new(-50, 0), new(50, 0)];
+        public float thickness = 5;
+        public Color color = Color.White;
+
+        public bool isUI { get; set; } = false;
+        public void Draw()
+        {
+            if (transform == null) return;
+            if (vertexs.Count >= 2) 
+                for (int i = 0; i < vertexs.Count - 1; i++) 
+                    QRenderer.DrawLine(transform.position + vertexs[i], transform.position + vertexs[i + 1], thickness, color.to01(), isUI);
         }
     }
     /// <summary> Component for rendering custom 2D polygons defined by vertices and indices. </summary>
@@ -102,7 +118,8 @@ namespace QEngine.GUI
         public void AddIndice(ushort indice) => indices.Add(indice);
         public void SetIndices(List<ushort> indices) => this.indices = indices;
         public void RemoveIndice(int index) => indices.RemoveAt(Math.Clamp(index, 0, vertices.Count - 1));
-        public void Draw() => QRenderer.DrawShape(transform.position,vertices.ToArray(), indices.ToArray(), color.to01());
+        public bool isUI { get; set; } = false;
+        public void Draw() { if (transform == null) return; QRenderer.DrawShape(transform.position, vertices.ToArray(), indices.ToArray(), color.to01(), isUI); }
     }
     /// <summary> 
     /// Interactive element that detects clicks and hover states. 
@@ -113,15 +130,16 @@ namespace QEngine.GUI
         public Vector2 size = new(100, 100);
         public Color color = new(255);
         
-        public Action onClick;
-        public Action onPointerEnter;
-        public Action onPointerExit;
+        public Action? onClick;
+        public Action? onPointerEnter;
+        public Action? onPointerExit;
         
         bool isOn = false;
         bool isEnter = false;
 
         public override void Update()
         {
+            if (transform == null) return;
             bool _isOn = GUI.isOnUI(transform.position, size);
             if (Input.Input.mouseLeft && _isOn && !isOn) { isOn = true; onClick?.Invoke(); }
             if (!Input.Input.mouseLeft && isOn) { isOn = false; }
@@ -130,15 +148,17 @@ namespace QEngine.GUI
             if (!_isOn && isEnter) { isEnter = false; onPointerExit?.Invoke(); }
         }
         
+        public bool isUI { get; set; } = false;
         public void Draw()
         {
+            if (transform == null) return;
             QRenderer.DrawShape(transform.position,
                 new Vector2[] {
                     new(-size.x / 2, -size.y / 2),
                     new(size.x / 2, -size.y / 2),
                     new(size.x / 2, size.y / 2),
                     new(-size.x / 2, size.y / 2)
-                }, GUI.quad, color.to01());
+                }, GUI.quad, color.to01(), isUI);
         }
     }
     /// <summary> Horizontal selector for numerical values. Supports range remapping and custom handle visuals. </summary>
@@ -151,7 +171,7 @@ namespace QEngine.GUI
         
         public int valueDecimals = 2;
         
-        public Action<float> onValueChanged;
+        public Action<float>? onValueChanged;
 
         public bool isInteractable = true, hideHandle = false;
 
@@ -173,7 +193,7 @@ namespace QEngine.GUI
         float oldValue = 0;
         public override void Update()
         {
-            if (!isInteractable) return; 
+            if (!isInteractable || transform == null) return;
             Vector2Int mp = Cursor.position;
             double mouseMin = transform.position.x - size.x / 2;
             double mouseMax = transform.position.x + size.x / 2;
@@ -183,15 +203,17 @@ namespace QEngine.GUI
             if (isHolding) { SetValue(valMouse); if (value != oldValue) 
                 { oldValue = value; onValueChanged?.Invoke(value); } }
         }
+        public bool isUI { get; set; } = false;
         public void Draw()
         {
+            if (transform == null) return;
             QRenderer.DrawShape(transform.position,
                 new Vector2[] {
                     new(-size.x / 2, -size.y / 2),
                     new(size.x / 2, -size.y / 2),
                     new(size.x / 2, size.y / 2),
                     new(-size.x / 2, size.y / 2)
-                }, GUI.quad, backgroundColor.to01());
+                }, GUI.quad, backgroundColor.to01(), isUI);
             float newX = QMath.Remap(value, minRange, maxRange, -size.x / 2, size.x / 2);
             QRenderer.DrawShape(transform.position,
                 new Vector2[] {
@@ -199,7 +221,7 @@ namespace QEngine.GUI
                     new(newX, -size.y / 2),
                     new(newX, size.y / 2),
                     new(-size.x / 2, size.y / 2)
-                }, GUI.quad, fillColor.to01());
+                }, GUI.quad, fillColor.to01(), isUI);
             if (!hideHandle)
                 QRenderer.DrawShape(transform.position,
                     new Vector2[]
@@ -208,7 +230,7 @@ namespace QEngine.GUI
                         new(newX + 5, -size.y / 2 - 5),
                         new(newX + 5, size.y / 2 + 5),
                         new(newX - 5, size.y / 2 + 5)
-                    }, GUI.quad, handleColor.to01());
+                    }, GUI.quad, handleColor.to01(), isUI);
             
         }
     }
@@ -218,7 +240,7 @@ namespace QEngine.GUI
         public Vector2 size = new(200, 30);
         public Color color = new(255);
 
-        public Font font = Assets.GetFont("Default");
+        public Font? font = Assets.GetFont("Default");
         public float fontSpace = 8;
         
         public int labelFontSize = 6;
@@ -245,6 +267,7 @@ namespace QEngine.GUI
 
         public override void Update()
         {
+            if (transform == null) return;
             bool _isOn = GUI.isOnUI(transform.position, size);
             if (Input.Input.mouseLeft && _isOn && !isOn) { isOn = true; isOpened = !isOpened; }
             if (!Input.Input.mouseLeft && _isOn && isOn) { isOn = false; }
@@ -260,16 +283,18 @@ namespace QEngine.GUI
             }
         }
         
+        public bool isUI { get; set; } = false;
         public void Draw()
         {
+            if (transform == null || font == null) return;
             QRenderer.DrawShape(transform.position,
                 new Vector2[] {
                     new(-size.x / 2, -size.y / 2),
                     new(size.x / 2, -size.y / 2),
                     new(size.x / 2, size.y / 2),
                     new(-size.x / 2, size.y / 2)
-                }, GUI.quad, color.to01());
-            QRenderer.DrawText(font, fontSpace, options[option], transform.position - new Vector2(size.x / 2 - 5, size.y / 2 - labelFontSize / 2f), labelFontSize, labelFontColor.to01());
+                }, GUI.quad, color.to01(), isUI);
+            QRenderer.DrawText(font, fontSpace, options[option], transform.position - new Vector2(size.x / 2 - 5, size.y / 2 - labelFontSize / 2f), labelFontSize, labelFontColor.to01(), isUI);
             if (isOpened)
             {
                 for (int i = 0; i < options.Count; i++)
@@ -280,8 +305,8 @@ namespace QEngine.GUI
                         new(optionSize.x / 2, -optionSize.y / 2),
                         new(optionSize.x / 2, optionSize.y / 2),
                         new(-optionSize.x / 2, optionSize.y / 2)
-                    }, GUI.quad, color.to01());
-                    QRenderer.DrawText(font, fontSpace, options[i], pos - new Vector2(optionSize.x / 2 - 5, optionSize.y / 2 - optionFontSize / 2f), optionFontSize, optionFontColor.to01());
+                    }, GUI.quad, color.to01(), isUI);
+                    QRenderer.DrawText(font, fontSpace, options[i], pos - new Vector2(optionSize.x / 2 - 5, optionSize.y / 2 - optionFontSize / 2f), optionFontSize, optionFontColor.to01(), isUI);
                 }
             }
         }
@@ -293,7 +318,7 @@ namespace QEngine.GUI
         public Color color = Color.White;
         
         public float fontSpace = 8;
-        public Font font = Assets.GetFont("Default");
+        public Font? font = Assets.GetFont("Default");
         public string text = "";
         public Color textColor = new(0);
         public int textFontSize = 6;
@@ -307,6 +332,7 @@ namespace QEngine.GUI
 
         public override void Update()
         {
+            if (transform == null) return;
             bool _isOn = GUI.isOnUI(transform.position, size);
             if (Input.Input.mouseLeft && _isOn && !isTexting) { isTexting = true; Input.Input.data = string.Empty; }
             if (Input.Input.mouseLeft && !_isOn && isTexting) { isTexting = false; }
@@ -316,17 +342,19 @@ namespace QEngine.GUI
             if (isTexting && Input.Input.data.Length > 0) { text += Input.Input.data; Input.Input.data = string.Empty; }
         }
         
+        public bool isUI { get; set; } = false;
         public void Draw()
         {
+            if (transform == null || font == null) return;
             QRenderer.DrawShape(transform.position,
                 new Vector2[] {
                     new(-size.x / 2, -size.y / 2),
                     new(size.x / 2, -size.y / 2),
                     new(size.x / 2, size.y / 2),
                     new(-size.x / 2, size.y / 2)
-                }, GUI.quad, color.to01());
-            if (text.Length > 0) QRenderer.DrawText(font, fontSpace, text, transform.position - new Vector2(size.x / 2 - 5, size.y / 2 - textFontSize / 2f), textFontSize, textColor.to01());
-            else QRenderer.DrawText(font, fontSpace, labelText, transform.position - new Vector2(size.x / 2 - 5, size.y / 2 - labelFontSize / 2f), labelFontSize, labelTextColor.to01());
+                }, GUI.quad, color.to01(), isUI);
+            if (text.Length > 0) QRenderer.DrawText(font, fontSpace, text, transform.position - new Vector2(size.x / 2 - 5, size.y / 2 - textFontSize / 2f), textFontSize, textColor.to01(), isUI);
+            else QRenderer.DrawText(font, fontSpace, labelText, transform.position - new Vector2(size.x / 2 - 5, size.y / 2 - labelFontSize / 2f), labelFontSize, labelTextColor.to01(), isUI);
         }
     }
 
@@ -513,7 +541,8 @@ namespace QEngine.GUI
             return QMath.Lerp(from, to, localT);
         }
 
-        public void Draw() { foreach (var p in particles) { QRenderer.DrawShape(transform.position + p.position, p.size, p.color.to01()); } }
+        public bool isUI { get; set; } = false;
+        public void Draw() { if (transform == null) return; foreach (var p in particles) { QRenderer.DrawBox(transform.position + p.position, p.size, p.color.to01(), isUI); } }
     }
     #endregion
     #endregion

@@ -10,6 +10,7 @@ using QEngine.Input;
 using Veldrid;
 using Veldrid.StartupUtilities;
 using Veldrid.Sdl2;
+// ReSharper disable All
 
 /// <summary>
 /// Global game state manager. 
@@ -21,7 +22,7 @@ public static class Game
     public static void Init(Sdl2Window window) { if (win == null) win = window; }
     
     /// <summary> The title displayed on the window title bar. </summary>
-    public static string title = "QEngine 0.3.0 Game";
+    public static string title = "QEngine Project";
     
     /// <summary> 
     /// The current rendering resolution of the game. 
@@ -45,21 +46,21 @@ public static class Game
     /// <param name="Width">Horizontal pixels.</param>
     /// <param name="Height">Vertical pixels.</param>
     public static void SetResolution(int Width, int Height) { resolution = new(Width, Height); updateResolution(); }
-    static void updateResolution() { win.Width = resolution.x; win.Height = resolution.y; }
+    static void updateResolution() { if (win == null) return; win.Width = resolution.x; win.Height = resolution.y; }
     
     /// <summary> Gracefully closes the application and releases window resources. </summary>
-    public static void Quit() { Console.WriteLine("Closing app..."); win?.Close(); }
+    public static void Quit() { Logger.Log("Closing app..."); win?.Close(); }
 }
 
 static class Core
 {
-    static Stopwatch stopwatch = new();
-    static double lastTime;
-
+    static readonly Stopwatch stopwatch = new();
+    static double fixedTime;
+    static float time = 0;
     static void Main()
     {
         Console.Clear();
-        Console.WriteLine("Starting app...");
+        Logger.Log("Starting app...");
         // Add Main Scene to SceneManager
         SceneManager.AddScene("Main", new MainScene());
         
@@ -92,7 +93,6 @@ static class Core
         SceneManager.GoToScene("Main");
 
         stopwatch.Start();
-        lastTime = stopwatch.Elapsed.TotalSeconds;
         window.Resized += () => { Game.SetResolution(window.Width, window.Height); };
         
         while (window.Exists)
@@ -108,23 +108,31 @@ static class Core
             if (window.Resizable != Game.resizable) { window.Resizable = Game.resizable; }
             
             if (window.CursorVisible != Cursor.isVisible) { window.CursorVisible = Cursor.isVisible; }
-            //Camera
-            Camera.ScreenSize = new Vector2(window.Width, window.Height);
+            
             //Delta time
-            double current = stopwatch.Elapsed.TotalSeconds;
-            float dt = (float)(current - lastTime);
-            lastTime = current;
+            float frameTime = (float)stopwatch.Elapsed.TotalSeconds;
+            stopwatch.Restart();
+            
+            Time.deltaTime = frameTime;
+            time += frameTime; Time.time = time;
+            fixedTime += frameTime;
+            while (fixedTime > Time.fixedDeltaTime)
+            {
+                QEngine.Physics.Physics.Step();
+                SceneManager.actualScene?.FixedUpdate();
+                fixedTime -= Time.fixedDeltaTime;
+            }
+            
             QRenderer.Begin();
-            Update(dt);
+            Update();
             QRenderer.End();
             Input.data = string.Empty;
         }
         gd.WaitForIdle();
         gd.Dispose();
     }
-    static void Update(float deltaTime)
+    static void Update()
     {
-        Time.deltaTime = deltaTime;
         if (SceneManager.actualScene != null)
         {
             SceneManager.actualScene.Update();
@@ -137,36 +145,47 @@ static class Core
 /// <summary> Provides coordinate transformation utilities between pixel space and Normalized Device Coordinates (NDC). </summary>
 public static class Camera
 {
-    /// <summary> Current dimensions of the viewport used for coordinate calculations. </summary>
-    public static Vector2 ScreenSize = new(Game.resolution.x, Game.resolution.y);
-    
-    /// <summary> Converts a world pixel position (e.g., 1280x720) to NDC space (-1.0 to 1.0). </summary>
-    /// <param name="worldPixelPos">The position in pixels.</param>
-    /// <returns>A <see cref="Vector2"/> representing the position in Vulkan/Veldrid clip space.</returns>
-    public static Vector2 PixelToNDC(Vector2 worldPixelPos)
+    public static Vector2 position = new();
+    public static float Zoom = 1.0f; // Zmień na 1.0f jako domyślny
+
+    /// <summary> 
+    /// WORLD SPACE: Converts world pixels to NDC, accounting for Camera Position and Zoom.
+    /// Use this for players, enemies, and map objects.
+    /// </summary>
+    public static Vector2 WorldToNDC(Vector2 worldPos)
     {
-        float x = worldPixelPos.x / (ScreenSize.x / 2f);
-        float y = worldPixelPos.y / (ScreenSize.y / 2f);
-        return new Vector2(x, -y);
+        Vector2 viewPos = (worldPos - position) * Zoom;
+        return new Vector2(
+            viewPos.x / (Game.resolution.x / 2f), 
+            -(viewPos.y / (Game.resolution.y / 2f)) // Minus dla poprawnego Y w Veldrid
+        );
     }
+
+    /// <summary> 
+    /// SCREEN SPACE: Converts pixels directly to NDC, ignoring Camera.
+    /// Use this for UI, HUD, and Menus.
+    /// </summary>
+    public static Vector2 ScreenToNDC(Vector2 screenPos) => new Vector2(screenPos.x / (Game.resolution.x / 2f), -(screenPos.y / (Game.resolution.y / 2f)));
     
-    /// <summary> Scales a pixel-based size to its equivalent relative size in NDC space. </summary>
-    /// <param name="pixelSize">Width and height in pixels.</param>
-    /// <returns>Scale factor relative to the screen size.</returns>
-    public static Vector2 SizeToNDC(Vector2 pixelSize)
-        => new(pixelSize.x / (ScreenSize.x / 2f), pixelSize.y / (ScreenSize.y / 2f));
+    /// <summary> Scales size for the world (with zoom). </summary>
+    public static Vector2 WorldSizeToNDC(Vector2 pixelSize) => new((pixelSize.x * Zoom) / (Game.resolution.x / 2f), (pixelSize.y * Zoom) / (Game.resolution.y / 2f));
+    /// <summary> Scales size for UI (constant size). </summary>
+    public static Vector2 ScreenSizeToNDC(Vector2 pixelSize) => new(pixelSize.x / (Game.resolution.x / 2f), pixelSize.y / (Game.resolution.y / 2f));
 }
 
-/// <summary>
-/// Static utility class providing time measurements from the engine's core.
+/// <summary> 
+/// Global time management class. 
+/// Provides delta time for frame-dependent logic, fixed delta time for physics, 
+/// and tracks total elapsed time since the game started.
 /// </summary>
 public static class Time
 {
-    /// <summary> 
-    /// The completion time of the last frame in seconds (e.g., 0.016 for 60 FPS).
-    /// Use this to make movement and animations frame-rate independent.
-    /// </summary>
+    /// <summary> The completion time of the last frame in seconds. </summary>
     public static float deltaTime = 0;
+    /// <summary> The total time in seconds since the start of the game. </summary>
+    public static float time = 0;
+    /// <summary> The fixed interval for physics updates (default: 0.02s = 50Hz). </summary>
+    public static float fixedDeltaTime { get; private set; } = 0.02f;
 }
 
 /// <summary>
@@ -187,7 +206,7 @@ public static class SceneManager
         scene.name = name;
         if (!scenes.ContainsKey(name))
         {
-            Console.WriteLine($"Adding scene '{name}'");
+            Logger.Log($"Adding scene '{name}'");
             scenes.Add(name, scene);
         }
     }
@@ -198,5 +217,30 @@ public static class SceneManager
     /// </summary>
     /// <param name="name">The identifier of the scene to load.</param>
     public static void GoToScene(string name) 
-    { if (scenes.TryGetValue(name, out var scene)) { actualScene = scene; Console.WriteLine($"Going to '{name}' scene..."); actualScene.Clear(); actualScene.Init(); } }
+    { if (scenes.TryGetValue(name, out var scene)) { actualScene = scene; Logger.Log($"Going to '{name}' scene..."); actualScene.Clear(); actualScene.Init(); } }
+}
+
+/// <summary>
+/// Static utility class for logging messages to the system console with color support.
+/// </summary>
+public static class Logger
+{
+    /// <summary> Logs a standard diagnostic message in gray color. </summary>
+    /// <param name="message">The message to log. Any object will be converted to a string.</param>
+    public static void Log(object message) => printClr($"[QE LOG]: {message}.\n", ConsoleColor.Gray);
+
+    /// <summary> Logs a warning message in yellow color. Used for signaling unexpected but non-critical issues. </summary>
+    /// <param name="message">The warning content.</param>
+    public static void Warning(object message) => printClr($"[QE WARNING]: {message}\n", ConsoleColor.Yellow);
+
+    /// <summary> Logs an error message in dark red color. Used for critical failures and exceptions. </summary>
+    /// <param name="message">The error details.</param>
+    public static void Error(object message) => printClr($"[QE ERROR]: {message}!\n", ConsoleColor.DarkRed);
+
+    static void printClr(string msg, ConsoleColor color = ConsoleColor.White)
+    {
+        Console.ForegroundColor = color;
+        Console.Write(msg);
+        Console.ResetColor();
+    }
 }

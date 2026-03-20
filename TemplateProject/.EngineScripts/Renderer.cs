@@ -14,6 +14,7 @@ using Veldrid;
 using Veldrid.SPIRV;
 
 using Image = SixLabors.ImageSharp.Image;
+// ReSharper disable All
 
 struct Vertex
 {
@@ -48,10 +49,10 @@ namespace QEngine.Dev.Renderer
 {
     public static class Atlas
     {
-    public static Texture atlasTexture;
-    public static TextureView atlasView;
+    public static Texture? atlasTexture;
+    public static TextureView? atlasView;
     
-        static byte[] pixels;
+        static byte[]? pixels;
         static Vector2Int size = new();
         static Vector2Int cursor = new();
         static int rowHeight = 0;
@@ -144,6 +145,7 @@ namespace QEngine.Dev.Renderer
         public Vector2[] localPositions;
         public ushort[] indices;
         public Vector4 color;
+        public bool isUI;
     }
     public struct BatchedSprite
     {
@@ -152,24 +154,25 @@ namespace QEngine.Dev.Renderer
         public Vector2 position;
         public Vector2 size;
         public Vector4 color;
+        public bool isUI;
     }
 
     // ================= RENDERER =================
     public static class QRenderer
     {
-        static GraphicsDevice gd;
-        static CommandList cl;
+        static GraphicsDevice? gd;
+        static CommandList? cl;
 
-        static Pipeline shapePipeline;
-        static Pipeline spritePipeline;
+        static Pipeline? shapePipeline;
+        static Pipeline? spritePipeline;
 
-        static DeviceBuffer shapeVB;
-        static DeviceBuffer shapeIB;
+        static DeviceBuffer? shapeVB;
+        static DeviceBuffer? shapeIB;
 
-        static DeviceBuffer spriteVB;
-        static DeviceBuffer spriteIB;
+        static DeviceBuffer? spriteVB;
+        static DeviceBuffer? spriteIB;
 
-        static Sampler sampler;
+        static Sampler? sampler;
 
         static List<BatchedShape> shapesThisFrame = new();
         static List<BatchedSprite> spritesThisFrame = new();
@@ -258,9 +261,9 @@ namespace QEngine.Dev.Renderer
 
         public static void Begin()
         {
-            cl.Begin();
-            cl.SetFramebuffer(gd.SwapchainFramebuffer);
-            cl.ClearColorTarget(0, Game.background.toRgba());
+            cl?.Begin();
+            cl?.SetFramebuffer(gd?.SwapchainFramebuffer);
+            cl?.ClearColorTarget(0, Game.background.toRgba());
 
             shapesThisFrame.Clear();
             spritesThisFrame.Clear();
@@ -271,9 +274,9 @@ namespace QEngine.Dev.Renderer
             FlushShapes();
             FlushSprites();
 
-            cl.End();
-            gd.SubmitCommands(cl);
-            gd.SwapBuffers();
+            cl?.End();
+            gd?.SubmitCommands(cl);
+            gd?.SwapBuffers();
         }
         public static void CreateAtlasSampler(GraphicsDevice gd)
         {
@@ -283,41 +286,48 @@ namespace QEngine.Dev.Renderer
                 0, 0, 0, 0,
                 SamplerBorderColor.OpaqueBlack));
         }
-        static ResourceLayout atlasLayout;
-        static ResourceSet atlasSet;
+        static ResourceLayout? atlasLayout;
+        static ResourceSet? atlasSet;
         public static void CreateAtlasResourceSet(GraphicsDevice gd)
         => atlasSet = gd.ResourceFactory.CreateResourceSet(new ResourceSetDescription(atlasLayout, 
             sampler, Atlas.atlasView));
         // ================= API =================
-        public static void DrawShape(Vector2 center, Vector2[] verts, ushort[] inds, Vector4 color)
+        public static void DrawShape(Vector2 center, Vector2[] verts, ushort[] inds, Vector4 color, bool isUI = false)
         {
             shapesThisFrame.Add(new BatchedShape
             {
                 pixelCenter = center,
                 localPositions = verts,
                 indices = inds,
-                color = color
+                color = color,
+                isUI = isUI
             });
         }
+        
         static ushort[] quad = { 0, 1, 2, 0, 2, 3 };
-        public static void DrawShape(Vector2 center, float scale, Vector4 color)
+        public static void DrawLine(Vector2 a, Vector2 b, float thickness, Vector4 color, bool isUI = false)
         {
-            shapesThisFrame.Add(new BatchedShape
-            {
-                pixelCenter = center,
-                localPositions = new[]
-                {
-                    new Vector2(-scale, -scale) / 2,
-                    new Vector2(scale, -scale) / 2,
-                    new Vector2(scale, scale) / 2,
-                    new Vector2(-scale, scale) / 2
-                },
-                indices = quad,
-                color = color
-            });
+            float length = Vector2.Distance(a, b);
+            if (length <= 0) return;
+            Vector2 dir = new(b.x - a.x, b.y - a.y), perp = new Vector2(-dir.y / length, dir.x / length) * (thickness * 0.5f),
+                p1 = perp, p2 = dir + perp, p3 = dir - perp, p4 = -perp;
+            DrawShape(a, [p1, p2, p3, p4], quad, color, isUI);
+        }
+        public static void DrawBox(Vector2 center, float size, Vector4 color, bool isUI = false)
+            => DrawShape(center, [new Vector2(-size, -size) / 2, new Vector2(size, -size) / 2, new Vector2(size, size) / 2, new Vector2(-size, size) / 2], quad, color, isUI); 
+        public static void DrawBox(Vector2 center, Vector2 size, Vector4 color, bool isUI = false)
+            => DrawShape(center, [new Vector2(-size.x, -size.y) / 2, new Vector2(size.x, -size.y) / 2, size / 2, new Vector2(-size.x, size.y) / 2], quad, color, isUI);
+
+        public static void DrawWireBox(Vector2 center, Vector2 size, float thickness, Vector4 color, bool isUI = false)
+        {
+            Vector2 a = new(center.x - size.x / 2, center.y + size.y / 2), b = new(center.x + size.x / 2, center.y + size.y / 2),
+                c = new(center.x - size.x / 2, center.y - size.y / 2), d = new(center.x + size.x / 2, center.y - size.y / 2);
+            DrawLine(a, b, thickness, color, isUI); DrawLine(b, d, thickness, color, isUI);
+            DrawLine(d, c, thickness, color, isUI); DrawLine(c, a, thickness, color, isUI);
+            DrawLine(a, d, thickness, color, isUI); DrawLine(b, c, thickness, color, isUI);
         }
 
-        public static void DrawSprite(Sprite sprite, Vector4 uv, Vector2 pos, Vector2 size, Vector4 color)
+        public static void DrawSprite(Sprite sprite, Vector4 uv, Vector2 pos, Vector2 size, Vector4 color, bool isUI = false)
         {
             spritesThisFrame.Add(new BatchedSprite
             {
@@ -325,11 +335,12 @@ namespace QEngine.Dev.Renderer
                 uv = uv,
                 position = pos,
                 size = size,
-                color = color
+                color = color,
+                isUI = isUI
             });
         }
         
-        public static void DrawText(Font font, float space, string text, Vector2 position, int fontSize, Vector4 color)
+        public static void DrawText(Font font, float space, string text, Vector2 position, int fontSize, Vector4 color, bool isUI = false)
         {
             float scale = fontSize / font.defaultFontSize;
             Vector2 cursor = new();
@@ -354,13 +365,13 @@ namespace QEngine.Dev.Renderer
                     font.texture,
                     new Vector4(g.uvMin.x, g.uvMin.y, g.uvMax.x, g.uvMax.y),
                     position + cursor + new Vector2(g.thick * scale, size.y) / 2,
-                    size, color
+                    size, color, isUI
                 );
                 cursor.x += space + g.thick * scale;
             }
         }
-        static DeviceBuffer EnsureBuffer(
-            DeviceBuffer buffer,
+        static DeviceBuffer? EnsureBuffer(
+            DeviceBuffer? buffer,
             uint requiredBytes,
             BufferUsage usage)
         {
@@ -370,7 +381,7 @@ namespace QEngine.Dev.Renderer
 
                 uint newSize = Math.Max(requiredBytes, requiredBytes * 2);
 
-                buffer = gd.ResourceFactory.CreateBuffer(
+                buffer = gd?.ResourceFactory.CreateBuffer(
                     new BufferDescription(newSize, usage));
             }
             return buffer;
@@ -409,21 +420,22 @@ namespace QEngine.Dev.Renderer
             foreach (var s in shapesThisFrame)
             {
                 ushort baseIndex = (ushort)v.Count;
-
                 foreach (var p in s.localPositions)
-                    v.Add(new Vertex(Camera.PixelToNDC(s.pixelCenter + p), s.color));
-
-                foreach (var idx in s.indices)
-                    i.Add((ushort)(idx + baseIndex));
+                {
+                    Vector2 pos = s.pixelCenter + p;
+                    Vector2 finalNDC = s.isUI ? Camera.ScreenToNDC(pos) : Camera.WorldToNDC(pos);
+                    v.Add(new Vertex(finalNDC, s.color));
+                }
+                foreach (var idx in s.indices) i.Add((ushort)(idx + baseIndex));
             }
 
-            gd.UpdateBuffer(shapeVB, 0, v.ToArray());
-            gd.UpdateBuffer(shapeIB, 0, i.ToArray());
+            gd?.UpdateBuffer(shapeVB, 0, v.ToArray());
+            gd?.UpdateBuffer(shapeIB, 0, i.ToArray());
 
-            cl.SetPipeline(shapePipeline);
-            cl.SetVertexBuffer(0, shapeVB);
-            cl.SetIndexBuffer(shapeIB, IndexFormat.UInt16);
-            cl.DrawIndexed((uint)i.Count, 1, 0, 0, 0);
+            cl?.SetPipeline(shapePipeline);
+            cl?.SetVertexBuffer(0, shapeVB);
+            cl?.SetIndexBuffer(shapeIB, IndexFormat.UInt16);
+            cl?.DrawIndexed((uint)i.Count, 1, 0, 0, 0);
         }
 
         static void FlushSprites()
@@ -452,22 +464,22 @@ namespace QEngine.Dev.Renderer
             foreach (var s in spritesThisFrame)
                 WriteQuad(verts, indices, ref vo, ref io, s);
 
-            gd.UpdateBuffer(spriteVB, 0, verts);
-            gd.UpdateBuffer(spriteIB, 0, indices);
+            gd?.UpdateBuffer(spriteVB, 0, verts);
+            gd?.UpdateBuffer(spriteIB, 0, indices);
 
-            cl.SetPipeline(spritePipeline);
-            cl.SetVertexBuffer(0, spriteVB);
-            cl.SetIndexBuffer(spriteIB, IndexFormat.UInt16);
-            cl.SetGraphicsResourceSet(0, atlasSet);
-            cl.DrawIndexed((uint)indices.Length, 1, 0, 0, 0);
+            cl?.SetPipeline(spritePipeline);
+            cl?.SetVertexBuffer(0, spriteVB);
+            cl?.SetIndexBuffer(spriteIB, IndexFormat.UInt16);
+            cl?.SetGraphicsResourceSet(0, atlasSet);
+            cl?.DrawIndexed((uint)indices.Length, 1, 0, 0, 0);
 
             spritesThisFrame.Clear();
         }
 
         static void WriteQuad(SpriteVertex[] v, ushort[] i, ref int vo, ref int io, BatchedSprite s)
         {
-            Vector2 c = Camera.PixelToNDC(s.position);
-            Vector2 h = Camera.SizeToNDC(s.size) * 0.5f;
+            Vector2 c = s.isUI ? Camera.ScreenToNDC(s.position) : Camera.WorldToNDC(s.position);
+            Vector2 h = s.isUI ? Camera.ScreenSizeToNDC(s.size) * 0.5f : Camera.WorldSizeToNDC(s.size) * 0.5f;
 
             v[vo + 0] = new(c + new Vector2(-h.x, -h.y), new(s.uv.x, s.uv.y), s.color);
             v[vo + 1] = new(c + new Vector2(+h.x, -h.y), new(s.uv.z, s.uv.y), s.color);

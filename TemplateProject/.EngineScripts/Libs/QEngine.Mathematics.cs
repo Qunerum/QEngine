@@ -1,5 +1,6 @@
 using System;
 using QEngine.GUI;
+// ReSharper disable All
 
 namespace QEngine.Mathematics
 {

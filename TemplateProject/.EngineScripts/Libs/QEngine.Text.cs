@@ -62,16 +62,17 @@ namespace QEngine.Text
     {
         public string text = "Text...";
         public Font? font = Assets.GetFont("Default");
-        public int fontSize = 16;
+        public int fontSize = 4;
         /// <summary> Horizontal spacing multiplier between characters. </summary>
         public float space = 8;
-        public Color color = new(255);
+        public Color color = new(0);
         public Vector2 preferedSize = new();
-        /// <summary> Renders the string to the screen via QRenderer. </summary>
+        
+        public bool isUI { get; set; } = false;
         public void Draw()
         {
             if (font == null || font.texture == null || font.texture.pixels == null || font.texture.pixels.Length <= 0) return;
-            QRenderer.DrawText(font, space, text, transform.position, fontSize, color.to01());
+            QRenderer.DrawText(font, space, text, transform.position, fontSize, color.to01(), isUI);
         }
     }
 }

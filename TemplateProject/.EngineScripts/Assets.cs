@@ -10,6 +10,7 @@ using QEngine.Dev.Renderer;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp;
 using Image = SixLabors.ImageSharp.Image;
+// ReSharper disable All
 
 namespace QEngine;
 
@@ -32,7 +33,7 @@ public static class Assets
     /// <param name="name">The name of the sprite (usually the filename without extension).</param>
     /// <returns> The requested <see cref="Sprite"/> object if found; otherwise, <see langword="null"/>. </returns>
     /// <example> <code> Sprite player = Assets.GetSprite("player_idle"); </code> </example>
-    public static Sprite GetSprite(string name)
+    public static Sprite? GetSprite(string name)
         => _sprites.TryGetValue(name, out Sprite? s) ? s : null;
     
     /// <summary> Retrieves a loaded <see cref="Font"/> from the internal dictionary. </summary>
@@ -56,12 +57,12 @@ public static class Assets
     {
         if (summared) return;
         summared = true;
-        Console.WriteLine("< = = = > Initalized Sprites < = = = >");
+        Logger.Log("< = = = > Initalized Sprites < = = = >");
         foreach (var s in _sprites)
-            Console.WriteLine($"> Sprite: {s.Key} with size {s.Value.Width}x{s.Value.Height}");
-        Console.WriteLine("< = = = > Initalized Fonts < = = = >");
+            Logger.Log($"> Sprite: {s.Key} with size {s.Value.Width}x{s.Value.Height}");
+        Logger.Log("< = = = > Initalized Fonts < = = = >");
         foreach (var f in _fonts)
-            Console.WriteLine($"> Font: '{f.Key}' with {f.Value.glyphs.Count} glyphs");
+            Logger.Log($"> Font: '{f.Key}' with {f.Value.glyphs.Count} glyphs");
     }
     static bool calcFont = false;
     public static void CalculateFonts(Vector2Int size)
@@ -82,7 +83,7 @@ public static class Assets
         img.CopyPixelDataTo(pixels);
         Sprite s = new Sprite(img.Width, img.Height, pixels);
         _sprites.Add(Path.GetFileNameWithoutExtension(fpath), s);
-        Console.WriteLine($"Sprite init '{Path.GetFileNameWithoutExtension(fpath)}'");
+        Logger.Log($"Sprite init '{Path.GetFileNameWithoutExtension(fpath)}'");
         Atlas.AddImage(s);
     }
     static Sprite ReadSprite(string path, bool fromAssets = true)
@@ -114,7 +115,7 @@ public static class Assets
                 charSize = s,
                 defaultFontSize = dfs
             };
-            Console.WriteLine($"Font '{name}' created with {f.glyphs.Count} glyphs");
+            Logger.Log($"Font '{name}' created with {f.glyphs.Count} glyphs");
             _fonts.Add(name, f);
         }
     }

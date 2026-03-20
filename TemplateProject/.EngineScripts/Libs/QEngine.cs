@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+// ReSharper disable All
 
 namespace QEngine
 {
@@ -30,8 +31,20 @@ namespace QEngine
         public static Vector2 operator /(Vector2 a, float b) => new(a.x / b, a.y / b);
         public static bool operator ==(Vector2 a, Vector2 b) => a.x == b.x && a.y == b.y;
         public static bool operator !=(Vector2 a, Vector2 b) => a.x != b.x && a.y != b.y;
+        
+        public static Vector2 operator -(Vector2 v) => new(-v.x, -v.y);
         public override bool Equals(object? obj) => obj is Vector2 v && this == v;
         public override int GetHashCode() => HashCode.Combine(x, y);
+        
+        public static float Distance(Vector2 a, Vector2 b)
+        {
+            float diffX = a.x - b.x, diffY = a.y - b.y;
+            return MathF.Sqrt(diffX * diffX + diffY * diffY);
+        }
+        public static Vector3 toVector3(Vector2 vector) => new(vector.x, vector.y, 0);
+        public Vector3 toVector3() => new(x, y, 0);
+        public static Vector4 toVector4(Vector2 vector) => new(vector.x, vector.y, 0, 0);
+        public Vector4 toVector4() => new(x, y, 0, 0);
     }
     /// <summary> Represents a 2D vector using integer precision. Ideal for grid coordinates and screen resolutions. </summary>
     public struct Vector2Int
@@ -59,6 +72,17 @@ namespace QEngine
         public static bool operator !=(Vector2Int a, Vector2Int b) => a.x != b.x && a.y != b.y;
         public override bool Equals(object? obj) => obj is Vector2Int v && this == v;
         public override int GetHashCode() => HashCode.Combine(x, y);
+        
+        public static float Distance(Vector2Int a, Vector2Int b)
+        {
+            float diffX = a.x - b.x, diffY = a.y - b.y;
+            return MathF.Sqrt(diffX * diffX + diffY * diffY);
+        }
+        
+        public static Vector3Int toVector3Int(Vector2Int vector) => new(vector.x, vector.y, 0);
+        public Vector3Int toVector3Int() => new(x, y, 0);
+        public static Vector4Int toVector4Int(Vector2Int vector) => new(vector.x, vector.y, 0, 0);
+        public Vector4Int toVector4Int() => new(x, y, 0, 0);
     }
     public struct Vector3
     {
@@ -85,6 +109,15 @@ namespace QEngine
         public static bool operator !=(Vector3 a, Vector3 b) => a.x != b.x && a.y != b.y && a.z != b.z;
         public override bool Equals(object? obj) => obj is Vector3 v && this == v;
         public override int GetHashCode() => HashCode.Combine(x, y, z);
+        
+        public static float Distance(Vector3 a, Vector3 b)
+        {
+            float dx = a.x - b.x, dy = a.y - b.y, dz = a.z - b.z;
+            return MathF.Sqrt(dx * dx + dy * dy + dz * dz);
+        }
+
+        public static Vector4 toVector4(Vector3 vector) => new(vector.x, vector.y, vector.z, 0);
+        public Vector4 toVector4() => new(x, y, z, 0);
     }
     public struct Vector3Int
     {
@@ -110,6 +143,15 @@ namespace QEngine
         public static bool operator !=(Vector3Int a, Vector3Int b) => a.x != b.x && a.y != b.y && a.z != b.z;
         public override bool Equals(object? obj) => obj is Vector3Int v && this == v;
         public override int GetHashCode() => HashCode.Combine(x, y, z);
+        
+        public static float Distance(Vector3Int a, Vector3Int b)
+        {
+            float dx = a.x - b.x, dy = a.y - b.y, dz = a.z - b.z;
+            return MathF.Sqrt(dx * dx + dy * dy + dz * dz);
+        }
+        
+        public static Vector4Int toVector4Int(Vector3Int vector) => new(vector.x, vector.y, vector.z, 0);
+        public Vector4Int toVector4Int() => new(x, y, z, 0);
     }
     public struct Vector4
     {
@@ -171,13 +213,13 @@ namespace QEngine
     /// Defines the position, rotation, and scale of an object in 2D space. 
     /// Every GameObject has a Transform attached by default.
     /// </summary>
-    public class Transform
+    public class Transform2D
     {
         /// <summary> The world space position of the GameObject in 2D. </summary>
         public Vector2 position = new();
         //public float rotation = 0;
     }
-    public class Transform3D
+    public class Transform
     {
         /// <summary> The world space position of the GameObject in 3D. </summary>
         public Vector3 position = new();
@@ -193,12 +235,10 @@ namespace QEngine
     public class QEScene
     {
         /// <summary> The display name of the scene. </summary>
-        public string name;
+        public string name = "QE Scene";
         readonly List<GameObject> _objects = new();
-        /// <summary> The position of the viewport/camera in the world. </summary>
-        public Vector3 cameraPosition = new();
-        public void AddGameObject(GameObject obj) { Console.WriteLine($"Adding GameObject '{obj.name}'"); _objects.Add(obj); }
-        public List<GameObject> GetObjects() => _objects;
+        public void AddGameObject(GameObject obj) { Logger.Log($"Adding GameObject '{obj.name}'"); _objects.Add(obj); }
+        public GameObject[] GetObjects() => _objects.ToArray();
         public void Clear() => _objects.Clear();
         public GameObject? GetGameObject(string name) =>_objects.FirstOrDefault(o => o.name == name);
         
@@ -206,6 +246,7 @@ namespace QEngine
         public virtual void Init() {}
         /// <summary> Propagates the update call to all GameObjects in the scene. </summary>
         public void Update() { foreach (var obj in _objects) obj.Update(); }
+        public void FixedUpdate() { foreach (var obj in _objects) obj.FixedUpdate(); }
     }
     /// <summary> 
     /// The fundamental object in the QEngine. 
@@ -216,7 +257,7 @@ namespace QEngine
         /// <summary> The identification name of the object. </summary>
         public string name = "";
         /// <summary> Shortcut to the Transform component for positioning. </summary>
-        public Transform transform = new();
+        public Transform2D transform = new();
         readonly List<Component> _components = new();
         
         public GameObject(string name = "") { this.name = name; SceneManager.actualScene?.AddGameObject(this); }
@@ -225,14 +266,14 @@ namespace QEngine
         /// Adds a component of type <typeparamref name="T"/> to the GameObject. 
         /// If the component already exists, it returns the existing one.
         /// </summary>
-        public T AddComponent<T>() where T : Component, new()
+        public T? AddComponent<T>() where T : Component, new()
         {
             var c = new T { gameObject = this, transform = transform };
             if (!_components.Contains(c))
             {
                 _components.Add(c);
                 c.Init();
-                Console.WriteLine($"Adding component '{c}' to '{name}'");
+                Logger.Log($"Adding component '{c}' to '{name}'");
                 return c;
             } else { return GetComponent<T>(); }
         }
@@ -248,6 +289,7 @@ namespace QEngine
         }
         
         internal void Update() { foreach (var c in _components) c.Update(); }
+        internal void FixedUpdate() { foreach (var c in _components) c.FixedUpdate(); }
     }
     /// <summary> 
     /// Base class for everything attached to GameObjects. 
@@ -256,15 +298,21 @@ namespace QEngine
     public class Component
     {
         /// <summary> The GameObject this component is attached to. </summary>
-        public GameObject gameObject { get; internal set; } = null;
+        public GameObject? gameObject { get; internal set; } = null;
         /// <summary> The Transform of the associated GameObject. </summary>
-        public Transform transform { get; internal set; } = null;
+        public Transform2D? transform { get; internal set; } = null;
         public virtual void Init() {}
         public virtual void Update() {}
+        public virtual void FixedUpdate() {}
     }
     /// <summary> Interface for components that can be drawn on the screen. </summary>
     public interface IRenderable
     {
+        /// <summary> 
+        /// If true, the object is rendered in Screen Space (ignores Camera position and zoom). 
+        /// Useful for HUD, menus, and UI elements.
+        /// </summary>
+        bool isUI { get; set; }
         /// <summary> Called during the rendering phase. </summary>
         void Draw();
     }
