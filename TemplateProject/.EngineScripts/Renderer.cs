@@ -2,7 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
-
+using System.Numerics;
+using System.Runtime.InteropServices;
 using QEngine;
 using QEngine.GUI;
 using QEngine.Text;
@@ -14,7 +15,34 @@ using Veldrid;
 using Veldrid.SPIRV;
 
 using Image = SixLabors.ImageSharp.Image;
+using Vector2 = QEngine.Vector2;
+using Vector3 = QEngine.Vector3;
+using Vector4 = QEngine.Vector4;
 // ReSharper disable All
+
+struct SceneMatrices
+{
+    public Matrix4x4 Projection;
+    public Matrix4x4 View;
+    public System.Numerics.Vector3 LightDir;
+    private float _padding;
+}
+
+struct ObjectMatrices { public Matrix4x4 Model; }
+public struct Vertex3D
+{
+    public Vector3 Position;
+    public Vector3 Normal;
+    public Vector4 Color;
+
+    public Vertex3D(Vector3 pos, Vector3 norm, Vector4 col)
+    {
+        Position = pos;
+        Normal = norm;
+        Color = col;
+    }
+    public static uint SizeInBytes => 40; 
+}
 
 struct Vertex
 {
@@ -158,15 +186,24 @@ namespace QEngine.Dev.Renderer
         public Vector4 color;
         public bool isUI;
     }
+    struct BatchedGeometry
+    {
+        public Vector3 center;
+        public Vector3[] Positions;
+        public ushort[] Indices;
+        public Vector4 Color;
+    }
 
     // ================= RENDERER =================
     public static class QRenderer
     {
         static GraphicsDevice? gd;
         static CommandList? cl;
+        static ResourceFactory? factory;
 
         static Pipeline? shapePipeline;
         static Pipeline? spritePipeline;
+        static Pipeline? pipeline3D;
 
         static DeviceBuffer? shapeVB;
         static DeviceBuffer? shapeIB;
@@ -175,14 +212,23 @@ namespace QEngine.Dev.Renderer
         static DeviceBuffer? spriteIB;
 
         static Sampler? sampler;
-
+        
+        static DeviceBuffer? _testVB;
+        
+        static DeviceBuffer? _sceneBuffer;
+        static DeviceBuffer? _modelBuffer;
+        static ResourceSet? _sceneSet;
+        static ResourceSet? _modelSet;
+        
         static List<BatchedShape> shapesThisFrame = new();
         static List<BatchedSprite> spritesThisFrame = new();
+        static List<BatchedGeometry> geometryThisFrame = new();
 
         // ================= INIT =================
         public static void Init(GraphicsDevice device)
         {
             gd = device;
+            factory = gd.ResourceFactory;
             cl = gd.ResourceFactory.CreateCommandList();
 
             shapeVB = gd.ResourceFactory.CreateBuffer(
@@ -210,6 +256,53 @@ namespace QEngine.Dev.Renderer
                     new ResourceLayoutElementDescription("myTexture", ResourceKind.TextureReadOnly, ShaderStages.Fragment)
                 ));
 
+            // -------- 3D PIPELINE --------
+            // 1. Shadery
+            var shader3D = factory.CreateFromSpirv(
+                new ShaderDescription(ShaderStages.Vertex, Encoding.UTF8.GetBytes(Shader3DVS), "main"),
+                new ShaderDescription(ShaderStages.Fragment, Encoding.UTF8.GetBytes(Shader3DFS), "main"));
+
+            // 2. BUFORY I LAYOUTY (Tego brakowało!)
+            _sceneBuffer = factory.CreateBuffer(new BufferDescription(
+                (uint)Marshal.SizeOf<SceneMatrices>(), BufferUsage.UniformBuffer));
+            
+            _modelBuffer = factory.CreateBuffer(new BufferDescription(
+                (uint)Marshal.SizeOf<ObjectMatrices>(), BufferUsage.UniformBuffer));
+
+            // Definiujemy strukturę zasobów (Layouty)
+            ResourceLayout sceneLayout = factory.CreateResourceLayout(new ResourceLayoutDescription(
+                new ResourceLayoutElementDescription("SceneBuffer", ResourceKind.UniformBuffer, ShaderStages.Vertex)));
+
+            ResourceLayout modelLayout = factory.CreateResourceLayout(new ResourceLayoutDescription(
+                new ResourceLayoutElementDescription("ModelBuffer", ResourceKind.UniformBuffer, ShaderStages.Vertex)));
+
+            // Tworzymy powiązania (Sety) - przypisujemy konkretne bufory do layoutów
+            _sceneSet = factory.CreateResourceSet(new ResourceSetDescription(sceneLayout, _sceneBuffer));
+            _modelSet = factory.CreateResourceSet(new ResourceSetDescription(modelLayout, _modelBuffer));
+
+            // 3. Konfiguracja Pipeline
+            GraphicsPipelineDescription pipelineDescription = new GraphicsPipelineDescription();
+            pipelineDescription.BlendState = BlendStateDescription.SingleOverrideBlend;
+            pipelineDescription.DepthStencilState = new DepthStencilStateDescription(
+                depthTestEnabled: true, depthWriteEnabled: true, comparisonKind: ComparisonKind.LessEqual);
+            pipelineDescription.RasterizerState = new RasterizerStateDescription(
+                cullMode: FaceCullMode.None, fillMode: PolygonFillMode.Solid, frontFace: FrontFace.Clockwise, 
+                depthClipEnabled: true, scissorTestEnabled: false);
+            pipelineDescription.PrimitiveTopology = PrimitiveTopology.TriangleList;
+
+            pipelineDescription.ShaderSet = new ShaderSetDescription(
+                new[] {
+                    new VertexLayoutDescription(
+                        new VertexElementDescription("Position", VertexElementSemantic.Position, VertexElementFormat.Float3),
+                        new VertexElementDescription("Normal", VertexElementSemantic.Normal, VertexElementFormat.Float3), // Dodano to!
+                        new VertexElementDescription("Color", VertexElementSemantic.Color, VertexElementFormat.Float4))
+                }, shader3D);
+
+            // Teraz zmienne sceneLayout i modelLayout już istnieją!
+            pipelineDescription.ResourceLayouts = new[] { sceneLayout, modelLayout };
+            pipelineDescription.Outputs = gd.SwapchainFramebuffer.OutputDescription;
+
+            pipeline3D = factory.CreateGraphicsPipeline(pipelineDescription);
             // -------- SHAPE PIPELINE --------
             var shapeShaders = gd.ResourceFactory.CreateFromSpirv(
                 new ShaderDescription(ShaderStages.Vertex, Encoding.UTF8.GetBytes(ShapeVS), "main"),
@@ -266,13 +359,16 @@ namespace QEngine.Dev.Renderer
             cl?.Begin();
             cl?.SetFramebuffer(gd?.SwapchainFramebuffer);
             cl?.ClearColorTarget(0, Game.background.toRgba());
+            cl?.ClearDepthStencil(1f); 
 
             shapesThisFrame.Clear();
             spritesThisFrame.Clear();
+            geometryThisFrame.Clear();
         }
 
         public static void End()
         {
+            FlushGeometry();
             FlushShapes();
             FlushSprites();
 
@@ -293,7 +389,37 @@ namespace QEngine.Dev.Renderer
         public static void CreateAtlasResourceSet(GraphicsDevice gd)
         => atlasSet = gd.ResourceFactory.CreateResourceSet(new ResourceSetDescription(atlasLayout, 
             sampler, Atlas.atlasView));
-        // ================= API =================
+        // =======================================================================================================================================
+        // ================= API ===================================================================================================================
+        // =======================================================================================================================================
+        
+        #region Drawing 3D
+        public static void DrawGeometry(Vector3 center, Vector3[] verts, ushort[] inds, Vector4 color)
+        {
+            geometryThisFrame.Add(new BatchedGeometry()
+            {
+                center = center,
+                Positions = verts,
+                Indices = inds,
+                Color = color
+            });
+        }
+
+        public static void DrawCube(Vector3 center, Vector3 size, Vector4 color)
+        {
+            float x = size.x / 2, y = size.y / 2, z = size.z / 2;
+            DrawGeometry(center, [
+                new(-x, y, -z), new(x, y, -z),
+                new(x, y, z), new(-x, y, z),
+                new(-x, -y, -z), new(x, -y, -z),
+                new(x, -y, z), new(-x, -y, z)
+            ], [0, 1, 2,  0, 2, 3, 4, 6, 5,  4, 7, 6,
+                0, 5, 1,  0, 4, 5, 3, 2, 6,  3, 6, 7,
+                1, 5, 6,  1, 6, 2, 0, 3, 7,  0, 7, 4], color);
+        }
+        #endregion
+        
+        #region Drawing 2D
         public static void DrawShape(Vector2 center, Vector2[] verts, ushort[] inds, Vector4 color, bool isUI = false)
         {
             shapesThisFrame.Add(new BatchedShape
@@ -372,6 +498,12 @@ namespace QEngine.Dev.Renderer
                 cursor.x += space + g.thick * scale;
             }
         }
+        #endregion
+        
+        // =======================================================================================================================================
+        // ============= API END ===================================================================================================================
+        // =======================================================================================================================================
+        
         static DeviceBuffer? EnsureBuffer(
             DeviceBuffer? buffer,
             uint requiredBytes,
@@ -391,10 +523,8 @@ namespace QEngine.Dev.Renderer
         // ================= FLUSH =================
         static void FlushShapes()
         {
-            if (shapesThisFrame.Count == 0)
-                return;
-            int totalVerts = 0;
-            int totalIndices = 0;
+            if (shapesThisFrame.Count == 0) return;
+            int totalVerts = 0, totalIndices = 0;
 
             foreach (var s in shapesThisFrame)
             {
@@ -402,19 +532,11 @@ namespace QEngine.Dev.Renderer
                 totalIndices += s.indices.Length;
             }
 
-            uint requiredVB =
-                (uint)(totalVerts * Vertex.SizeInBytes);
-
-            uint requiredIB =
-                (uint)(totalIndices * sizeof(ushort));
-
-            shapeVB = EnsureBuffer(
-                shapeVB, requiredVB,
-                BufferUsage.VertexBuffer | BufferUsage.Dynamic);
-
-            shapeIB = EnsureBuffer(
-                shapeIB, requiredIB,
-                BufferUsage.IndexBuffer | BufferUsage.Dynamic);
+            uint requiredVB = (uint)(totalVerts * Vertex.SizeInBytes), 
+                requiredIB = (uint)(totalIndices * sizeof(ushort));
+            
+            shapeVB = EnsureBuffer(shapeVB, requiredVB, BufferUsage.VertexBuffer | BufferUsage.Dynamic);
+            shapeIB = EnsureBuffer(shapeIB, requiredIB, BufferUsage.IndexBuffer | BufferUsage.Dynamic);
             
             List<Vertex> v = new(totalVerts);
             List<ushort> i = new(totalIndices);
@@ -445,26 +567,17 @@ namespace QEngine.Dev.Renderer
             int spriteCount = spritesThisFrame.Count;
             if (spriteCount == 0) return;
 
-            uint requiredVB =
-                (uint)(spriteCount * 4 * SpriteVertex.SizeInBytes);
+            uint requiredVB = (uint)(spriteCount * 4 * SpriteVertex.SizeInBytes), 
+                requiredIB = (uint)(spriteCount * 6 * sizeof(ushort));
 
-            uint requiredIB =
-                (uint)(spriteCount * 6 * sizeof(ushort));
-
-            spriteVB = EnsureBuffer(
-                spriteVB, requiredVB,
-                BufferUsage.VertexBuffer | BufferUsage.Dynamic);
-
-            spriteIB = EnsureBuffer(
-                spriteIB, requiredIB,
-                BufferUsage.IndexBuffer | BufferUsage.Dynamic);
+            spriteVB = EnsureBuffer(spriteVB, requiredVB, BufferUsage.VertexBuffer | BufferUsage.Dynamic);
+            spriteIB = EnsureBuffer(spriteIB, requiredIB, BufferUsage.IndexBuffer | BufferUsage.Dynamic);
 
             SpriteVertex[] verts = new SpriteVertex[spriteCount * 4];
             ushort[] indices = new ushort[spriteCount * 6];
 
             int vo = 0, io = 0;
-            foreach (var s in spritesThisFrame)
-                WriteQuad(verts, indices, ref vo, ref io, s);
+            foreach (var s in spritesThisFrame) WriteQuad(verts, indices, ref vo, ref io, s);
 
             gd?.UpdateBuffer(spriteVB, 0, verts);
             gd?.UpdateBuffer(spriteIB, 0, indices);
@@ -476,6 +589,54 @@ namespace QEngine.Dev.Renderer
             cl?.DrawIndexed((uint)indices.Length, 1, 0, 0, 0);
 
             spritesThisFrame.Clear();
+        }
+
+        static void FlushGeometry()
+        {
+            if (geometryThisFrame.Count == 0) return;
+
+            List<Vertex3D> allVertices = new();
+
+            foreach (var batch in geometryThisFrame)
+            {
+                var offset = new System.Numerics.Vector3(batch.center.x, batch.center.y, batch.center.z);
+
+                for (int i = 0; i < batch.Indices.Length; i += 3)
+                {
+                    var va = new System.Numerics.Vector3(batch.Positions[batch.Indices[i]].x, batch.Positions[batch.Indices[i]].y, batch.Positions[batch.Indices[i]].z);
+                    var vb = new System.Numerics.Vector3(batch.Positions[batch.Indices[i + 1]].x, batch.Positions[batch.Indices[i + 1]].y, batch.Positions[batch.Indices[i + 1]].z);
+                    var vc = new System.Numerics.Vector3(batch.Positions[batch.Indices[i + 2]].x, batch.Positions[batch.Indices[i + 2]].y, batch.Positions[batch.Indices[i + 2]].z);
+            
+                    var n = System.Numerics.Vector3.Normalize(System.Numerics.Vector3.Cross(vb - va, vc - va));
+                    Vector3 normal = new Vector3(n.X, n.Y, n.Z);
+
+                    allVertices.Add(new Vertex3D(new Vector3(va.X + offset.X, va.Y + offset.Y, va.Z + offset.Z), normal, batch.Color));
+                    allVertices.Add(new Vertex3D(new Vector3(vb.X + offset.X, vb.Y + offset.Y, vb.Z + offset.Z), normal, batch.Color));
+                    allVertices.Add(new Vertex3D(new Vector3(vc.X + offset.X, vc.Y + offset.Y, vc.Z + offset.Z), normal, batch.Color));
+                }
+            }
+
+            uint vertexSizeInBytes = (uint)(allVertices.Count * Vertex3D.SizeInBytes);
+
+            if (_testVB == null || _testVB.SizeInBytes < vertexSizeInBytes)
+            {
+                _testVB?.Dispose();
+                _testVB = factory?.CreateBuffer(new BufferDescription(vertexSizeInBytes + 1024, BufferUsage.VertexBuffer | BufferUsage.Dynamic));
+            }
+
+            gd!.UpdateBuffer(_testVB, 0, allVertices.ToArray());
+
+            cl!.SetPipeline(pipeline3D);
+            cl.SetGraphicsResourceSet(0, _sceneSet);
+
+            ObjectMatrices obj;
+            obj.Model = Matrix4x4.Identity; 
+            gd.UpdateBuffer(_modelBuffer, 0, ref obj);
+            cl.SetGraphicsResourceSet(1, _modelSet);
+
+            cl.SetVertexBuffer(0, _testVB);
+    
+            cl.Draw((uint)allVertices.Count, 1, 0, 0); 
         }
 
         static void WriteQuad(SpriteVertex[] v, ushort[] i, ref int vo, ref int io, BatchedSprite s)
@@ -499,7 +660,32 @@ namespace QEngine.Dev.Renderer
             vo += 4;
             io += 6;
         }
+        public static void UpdateCamera3D(Vector3 camPos, Vector3 rotation, Vector3 sunPos)
+        {
+            SceneMatrices sm = new SceneMatrices(); 
 
+            float aspect = (float)Game.resolution.x / Game.resolution.y;
+            Matrix4x4 projection = Matrix4x4.CreatePerspectiveFieldOfView(MathF.PI / 4, aspect, 0.1f, 1000f);
+            projection.M22 *= -1; 
+
+            float pitch = rotation.x * (MathF.PI / 180f); // Góra/Dół
+            float yaw = rotation.y * (MathF.PI / 180f);   // Lewo/Prawo
+
+            System.Numerics.Vector3 forward;
+            forward.X = MathF.Cos(pitch) * MathF.Sin(yaw);
+            forward.Y = MathF.Sin(pitch);
+            forward.Z = MathF.Cos(pitch) * MathF.Cos(yaw);
+
+            System.Numerics.Vector3 cPos = new(camPos.x, camPos.y, camPos.z);
+    
+            sm.Projection = projection;
+            sm.View = Matrix4x4.CreateLookAt(cPos, cPos + forward, System.Numerics.Vector3.UnitY);
+
+            var s = new System.Numerics.Vector3(sunPos.x, sunPos.y, sunPos.z);
+            sm.LightDir = System.Numerics.Vector3.Normalize(s); 
+
+            gd?.UpdateBuffer(_sceneBuffer, 0, sm);
+        }
         // ================= SHADERS =================
         const string ShapeVS = @"#version 450
 layout(location=0) in vec2 Position;
@@ -527,5 +713,45 @@ layout(set=0,binding=0) uniform sampler mySampler;
 layout(set=0,binding=1) uniform texture2D myTexture;
 layout(location=0) out vec4 outColor;
 void main(){ outColor=texture(sampler2D(myTexture,mySampler),fsUV)*fsColor; }";
+        
+        const string Shader3DVS = @"#version 450
+layout(location = 0) in vec3 Position;
+layout(location = 1) in vec3 Normal;
+layout(location = 2) in vec4 Color;
+
+// DANE GLOBALNE (Set 0)
+layout(set = 0, binding = 0) uniform SceneBuffer {
+    mat4 Projection;
+    mat4 View;
+    vec3 LightDir;
+};
+
+// DANE OBIEKTU (Set 1)
+layout(set = 1, binding = 0) uniform ModelBuffer {
+    mat4 Model;
+};
+
+layout(location = 0) out vec4 fsColor;
+
+void main() {
+    // Mnożymy macierze przez pozycję
+    gl_Position = Projection * View * Model * vec4(Position, 1.0);
+    
+    // Obliczamy oświetlenie
+    vec3 worldNormal = normalize(mat3(Model) * Normal);
+    float diffuse = max(dot(worldNormal, normalize(LightDir)), 0.0);
+    float ambient = 0.2;
+    
+    // Przekazujemy kolor do fragment shadera
+    fsColor = vec4(Color.rgb * (diffuse + ambient), Color.a);
+}";
+
+        const string Shader3DFS = @"#version 450
+layout(location = 0) in vec4 fsColor;
+layout(location = 0) out vec4 outColor;
+
+void main() {
+    outColor = fsColor;
+}";
     }
 }

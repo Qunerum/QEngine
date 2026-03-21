@@ -71,7 +71,7 @@ static class Core
         
         GraphicsDeviceOptions gdOptions = new GraphicsDeviceOptions(
             debug: false,
-            swapchainDepthFormat: null,
+            swapchainDepthFormat: PixelFormat.D24_UNorm_S8_UInt, 
             syncToVerticalBlank: true
         );
         GraphicsDevice gd = VeldridStartup.CreateGraphicsDevice(
@@ -124,6 +124,8 @@ static class Core
             }
             
             QRenderer.Begin();
+            QRenderer.UpdateCamera3D(Camera.position, Camera.rotation, Camera.lightPosition);
+            
             Update();
             QRenderer.End();
             Input.data = string.Empty;
@@ -145,10 +147,12 @@ static class Core
 public static class Camera
 {
     /// <summary> The current world-space position of the camera. </summary>
-    public static Vector2 position = new();
-    
+    public static Vector3 position = new();
+    public static Vector3 rotation = new();
     /// <summary> The zoom level of the camera. 1.0 is default, higher is closer. </summary>
     public static float zoom = 1.0f;
+
+    public static Vector3 lightPosition = new(0.5f, 1, 0.3f);
 
     /// <summary> 
     /// WORLD SPACE: Converts world pixels to NDC, accounting for Camera Position and Zoom.
@@ -156,7 +160,7 @@ public static class Camera
     /// </summary>
     public static Vector2 WorldToNDC(Vector2 worldPos)
     {
-        Vector2 viewPos = (worldPos - position) * zoom;
+        Vector2 viewPos = (worldPos - new Vector2(position.x, position.y)) * zoom;
         return new Vector2(
             viewPos.x / (Game.resolution.x / 2f), 
             -(viewPos.y / (Game.resolution.y / 2f)) // Minus dla poprawnego Y w Veldrid
