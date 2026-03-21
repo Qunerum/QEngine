@@ -24,8 +24,7 @@ struct SceneMatrices
 {
     public Matrix4x4 Projection;
     public Matrix4x4 View;
-    public System.Numerics.Vector3 LightDir;
-    private float _padding;
+    public System.Numerics.Vector4 LightDir;
 }
 
 struct ObjectMatrices { public Matrix4x4 Model; }
@@ -189,6 +188,7 @@ namespace QEngine.Dev.Renderer
     struct BatchedGeometry
     {
         public Vector3 center;
+        public Vector3 rotation;
         public Vector3[] Positions;
         public ushort[] Indices;
         public Vector4 Color;
@@ -394,21 +394,22 @@ namespace QEngine.Dev.Renderer
         // =======================================================================================================================================
         
         #region Drawing 3D
-        public static void DrawGeometry(Vector3 center, Vector3[] verts, ushort[] inds, Vector4 color)
+        public static void DrawGeometry(Vector3 center, Vector3 rotation, Vector3[] verts, ushort[] inds, Vector4 color)
         {
             geometryThisFrame.Add(new BatchedGeometry()
             {
                 center = center,
+                rotation = rotation,
                 Positions = verts,
                 Indices = inds,
                 Color = color
             });
         }
 
-        public static void DrawCube(Vector3 center, Vector3 size, Vector4 color)
+        public static void DrawCube(Vector3 center, Vector3 rotation, Vector3 size, Vector4 color)
         {
             float x = size.x / 2, y = size.y / 2, z = size.z / 2;
-            DrawGeometry(center, [
+            DrawGeometry(center, rotation, [
                 new(-x, y, -z), new(x, y, -z),
                 new(x, y, z), new(-x, y, z),
                 new(-x, -y, -z), new(x, -y, -z),
@@ -591,52 +592,57 @@ namespace QEngine.Dev.Renderer
             spritesThisFrame.Clear();
         }
 
+        static List<Vertex3D> allVertices = new();
         static void FlushGeometry()
         {
             if (geometryThisFrame.Count == 0) return;
-
-            List<Vertex3D> allVertices = new();
+            allVertices.Clear();
 
             foreach (var batch in geometryThisFrame)
             {
-                var offset = new System.Numerics.Vector3(batch.center.x, batch.center.y, batch.center.z);
+                // Tworzymy macierz modelu dla tego konkretnego obiektu
+                Matrix4x4 model = Matrix4x4.CreateRotationX(batch.rotation.x * (MathF.PI / 180f)) *
+                                  Matrix4x4.CreateRotationY(batch.rotation.y * (MathF.PI / 180f)) *
+                                  Matrix4x4.CreateRotationZ(batch.rotation.z * (MathF.PI / 180f)) *
+                                  Matrix4x4.CreateTranslation(batch.center.x, batch.center.y, batch.center.z);
 
                 for (int i = 0; i < batch.Indices.Length; i += 3)
                 {
-                    var va = new System.Numerics.Vector3(batch.Positions[batch.Indices[i]].x, batch.Positions[batch.Indices[i]].y, batch.Positions[batch.Indices[i]].z);
-                    var vb = new System.Numerics.Vector3(batch.Positions[batch.Indices[i + 1]].x, batch.Positions[batch.Indices[i + 1]].y, batch.Positions[batch.Indices[i + 1]].z);
-                    var vc = new System.Numerics.Vector3(batch.Positions[batch.Indices[i + 2]].x, batch.Positions[batch.Indices[i + 2]].y, batch.Positions[batch.Indices[i + 2]].z);
-            
-                    var n = System.Numerics.Vector3.Normalize(System.Numerics.Vector3.Cross(vb - va, vc - va));
+                    // Pobieramy 3 punkty trójkąta
+                    Vector3 v1 = batch.Positions[batch.Indices[i]];
+                    Vector3 v2 = batch.Positions[batch.Indices[i + 1]];
+                    Vector3 v3 = batch.Positions[batch.Indices[i + 2]];
+
+                    // Transformujemy punkty macierzą na CPU
+                    System.Numerics.Vector3 tv1 = System.Numerics.Vector3.Transform(new(v1.x, v1.y, v1.z), model);
+                    System.Numerics.Vector3 tv2 = System.Numerics.Vector3.Transform(new(v2.x, v2.y, v2.z), model);
+                    System.Numerics.Vector3 tv3 = System.Numerics.Vector3.Transform(new(v3.x, v3.y, v3.z), model);
+
+                    // Liczymy normalną dla przetransformowanych punktów
+                    var n = System.Numerics.Vector3.Normalize(System.Numerics.Vector3.Cross(tv2 - tv1, tv3 - tv1));
                     Vector3 normal = new Vector3(n.X, n.Y, n.Z);
 
-                    allVertices.Add(new Vertex3D(new Vector3(va.X + offset.X, va.Y + offset.Y, va.Z + offset.Z), normal, batch.Color));
-                    allVertices.Add(new Vertex3D(new Vector3(vb.X + offset.X, vb.Y + offset.Y, vb.Z + offset.Z), normal, batch.Color));
-                    allVertices.Add(new Vertex3D(new Vector3(vc.X + offset.X, vc.Y + offset.Y, vc.Z + offset.Z), normal, batch.Color));
+                    allVertices.Add(new Vertex3D(new(tv1.X, tv1.Y, tv1.Z), normal, batch.Color));
+                    allVertices.Add(new Vertex3D(new(tv2.X, tv2.Y, tv2.Z), normal, batch.Color));
+                    allVertices.Add(new Vertex3D(new(tv3.X, tv3.Y, tv3.Z), normal, batch.Color));
                 }
             }
 
-            uint vertexSizeInBytes = (uint)(allVertices.Count * Vertex3D.SizeInBytes);
-
-            if (_testVB == null || _testVB.SizeInBytes < vertexSizeInBytes)
-            {
-                _testVB?.Dispose();
-                _testVB = factory?.CreateBuffer(new BufferDescription(vertexSizeInBytes + 1024, BufferUsage.VertexBuffer | BufferUsage.Dynamic));
-            }
-
-            gd!.UpdateBuffer(_testVB, 0, allVertices.ToArray());
-
+            // TERAZ wysyłamy wszystko RAZ
             cl!.SetPipeline(pipeline3D);
             cl.SetGraphicsResourceSet(0, _sceneSet);
 
-            ObjectMatrices obj;
-            obj.Model = Matrix4x4.Identity; 
-            gd.UpdateBuffer(_modelBuffer, 0, ref obj);
+            // Ustawiamy model na Identity, bo wierzchołki są już w World Space
+            ObjectMatrices identityObj = new ObjectMatrices { Model = Matrix4x4.Identity };
+            gd!.UpdateBuffer(_modelBuffer, 0, ref identityObj);
             cl.SetGraphicsResourceSet(1, _modelSet);
 
+            uint totalSize = (uint)(allVertices.Count * Vertex3D.SizeInBytes);
+            _testVB = EnsureBuffer(_testVB, totalSize, BufferUsage.VertexBuffer | BufferUsage.Dynamic);
+            gd.UpdateBuffer(_testVB, 0, allVertices.ToArray());
+
             cl.SetVertexBuffer(0, _testVB);
-    
-            cl.Draw((uint)allVertices.Count, 1, 0, 0); 
+            cl.Draw((uint)allVertices.Count, 1, 0, 0);
         }
 
         static void WriteQuad(SpriteVertex[] v, ushort[] i, ref int vo, ref int io, BatchedSprite s)
@@ -681,8 +687,8 @@ namespace QEngine.Dev.Renderer
             sm.Projection = projection;
             sm.View = Matrix4x4.CreateLookAt(cPos, cPos + forward, System.Numerics.Vector3.UnitY);
 
-            var s = new System.Numerics.Vector3(sunPos.x, sunPos.y, sunPos.z);
-            sm.LightDir = System.Numerics.Vector3.Normalize(s); 
+            var s = new System.Numerics.Vector4(sunPos.x, sunPos.y, sunPos.z, 0);
+            sm.LightDir = System.Numerics.Vector4.Normalize(s); 
 
             gd?.UpdateBuffer(_sceneBuffer, 0, sm);
         }
