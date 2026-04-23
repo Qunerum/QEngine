@@ -17,7 +17,7 @@ namespace QEngine.GUI
     public static class GUI
     {
         /// <summary> Standard index buffer for drawing rectangular UI elements (Quads). </summary>
-        public static ushort[] quad = { 0, 1, 2, 0, 2, 3 };
+        public static uint[] quad = { 0, 1, 2, 0, 2, 3 };
         /// <summary> Performs a point-in-rectangle check. Useful for mouse interaction with UI elements. </summary>
         /// <param name="center">The world/screen position of the UI element.</param>
         /// <param name="size">Width and Height of the element.</param>
@@ -45,6 +45,7 @@ namespace QEngine.GUI
         public Vector4 to01() => new Vector4(r, g, b, a) / 255f;
         /// <summary> Converts the color to a Veldrid-compatible RgbaFloat format. </summary>
         public RgbaFloat toRgba() => new(r/255f, g/255f, b/255f, a/255f);
+        public override string ToString() => $"({r}, {g}, {b}, {a})";
         
         public static Color Red => new(255, 0, 0);
         public static Color Green => new(0, 255, 0);
@@ -105,7 +106,7 @@ namespace QEngine.GUI
     public class Shape2D : Component, IRenderable
     {
         List<Vector2> vertices = new() { new(0, 83.2f), new(-100, -80), new(100, -80) };
-        List<ushort> indices = new() { 0, 2, 1 };
+        List<uint> indices = new() { 0, 2, 1 };
         public Color color = Color.White;
 
         public void Clear() { vertices.Clear(); indices.Clear(); }
@@ -114,9 +115,9 @@ namespace QEngine.GUI
         public void AddVertex(Vector2 vertex) => vertices.Add(vertex);
         public void SetVertices(List<Vector2> vertices) => this.vertices = vertices;
         public void RemoveVertex(int index) => vertices.RemoveAt(Math.Clamp(index, 0, vertices.Count - 1));
-        public List<ushort> GetIndices() => indices;
+        public List<uint> GetIndices() => indices;
         public void AddIndice(ushort indice) => indices.Add(indice);
-        public void SetIndices(List<ushort> indices) => this.indices = indices;
+        public void SetIndices(List<uint> indices) => this.indices = indices;
         public void RemoveIndice(int index) => indices.RemoveAt(Math.Clamp(index, 0, vertices.Count - 1));
         public bool isUI { get; set; } = false;
         public void Draw() { if (transform == null) return; QRenderer.DrawShape(transform.position, vertices.ToArray(), indices.ToArray(), color.to01(), isUI); }

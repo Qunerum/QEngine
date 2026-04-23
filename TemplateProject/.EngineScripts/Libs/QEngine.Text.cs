@@ -22,7 +22,7 @@ namespace QEngine.Text
         /// </summary>
         public void CalcAndSetGlyphs(Vector2Int size, string fontName)
         {
-            Console.WriteLine($"Calculating glyphs for '{fontName}'...");
+            Logger.Log($"Calculating glyphs for '{fontName}'...");
             foreach (var key in glyphs.Keys.ToList())
             {
                 Glyph g = glyphs[key];
@@ -33,7 +33,7 @@ namespace QEngine.Text
                     (pos.x + charSize.x) / (float)size.x,
                     (pos.y + charSize.y) / (float)size.y));
                 glyphs[key] = g;
-                Console.WriteLine($"Glyph '{key}' calculated: position: {pos} , uv: {g.uvMin} {g.uvMax}");
+                Logger.Log($"Glyph '{key}' calculated: position: {pos} , uv: {g.uvMin} {g.uvMax}");
             }
         }
     }

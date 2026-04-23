@@ -90,7 +90,7 @@ namespace QEngine.Dev.Renderer
 
         public static void AddFont(Sprite sprite)
         {
-            Console.WriteLine("Adding font to Atlas");
+            Logger.Log("Adding font to Atlas");
             sprites.Add((sprite, cursor));
             cursor.y += sprite.Height;
             if (cursor.y + rowHeight > size.y) size.y = cursor.y + rowHeight;
@@ -98,7 +98,7 @@ namespace QEngine.Dev.Renderer
         }
         public static void AddImage(Sprite sprite)
         {
-            Console.WriteLine("Adding Sprite to Atlas");
+            Logger.Log("Adding Sprite to Atlas");
             if (slotX >= maxSlotX)
             {
                 cursor.x = 0;
@@ -138,7 +138,7 @@ namespace QEngine.Dev.Renderer
                     (pos.x + sprite.Width) / (float)size.x,
                     (pos.y + sprite.Height) / (float)size.y
                 );
-                Console.WriteLine($"Calculate sprite in Atlas: {sprite.uv}");
+                Logger.Log($"Calculate sprite in Atlas: {sprite.uv}");
             }
             s = size;
             Save();
@@ -171,7 +171,7 @@ namespace QEngine.Dev.Renderer
     {
         public Vector2 pixelCenter;
         public Vector2[] localPositions;
-        public ushort[] indices;
+        public uint[] indices;
         public Vector4 color;
         public bool isUI;
     }
@@ -190,7 +190,7 @@ namespace QEngine.Dev.Renderer
         public Vector3 center;
         public Vector3 rotation;
         public Vector3[] Positions;
-        public ushort[] Indices;
+        public uint[] Indices;
         public Vector4 Color;
     }
 
@@ -394,7 +394,7 @@ namespace QEngine.Dev.Renderer
         // =======================================================================================================================================
         
         #region Drawing 3D
-        public static void DrawGeometry(Vector3 center, Vector3 rotation, Vector3[] verts, ushort[] inds, Vector4 color)
+        public static void DrawGeometry(Vector3 center, Vector3 rotation, Vector3[] verts, uint[] inds, Vector4 color)
         {
             geometryThisFrame.Add(new BatchedGeometry()
             {
@@ -418,10 +418,124 @@ namespace QEngine.Dev.Renderer
                 0, 5, 1,  0, 4, 5, 3, 2, 6,  3, 6, 7,
                 1, 5, 6,  1, 6, 2, 0, 3, 7,  0, 7, 4], color);
         }
-        #endregion
+        
+        static List<Vector3> _tempVerts = new();
+        static List<uint> _tempInds = new();
+
+        public static void DrawSphere(Vector3 center, Vector3 rotation, float radius, int segments, int rings, Vector4 color)
+        {
+            _tempVerts.Clear();
+            _tempInds.Clear();
+            for (int r = 0; r <= rings; r++)
+            {
+                float phi = MathF.PI * r / rings;
+                for (int s = 0; s <= segments; s++)
+                {
+                    float theta = 2 * MathF.PI * s / segments,
+                        x = radius * MathF.Sin(phi) * MathF.Cos(theta),
+                        y = radius * MathF.Cos(phi),
+                        z = radius * MathF.Sin(phi) * MathF.Sin(theta);
+                    _tempVerts.Add(new Vector3(x, y, z));
+                }
+            }
+
+            for (int r = 0; r < rings; r++)
+            {
+                for (int s = 0; s < segments; s++)
+                {
+                    uint first = (uint)((r * (segments + 1)) + s);
+                    uint second = (uint)(first + segments + 1);
+
+                    _tempInds.Add(first);
+                    _tempInds.Add(second);
+                    _tempInds.Add(first + 1);
+
+                    _tempInds.Add(first + 1);
+                    _tempInds.Add(second);
+                    _tempInds.Add(second + 1);
+                }
+            }
+
+            DrawGeometry(center, rotation, _tempVerts.ToArray(), _tempInds.ToArray(), color);
+        }
+        public static void DrawHemisphere(Vector3 center, Vector3 rotation, float radius, int segments, int rings, Vector4 color, bool isTop = true)
+        {
+            _tempVerts.Clear();
+            _tempInds.Clear();
+
+            int halfRings = rings / 2;
+            for (int r = 0; r <= halfRings; r++)
+            {
+                float phi = (isTop)
+                    ? (MathF.PI * 0.5f * r / halfRings)
+                    : (MathF.PI * 0.5f + (MathF.PI * 0.5f * r / halfRings));
+                for (int s = 0; s <= segments; s++)
+                {
+                    float theta = 2 * MathF.PI * s / segments;
+                    _tempVerts.Add(new Vector3(
+                        radius * MathF.Sin(phi) * MathF.Cos(theta),
+                        radius * MathF.Cos(phi),
+                        radius * MathF.Sin(phi) * MathF.Sin(theta)
+                    ));
+                }
+            }
+
+            for (int r = 0; r < halfRings; r++)
+            {
+                for (int s = 0; s < segments; s++)
+                {
+                    uint first = (uint)((r * (segments + 1)) + s);
+                    uint second = (uint)(first + segments + 1);
+
+                    _tempInds.Add(first);
+                    _tempInds.Add(second);
+                    _tempInds.Add(first + 1);
+
+                    _tempInds.Add(first + 1);
+                    _tempInds.Add(second);
+                    _tempInds.Add(second + 1);
+                }
+            }
+
+            DrawGeometry(center, rotation, _tempVerts.ToArray(), _tempInds.ToArray(), color);
+        }
+        public static void DrawCylinder(Vector3 center, Vector3 rotation, float radius, float height, int segments, Vector4 color)
+        {
+            _tempVerts.Clear();
+            _tempInds.Clear();
+            float h2 = height / 2.0f;
+            for (int i = 0; i <= segments; i++)
+            {
+                float angle = 2 * MathF.PI * i / segments;
+                float x = radius * MathF.Cos(angle);
+                float z = radius * MathF.Sin(angle);
+                _tempVerts.Add(new Vector3(x, h2, z));
+                _tempVerts.Add(new Vector3(x, -h2, z)); 
+            }
+            for (int i = 0; i < segments; i++)
+            {
+                uint b = (uint)(i * 2);
+                _tempInds.Add(b);
+                _tempInds.Add(b + 1);
+                _tempInds.Add(b + 2);
+                _tempInds.Add(b + 2);
+                _tempInds.Add(b + 1);
+                _tempInds.Add(b + 3);
+            }
+            DrawGeometry(center, rotation, _tempVerts.ToArray(), _tempInds.ToArray(), color);
+        }
+        public static void DrawCapsule(Vector3 center, Vector3 rotation, float radius, float height, int segments, Vector4 color)
+        {
+            float cylHeight = MathF.Max(0, height - (radius * 2));
+            DrawCylinder(center, rotation, radius, cylHeight, segments, color);
+            float offset = cylHeight / 2.0f;
+            DrawHemisphere(center + new Vector3(0, offset, 0), rotation, radius, segments, segments, color, true);
+            DrawHemisphere(center - new Vector3(0, offset, 0), rotation, radius, segments, segments, color, false);
+        }
+        #endregion  
         
         #region Drawing 2D
-        public static void DrawShape(Vector2 center, Vector2[] verts, ushort[] inds, Vector4 color, bool isUI = false)
+        public static void DrawShape(Vector2 center, Vector2[] verts, uint[] inds, Vector4 color, bool isUI = false)
         {
             shapesThisFrame.Add(new BatchedShape
             {
@@ -433,7 +547,7 @@ namespace QEngine.Dev.Renderer
             });
         }
         
-        static ushort[] quad = { 0, 1, 2, 0, 2, 3 };
+        static uint[] quad = { 0, 1, 2, 0, 2, 3 };
         public static void DrawLine(Vector2 a, Vector2 b, float thickness, Vector4 color, bool isUI = false)
         {
             float length = Vector2.Distance(a, b);
@@ -481,17 +595,14 @@ namespace QEngine.Dev.Renderer
                     cursor.y -= font.charSize.y * scale;
                     continue;
                 }
-
                 if (c == ' ')
                 {
                     cursor.x += font.charSize.x * scale;
                     continue;
                 }
-                if (!font.glyphs.TryGetValue(c, out Glyph g))
-                    continue;
+                if (!font.glyphs.TryGetValue(c, out Glyph g)) continue;
                 Vector2 size = new Vector2(font.charSize.x, font.charSize.y) * scale;
-                DrawSprite(
-                    font.texture,
+                DrawSprite(font.texture,
                     new Vector4(g.uvMin.x, g.uvMin.y, g.uvMax.x, g.uvMax.y),
                     position + cursor + new Vector2(g.thick * scale, size.y) / 2,
                     size, color, isUI
@@ -505,23 +616,18 @@ namespace QEngine.Dev.Renderer
         // ============= API END ===================================================================================================================
         // =======================================================================================================================================
         
-        static DeviceBuffer? EnsureBuffer(
-            DeviceBuffer? buffer,
-            uint requiredBytes,
-            BufferUsage usage)
+        static DeviceBuffer? EnsureBuffer(DeviceBuffer? buffer, uint requiredBytes, BufferUsage usage)
         {
             if (buffer == null || buffer.SizeInBytes < requiredBytes)
             {
                 buffer?.Dispose();
-
                 uint newSize = Math.Max(requiredBytes, requiredBytes * 2);
-
-                buffer = gd?.ResourceFactory.CreateBuffer(
-                    new BufferDescription(newSize, usage));
+                buffer = gd?.ResourceFactory.CreateBuffer(new BufferDescription(newSize, usage));
             }
             return buffer;
         }
         // ================= FLUSH =================
+        #region Flush
         static void FlushShapes()
         {
             if (shapesThisFrame.Count == 0) return;
@@ -600,7 +706,6 @@ namespace QEngine.Dev.Renderer
 
             foreach (var batch in geometryThisFrame)
             {
-                // Tworzymy macierz modelu dla tego konkretnego obiektu
                 Matrix4x4 model = Matrix4x4.CreateRotationX(batch.rotation.x * (MathF.PI / 180f)) *
                                   Matrix4x4.CreateRotationY(batch.rotation.y * (MathF.PI / 180f)) *
                                   Matrix4x4.CreateRotationZ(batch.rotation.z * (MathF.PI / 180f)) *
@@ -608,18 +713,14 @@ namespace QEngine.Dev.Renderer
 
                 for (int i = 0; i < batch.Indices.Length; i += 3)
                 {
-                    // Pobieramy 3 punkty trójkąta
                     Vector3 v1 = batch.Positions[batch.Indices[i]];
                     Vector3 v2 = batch.Positions[batch.Indices[i + 1]];
                     Vector3 v3 = batch.Positions[batch.Indices[i + 2]];
 
-                    // Transformujemy punkty macierzą na CPU
                     System.Numerics.Vector3 tv1 = System.Numerics.Vector3.Transform(new(v1.x, v1.y, v1.z), model);
                     System.Numerics.Vector3 tv2 = System.Numerics.Vector3.Transform(new(v2.x, v2.y, v2.z), model);
                     System.Numerics.Vector3 tv3 = System.Numerics.Vector3.Transform(new(v3.x, v3.y, v3.z), model);
-
-                    // Liczymy normalną dla przetransformowanych punktów
-                    var n = System.Numerics.Vector3.Normalize(System.Numerics.Vector3.Cross(tv2 - tv1, tv3 - tv1));
+                    var n = System.Numerics.Vector3.Normalize(System.Numerics.Vector3.Cross(tv3 - tv1, tv2 - tv1));
                     Vector3 normal = new Vector3(n.X, n.Y, n.Z);
 
                     allVertices.Add(new Vertex3D(new(tv1.X, tv1.Y, tv1.Z), normal, batch.Color));
@@ -628,11 +729,9 @@ namespace QEngine.Dev.Renderer
                 }
             }
 
-            // TERAZ wysyłamy wszystko RAZ
             cl!.SetPipeline(pipeline3D);
             cl.SetGraphicsResourceSet(0, _sceneSet);
 
-            // Ustawiamy model na Identity, bo wierzchołki są już w World Space
             ObjectMatrices identityObj = new ObjectMatrices { Model = Matrix4x4.Identity };
             gd!.UpdateBuffer(_modelBuffer, 0, ref identityObj);
             cl.SetGraphicsResourceSet(1, _modelSet);
@@ -655,7 +754,6 @@ namespace QEngine.Dev.Renderer
             v[vo + 2] = new(c + new Vector2(+h.x, +h.y), new(s.uv.z, s.uv.w), s.color);
             v[vo + 3] = new(c + new Vector2(-h.x, +h.y), new(s.uv.x, s.uv.w), s.color);
 
-
             i[io + 0] = (ushort)(vo + 0);
             i[io + 1] = (ushort)(vo + 1);
             i[io + 2] = (ushort)(vo + 2);
@@ -666,6 +764,8 @@ namespace QEngine.Dev.Renderer
             vo += 4;
             io += 6;
         }
+        #endregion
+        
         public static void UpdateCamera3D(Vector3 camPos, Vector3 rotation, Vector3 sunPos)
         {
             SceneMatrices sm = new SceneMatrices(); 
@@ -674,8 +774,8 @@ namespace QEngine.Dev.Renderer
             Matrix4x4 projection = Matrix4x4.CreatePerspectiveFieldOfView(MathF.PI / 4, aspect, 0.1f, 1000f);
             projection.M22 *= -1; 
 
-            float pitch = rotation.x * (MathF.PI / 180f); // Góra/Dół
-            float yaw = rotation.y * (MathF.PI / 180f);   // Lewo/Prawo
+            float pitch = rotation.x * (MathF.PI / 180f);
+            float yaw = rotation.y * (MathF.PI / 180f);
 
             System.Numerics.Vector3 forward;
             forward.X = MathF.Cos(pitch) * MathF.Sin(yaw);
@@ -693,6 +793,7 @@ namespace QEngine.Dev.Renderer
             gd?.UpdateBuffer(_sceneBuffer, 0, sm);
         }
         // ================= SHADERS =================
+        #region Shaders
         const string ShapeVS = @"#version 450
 layout(location=0) in vec2 Position;
 layout(location=1) in vec4 Color;
@@ -759,5 +860,6 @@ layout(location = 0) out vec4 outColor;
 void main() {
     outColor = fsColor;
 }";
+        #endregion
     }
 }

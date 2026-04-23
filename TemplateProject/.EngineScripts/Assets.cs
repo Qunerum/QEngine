@@ -9,7 +9,9 @@ using QEngine.Dev.Renderer;
 
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp;
+
 using Image = SixLabors.ImageSharp.Image;
+using Color = QEngine.GUI.Color;
 // ReSharper disable All
 
 namespace QEngine;
@@ -28,7 +30,7 @@ public static class Assets
     
     static Dictionary<string, Sprite> _sprites = new();
     static Dictionary<string, Font> _fonts = new();
-    
+
     /// <summary> Retrieves a loaded <see cref="Sprite"/> from the internal cache. </summary>
     /// <param name="name">The name of the sprite (usually the filename without extension).</param>
     /// <returns> The requested <see cref="Sprite"/> object if found; otherwise, <see langword="null"/>. </returns>
@@ -50,6 +52,7 @@ public static class Assets
         InitalizeFonts();
         foreach (var f in Directory.GetFiles(assetsPath, "*.png", SearchOption.AllDirectories))
             if (Path.GetFileNameWithoutExtension(f) != "Atlas") { InitSprite(f, false); }
+        readSimpleModel(["cube,(0 0 0),(1 1 1),(255 128 0 255)"]);
     }
 
     static bool summared = false;
@@ -63,6 +66,17 @@ public static class Assets
         Logger.Log("< = = = > Initalized Fonts < = = = >");
         foreach (var f in _fonts)
             Logger.Log($"> Font: '{f.Key}' with {f.Value.glyphs.Count} glyphs");
+        
+        int g = 0; foreach (var f in _fonts.Values) g += f.glyphs.Count;
+        
+        Console.WriteLine();
+        Logger.Log("< = = = = = > QE Project Assets < = = = = = >");
+        Logger.Log($"< Loaded Sprites: {_sprites.Count}");
+        Logger.Log($"< Loaded Fonts: {_fonts.Count}");
+        Logger.Log($"< Loaded Glyphs: {g}");
+        Logger.Log($"< Loaded Models: 0");
+        Logger.Log("< = = = = = = = = = = = = = = = = = = = = = >");
+        Console.WriteLine();
     }
     static bool calcFont = false;
     public static void CalculateFonts(Vector2Int size)
@@ -149,5 +163,30 @@ public static class Assets
         size = slotSize;
         dfs = d;
         return g;
+    }
+
+    static void readSimpleModel(string[] lines)
+    {
+        string[] ls;
+        string[] ls2;
+        string t = "cube";
+        Vector3 pos = new(),
+            size = new();
+        Color clr = Color.White;
+        float f;
+        foreach (var l in lines)
+        {
+            // type,position,size,color (RGBA)
+            // cube,(x x x),(y y y),(z z z z)
+            ls = l.Split(',');
+            t = ls[0];
+            ls2 = ls[1][1..^1].Split(' ');
+            pos = new(float.Parse(ls2[0]), float.Parse(ls2[1]), float.Parse(ls2[2]));
+            ls2 = ls[2][1..^1].Split(' ');
+            size = new(float.Parse(ls2[0]), float.Parse(ls2[1]), float.Parse(ls2[2]));
+            ls2 = ls[3][1..^1].Split(' ');
+            clr = new(byte.Parse(ls2[0]), byte.Parse(ls2[1]), byte.Parse(ls2[2]), byte.Parse(ls2[3]));
+
+        }
     }
 }

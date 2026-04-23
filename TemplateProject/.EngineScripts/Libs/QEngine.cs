@@ -115,6 +115,13 @@ namespace QEngine
             float dx = a.x - b.x, dy = a.y - b.y, dz = a.z - b.z;
             return MathF.Sqrt(dx * dx + dy * dy + dz * dz);
         }
+        public static Vector3 Cross(Vector3 a, Vector3 b) => new(a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x);
+        public Vector3 Normalized()
+        { 
+            float len = MathF.Sqrt(x * x + y * y + z * z); 
+            if (len == 0) return new Vector3(0, 0, 0); 
+            return new Vector3(x / len, y / len, z / len);
+        }
 
         public static Vector4 toVector4(Vector3 vector) => new(vector.x, vector.y, vector.z, 0);
         public Vector4 toVector4() => new(x, y, z, 0);
@@ -223,7 +230,25 @@ namespace QEngine
     {
         /// <summary> The world space position of the GameObject in 3D. </summary>
         public Vector3 position = new();
-        //public float rotation = 0;
+        public Vector3 rotation = new();
+        
+        public Vector3 forward
+        {
+            get
+            {
+                float pitch = rotation.x * (MathF.PI / 180f);
+                float yaw = rotation.y * (MathF.PI / 180f);
+                return new Vector3(
+                    MathF.Cos(pitch) * MathF.Sin(yaw),
+                    -MathF.Sin(-pitch),
+                    MathF.Cos(pitch) * MathF.Cos(yaw)
+                ).Normalized(); 
+            }
+        }
+        public Vector3 right => Vector3.Cross(new(0, 1, 0), forward).Normalized();
+        public Vector3 up => Vector3.Cross(right, forward).Normalized();
+        
+        public Transform(Vector3 pos, Vector3 rot) { position = pos; rotation = rot; }
     }
     #endregion
     

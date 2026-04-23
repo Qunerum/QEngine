@@ -60,6 +60,7 @@ static class Core
     static void Main()
     {
         Console.Clear();
+        Console.Title = "QEngine Game";
         Logger.Log("Starting app...");
         // Add Main Scene to SceneManager
         SceneManager.AddScene("Main", new MainScene());
@@ -91,7 +92,6 @@ static class Core
         Input.Init(window);
         Assets.Summary();
         SceneManager.GoToScene("Main");
-
         stopwatch.Start();
         window.Resized += () => { Game.SetResolution(window.Width, window.Height); };
         
@@ -231,22 +231,44 @@ public static class SceneManager
 /// </summary>
 public static class Logger
 {
+    static ConsoleColor old;
+    public static void Write(object message, ConsoleColor color)
+    {
+        old = Console.ForegroundColor;
+        Console.ForegroundColor = color;
+        Console.Write(message);
+        Console.ForegroundColor = old;
+    } 
     /// <summary> Logs a standard diagnostic message in gray color. </summary>
     /// <param name="message">The message to log. Any object will be converted to a string.</param>
-    public static void Log(object message) => printClr($"[QE LOG]: {message}.\n", ConsoleColor.Gray);
+    public static void Log(object message)
+    {
+        Write("[", ConsoleColor.DarkGray);
+        Write("QE", ConsoleColor.DarkYellow);
+        Write(" LOG", ConsoleColor.DarkGreen);
+        Write($"]:", ConsoleColor.DarkGray); 
+        Write($" {message}\n", ConsoleColor.Green); 
+    }
 
     /// <summary> Logs a warning message in yellow color. Used for signaling unexpected but non-critical issues. </summary>
     /// <param name="message">The warning content.</param>
-    public static void Warning(object message) => printClr($"[QE WARNING]: {message}\n", ConsoleColor.Yellow);
+    public static void Warning(object message)
+    {
+        Write("[", ConsoleColor.DarkGray);
+        Write("QE", ConsoleColor.DarkYellow);
+        Write(" WARNING", ConsoleColor.Yellow);
+        Write($"]:", ConsoleColor.DarkGray); 
+        Write($" {message}\n", ConsoleColor.Yellow); 
+    }
 
     /// <summary> Logs an error message in dark red color. Used for critical failures and exceptions. </summary>
     /// <param name="message">The error details.</param>
-    public static void Error(object message) => printClr($"[QE ERROR]: {message}!\n", ConsoleColor.DarkRed);
-
-    static void printClr(string msg, ConsoleColor color = ConsoleColor.White)
-    {
-        Console.ForegroundColor = color;
-        Console.Write(msg);
-        Console.ResetColor();
+    public static void Error(object message) 
+    { 
+        Write("[", ConsoleColor.DarkGray);
+        Write("QE", ConsoleColor.DarkYellow);
+        Write(" ERROR", ConsoleColor.DarkRed);
+        Write($"]:", ConsoleColor.DarkGray); 
+        Write($" {message}\n", ConsoleColor.DarkRed); 
     }
 }
