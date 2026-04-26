@@ -1,6 +1,9 @@
 using System.Runtime.InteropServices;
+using System.Diagnostics;
 using System.Text.Json;
+using System.IO;
 using QEConsole;
+using System;
 
 class NewProjectCommand : ICommand
 {
@@ -153,6 +156,7 @@ class BuildCommand : ICommand
     }
 }
 
+
 class RunCommand : ICommand
 {
     public string Name => "run";
@@ -161,14 +165,90 @@ class RunCommand : ICommand
 
     public void Execute(string[] args, string? projectRoot)
     {
+        if (string.IsNullOrEmpty(projectRoot)) return;
+
         Writer.Write($"&7Running project at '{projectRoot}'...");
-        Writer.Write($"&7Reading project data from '.qeproject' at '{projectRoot}'...");
-        using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(projectRoot, ".qeproject")));
+        
+        string configPath = Path.Combine(projectRoot, ".qeproject");
+        if (!File.Exists(configPath))
+        {
+            Writer.Write("&cError: .qeproject file not found!");
+            return;
+        }
+
+        using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(configPath));
         JsonElement root = doc.RootElement;
         string projectName = root.GetProperty("name").GetString()!;
-        Writer.Write($"&7Project name is '{projectName}'");
-        Writer.Write($"&7Running 'Build/{(OperatingSystem.IsWindows() ? "win-x64" : "linux-x64")}/{projectName}{(OperatingSystem.IsWindows() ? ".exe" : "")}'...");
-        Terminal.RunCommand($"Build/{(OperatingSystem.IsWindows() ? "win-x64" : "linux-x64")}/{projectName}{(OperatingSystem.IsWindows() ? ".exe" : "")}");
+        
+        string platformDir = OperatingSystem.IsWindows() ? "win-x64" : "linux-x64";
+        string extension = OperatingSystem.IsWindows() ? ".exe" : "";
+        string binaryName = projectName + extension;
+        
+        string fullBuildPath = Path.GetFullPath(Path.Combine(projectRoot, "Build", platformDir, binaryName));
+
+        if (!File.Exists(fullBuildPath))
+        {
+            Writer.Write($"&cError: Binary not found at '{fullBuildPath}'. Did you build the project?");
+            return;
+        }
+
+        Writer.Write($"&7Starting '{binaryName}' in a new window...");
+
+        try
+        {
+            string workingDir = Path.GetDirectoryName(fullBuildPath) ?? projectRoot;
+
+            if (OperatingSystem.IsWindows())
+            {
+                // Na Windows: 'start' potrzebuje pustego tytułu w cudzysłowie, 
+                // aby poprawnie zinterpretować ścieżkę do pliku jako komendę.
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = "cmd.exe",
+                    Arguments = $"/c start \"{projectName}\" cmd /k \"\"{fullBuildPath}\"\"",
+                    WorkingDirectory = workingDir,
+                    UseShellExecute = true
+                });
+            }
+            else if (OperatingSystem.IsLinux())
+            {
+                Process.Start("chmod", $"+x \"{fullBuildPath}\"").WaitForExit();
+
+                // Linux: Większość terminali potrzebuje flagi -e lub -x, 
+                // ale najbezpieczniej jest wywołać powłokę (sh), która odpali apkę.
+                string[] terminalEmulators = { "x-terminal-emulator", "gnome-terminal", "konsole", "xfce4-terminal", "xterm" };
+                bool started = false;
+
+                foreach (var term in terminalEmulators)
+                {
+                    try
+                    {
+                        // Używamy "sh -c", aby terminal wiedział, że ma wykonać plik binarny i nie zamknąć się od razu
+                        string linuxArgs = term switch
+                        {
+                            "gnome-terminal" => $"-- sh -c \"'{fullBuildPath}'; exec sh\"",
+                            "konsole" => $"-e sh -c \"'{fullBuildPath}'; exec sh\"",
+                            _ => $"-e \"{fullBuildPath}\""
+                        };
+
+                        Process.Start(new ProcessStartInfo
+                        {
+                            FileName = term,
+                            Arguments = linuxArgs,
+                            WorkingDirectory = workingDir
+                        });
+                        started = true;
+                        break;
+                    }
+                    catch { }
+                }
+
+                if (!started)
+                {
+                    Process.Start(new ProcessStartInfo { FileName = fullBuildPath, WorkingDirectory = workingDir });
+                }
+            }
+        } catch { }
     }
 }
 class BARCommand : ICommand
