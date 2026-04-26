@@ -5,6 +5,7 @@ using System.Text;
 using System.Numerics;
 using System.Runtime.InteropServices;
 using QEngine;
+using QEngine.Geometry;
 using QEngine.GUI;
 using QEngine.Text;
 
@@ -405,8 +406,8 @@ namespace QEngine.Dev.Renderer
                 Color = color
             });
         }
-
-        public static void DrawCube(Vector3 center, Vector3 rotation, Vector3 size, Vector4 color)
+        public static void DrawModel(Vector3 center, Vector3 rotation, Model model) { DrawGeometry(center, rotation, model.verts, model.inds, model.color.to01()); }
+        public static void DrawBox(Vector3 center, Vector3 rotation, Vector3 size, Vector4 color)
         {
             float x = size.x / 2, y = size.y / 2, z = size.z / 2;
             DrawGeometry(center, rotation, [

@@ -45,6 +45,6 @@ public class program : QEScript
         QRenderer.DrawSphere(Camera.lightPosition, new(), 0.2f, 6, 6, new Color(200, 200, 0).to01());
         
         QRenderer.DrawCapsule(new(), new(), 0.5f, 2, 8, Color.White.to01());
-        QRenderer.DrawCube(new(1, 0, 0), new(), new(1, 2, 1), Color.Blue.to01());
+        QRenderer.DrawBox(new(1, 0, 0), new(), new(1, 2, 1), Color.Blue.to01());
     }
 }

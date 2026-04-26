@@ -125,6 +125,7 @@ static class Core
             
             QRenderer.Begin();
             QRenderer.UpdateCamera3D(Camera.position, Camera.rotation, Camera.lightPosition);
+            QRenderer.DrawModel(new(), new(), new([new(), new(1, 0, 0), new(1, 1, 0)], [2, 0, 1], Color.White));
             
             Update();
             QRenderer.End();
