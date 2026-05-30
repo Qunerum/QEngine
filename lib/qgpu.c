@@ -4,6 +4,9 @@
 #include <stdarg.h>
 #include <dirent.h>
 #include <sys/stat.h>
+#include <vulkan/vulkan.h>
+#define GLFW_INCLUDE_VULKAN
+#include <GLFW/glfw3.h>
 #include "qgpu.h"
 
 #define PI 3.14159265359f
@@ -373,6 +376,9 @@ void qgpuCreate(int width, int height, const char* title, void (*updateFunc)()) 
     glfwTerminate();
 }
 
+// ========================================================================================================================================================================
+// ========================================================================================================================================================================
+// ========================================================================================================================================================================
 void drawGeometry(float posX, float posY, QGPU_Vertex* vertices, uint32_t vCount, uint32_t* indices, uint32_t iCount) {
     if (vCount == 0 || iCount == 0) return;
     if (g_ctx.currentVOffset + vCount >= 65536 || g_ctx.currentIOffset + iCount >= 65536) return;
@@ -388,8 +394,7 @@ void drawGeometry(float posX, float posY, QGPU_Vertex* vertices, uint32_t vCount
     g_ctx.currentVOffset += vCount;
     g_ctx.currentIOffset += iCount;
 }
-
-// ==========================================
+// ========================================================================================================================================================================
 void drawRect(float posX, float posY, float sizeX, float sizeY, QColor clr) {
     float r = clr.r, g = clr.g, b = clr.b, a = clr.a;
     float x = sizeX / 2.0f, y = sizeY / 2.0f;
@@ -487,7 +492,7 @@ void drawWireCircle(float posX, float posY, float radius, int segments, float th
     free(v);
     free(indices);
 }
-// ==========================================
+// ========================================================================================================================================================================
 int count_files_with_ext(const char *path, const char *ext) {
     int count = 0;
     struct dirent *entry;
@@ -571,7 +576,7 @@ void drawTextureScale(float posX, float posY, int slot, float scale) {
     free(v);
     free(i_ptr);
 }
-// ==========================================
+// ========================================================================================================================================================================
 int getKey(int key) { if (!g_ctx.window || key < 0 || key >= GLFW_KEY_LAST) return 0; return glfwGetKey(g_ctx.window, key) == GLFW_PRESS; }
 int onKey(int key) {
     if (!g_ctx.window || key < 0 || key >= GLFW_KEY_LAST) return 0;
@@ -594,7 +599,7 @@ void getMousePos(double* x, double* y) {
 }
 int getWidth() { int w, h; if (!g_ctx.window) return 0; glfwGetWindowSize(g_ctx.window, &w, &h); return w; }
 int getHeight() { int w, h; if (!g_ctx.window) return 0; glfwGetWindowSize(g_ctx.window, &w, &h); return h; }
-// ==========================================
+// ========================================================================================================================================================================
 int drawButton(float posX, float posY, float width, float height, QColor clr, QColor hoverClr, QColor pressClr) {
     double mx, my; getMousePos(&mx, &my);
     int hovered = AABB((float)mx, (float)my, posX, posY, width, height), o = 0;
@@ -629,3 +634,4 @@ int drawToggle(float posX, float posY, float width, float height, int* value, QC
     drawRect(posX, posY, width, height, *value == 0 ? offClr : onClr);
     return m;
 }
+// ========================================================================================================================================================================
