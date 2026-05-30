@@ -7,7 +7,6 @@
 #include "qgpu.h"
 
 #define PI 3.14159265359f
-#define SHADERS "bin/"
 
 // ==========================================
 typedef struct {
@@ -222,8 +221,8 @@ void qgpuCreate(int width, int height, const char* title, void (*updateFunc)()) 
         .pPushConstantRanges = &pushConstantRange
     };
     vkCreatePipelineLayout(g_ctx.device, &pipelineLayoutInfo, NULL, &g_ctx.pipelineLayout);
-    VkShaderModule vertModule = createShaderModule(SHADERS "vert.spv");
-    VkShaderModule fragModule = createShaderModule(SHADERS "frag.spv");
+    VkShaderModule vertModule = createShaderModule(FILES "vert.spv");
+    VkShaderModule fragModule = createShaderModule(FILES "frag.spv");
     VkPipelineShaderStageCreateInfo shaderStages[2] = {
         {.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, .stage = VK_SHADER_STAGE_VERTEX_BIT, .module = vertModule, .pName = "main"},
         {.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, .stage = VK_SHADER_STAGE_FRAGMENT_BIT, .module = fragModule, .pName = "main"}

@@ -16,7 +16,7 @@ void Update() {
 }
 
 int main() {
-    loadTexture("test.qgt", 0);
+    loadTexture(FILES "test.qgt", 0);
     qgpuCreate(600, 400, "QGPU Window", Update);
     return 0;
 }

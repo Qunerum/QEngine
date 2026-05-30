@@ -7,39 +7,39 @@ LDFLAGS = -lglfw -lvulkan -ldl -lpthread -lX11 -lXxf86vm -lXrandr -lXi
 SHADERS_DIR = shaders
 BIN = bin
 BUILD = build
+FILES = Files
+FILESB = $(BUILD)/Files
 
 SRCS = $(wildcard src/*.c) $(wildcard lib/*.c)
 OBJS = $(patsubst %.c, $(BIN)/%.o, $(notdir $(SRCS)))
 
 vpath %.c src lib
 
-APP_TARGET = $(BUILD)/qengine
+APP = $(BUILD)/qengine
 
 VERT_SRC = $(SHADERS_DIR)/shader.vert
 FRAG_SRC = $(SHADERS_DIR)/shader.frag
-SHADERS_SPV = $(BIN)/vert.spv $(BIN)/frag.spv
+SHADERS_SPV = $(FILESB)/vert.spv $(FILESB)/frag.spv
 
-all: prepare $(SHADERS_SPV) $(APP_TARGET)
+all: prepare $(SHADERS_SPV) $(APP)
 
 prepare:
-	@mkdir -p $(BIN)
-	@mkdir -p $(BUILD)
+	@mkdir -p $(BIN) $(FILES) $(BUILD) $(FILESB)
 
-$(BIN)/%.spv: $(SHADERS_DIR)/shader.%
+$(FILESB)/%.spv: $(SHADERS_DIR)/shader.%
 	@echo "Shader compilation $*..."
 	@$(GLSLC) $< -o $@
 
 $(BIN)/%.o: %.c
 	@echo "Compilation $<..."
 	@$(CC) $(CFLAGS) -c $< -o $@
-
-$(APP_TARGET): $(OBJS)
-	@echo "Linking app $(APP_TARGET)..."
+$(APP): $(OBJS)
+	@echo "Linking app $(APP)..."
 	@$(CC) -o $@ $(OBJS) $(LDFLAGS)
 
 run: all
-	@echo "--- Starting $(APP_TARGET) ---"
-	@./$(APP_TARGET)
+	@echo "--- Starting $(APP) ---"
+	@cp -r $(FILES)/ $(BUILD)/ && cd $(BUILD) && ./qengine
 
 clean:
 	@echo "Cleaning..."

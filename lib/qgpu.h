@@ -20,6 +20,7 @@ typedef struct {
 
 #define TEXTURES 16
 extern RawTexture txts[TEXTURES];
+#define FILES "Files/"
 
 #define WHITE       (QColor){1.0f, 1.0f, 1.0f, 1.0f}
 #define GRAY        (QColor){0.5f, 0.5f, 0.5f, 1.0f}
