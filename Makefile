@@ -15,16 +15,19 @@ OBJS = $(patsubst %.c, $(BIN)/%.o, $(notdir $(SRCS)))
 
 vpath %.c src lib
 
-APP = $(BUILD)/qengine
+APP_NAME = qgpuApp
+APP = $(BUILD)/$(APP_NAME)
 
 VERT_SRC = $(SHADERS_DIR)/shader.vert
 FRAG_SRC = $(SHADERS_DIR)/shader.frag
 SHADERS_SPV = $(FILESB)/vert.spv $(FILESB)/frag.spv
 
-all: prepare $(SHADERS_SPV) $(APP)
+all: prepare
+	@$(MAKE) $(SHADERS_SPV)
+	@$(MAKE) $(APP)
 
 prepare:
-	@mkdir -p $(BIN) $(FILES) $(BUILD) $(FILESB)
+	@mkdir -p $(BIN) $(BUILD) $(FILES) $(FILESB) src include
 
 $(FILESB)/%.spv: $(SHADERS_DIR)/shader.%
 	@echo "Shader compilation $*..."
@@ -39,10 +42,12 @@ $(APP): $(OBJS)
 
 run: all
 	@echo "--- Starting $(APP) ---"
-	@cp -r $(FILES)/ $(BUILD)/ && cd $(BUILD) && ./qengine
+	@cp -r $(FILES)/ $(BUILD)/
+	@cd $(BUILD) && ./$(APP_NAME)
 
 clean:
 	@echo "Cleaning..."
 	@rm -rf $(BIN) $(BUILD)
+	@echo "Cleaned!"
 
 .PHONY: all prepare run clean

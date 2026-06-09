@@ -2,61 +2,56 @@
 #define QGPU_H
 
 #include <stdint.h>
-#define FILES "Files/" // Use this in loadTexture: FILES "texturepath.qgt"
-#define TEXTURES 16 // Max textures ( Change if you want :P )
 
+#define FILES "Files/" // Use this in loadTexture: FILES "texturepath.qgt"
+#define MAX_VERTICES 65536 // (2^16) Max vertices in one frame ( Change if objects disappear :P )
+#define MAX_TEXTURES 16 // Max textures ( Change if you want :P )
+#define CHAR_SIZE 8
 // !===== Structs ==================================================!
-typedef struct {
-    float pos[2];
-    float color[4];
-} QGPU_Vertex;
+typedef struct { float pos[2]; float color[4]; } QGPU_Vertex;
 typedef struct { float r, g, b, a; } QColor;
-typedef struct {
-    unsigned char* pixels;
-    int pixelCount;
-    int width;
-    int height;
-} RawTexture;
-extern RawTexture txts[TEXTURES];
+typedef struct { float points[96]; int pointCount; } QGPU_Char; // Max 32 points
 // !===== Colors ==================================================!
 // ===== Grayscale ========================================
-#define WHITE       (QColor){1.0f, 1.0f, 1.0f, 1.0f}
-#define GRAY        (QColor){0.5f, 0.5f, 0.5f, 1.0f}
-#define BLACK       (QColor){0.0f, 0.0f, 0.0f, 1.0f}
+#define WHITE       (QColor){1.0, 1.0, 1.0, 1.0}
+#define GRAY        (QColor){0.5, 0.5, 0.5, 1.0}
+#define BLACK       (QColor){0.0, 0.0, 0.0, 1.0}
 // ===== Primary ========================================
-#define RED         (QColor){1.0f, 0.0f, 0.0f, 1.0f}
-#define GREEN       (QColor){0.0f, 1.0f, 0.0f, 1.0f}
-#define BLUE        (QColor){0.0f, 0.0f, 1.0f, 1.0f}
+#define RED         (QColor){1.0, 0.0, 0.0, 1.0}
+#define GREEN       (QColor){0.0, 1.0, 0.0, 1.0}
+#define BLUE        (QColor){0.0, 0.0, 1.0, 1.0}
 // ===== Dark ========================================
-#define DARK_RED    (QColor){0.5f, 0.0f, 0.0f, 1.0f}
-#define DARK_GREEN  (QColor){0.0f, 0.5f, 0.0f, 1.0f}
-#define DARK_BLUE   (QColor){0.0f, 0.0f, 0.5f, 1.0f}
+#define DARK_RED    (QColor){0.5, 0.0, 0.0, 1.0}
+#define DARK_GREEN  (QColor){0.0, 0.5, 0.0, 1.0}
+#define DARK_BLUE   (QColor){0.0, 0.0, 0.5, 1.0}
 // !===== Console ==================================================!
 void print(const char* format, ...);
 // !===== Init ==================================================!
-void qgpuCreate(int width, int height, const char* title, void (*updateFunc)());
+void qgpuCreate(int width, int height, const char* title, void (*initFunc)(), void (*updateFunc)());
 // !===== Drawing ==================================================!
 void drawGeometry(float posX, float posY, QGPU_Vertex* vertices, uint32_t vCount, uint32_t* indices, uint32_t iCount);
 // ===== Simple ========================================
-void drawRect(float posX, float posY, float sizeX, float sizeY, QColor clr);
-void drawTriangle(float posX, float posY, float p1X, float p1Y, float p2X, float p2Y, float p3X, float p3Y, QColor clr);
-void drawCircle(float posX, float posY, float radius, int segments, QColor clr);
+void drawRect(float posX, float posY, float sizeX, float sizeY, QColor color);
+void drawTriangle(float posX, float posY, float p1X, float p1Y, float p2X, float p2Y, float p3X, float p3Y, QColor color);
+void drawCircle(float posX, float posY, float radius, int segments, QColor color);
 // ===== Wire ========================================
-void drawLine(float x1, float y1, float x2, float y2, float thickness, QColor clr);
-void drawWireRect(float posX, float posY, float sizeX, float sizeY, float thickness, QColor clr);
-void drawWireTriangle(float posX, float posY, float p1X, float p1Y, float p2X, float p2Y, float p3X, float p3Y, float thickness, QColor clr);
-void drawWireCircle(float posX, float posY, float radius, int segments, float thickness, QColor clr);
+void drawLine(float x1, float y1, float x2, float y2, float thickness, QColor color);
+void drawWireRect(float posX, float posY, float sizeX, float sizeY, float thickness, QColor color);
+void drawWireTriangle(float posX, float posY, float p1X, float p1Y, float p2X, float p2Y, float p3X, float p3Y, float thickness, QColor color);
+void drawWireCircle(float posX, float posY, float radius, int segments, float thickness, QColor color);
 // ===== Texture ========================================
-
 void loadTexture(const char* filename, int slot);
 void drawTextureScale(float posX, float posY, int slot, float scale);
 // ===== UI ========================================
-int drawButton(float posX, float posY, float width, float height, QColor clr, QColor hoverClr, QColor pressClr);
+int drawButton(float posX, float posY, float width, float height, QColor color, QColor hoverClr, QColor pressClr);
 int drawSlider(float posX, float posY, float width, float height, float handleW, float handleH, float* value, float min, float max, QColor backgroundClr, QColor fillClr, QColor handleClr);
 int drawToggle(float posX, float posY, float width, float height, int* value, QColor offClr, QColor onClr);
 // !===== Screen ==================================================!
 int getWidth();
 int getHeight();
+// !===== Text ==================================================!
+void drawChar(float posX, float posY, unsigned char symbol, float scale, QColor color);
+void drawText(float posX, float posY, char* text, float scale, QColor color);
 // !===== Keyboard / Mouse ==================================================!
 int getKey(int key);
 int onKey(int key);

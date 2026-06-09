@@ -10,7 +10,6 @@
 #include "qgpu.h"
 
 #define PI 3.14159265359f
-
 // ==========================================
 typedef struct {
     GLFWwindow* window;
@@ -42,10 +41,13 @@ typedef struct {
     void* mappedVertexBuffer;
     void* mappedIndexBuffer;
 } InternalContext;
-
+typedef struct { unsigned char* pixels; int pixelCount; int width; int height; VkBuffer buffer; VkDeviceMemory memory; } RawTexture;
 static InternalContext g_ctx;
-RawTexture txts[TEXTURES];
-
+RawTexture txts[MAX_TEXTURES];
+uint32_t g_currentRenderType = 0;
+VkDescriptorSetLayout g_descriptorSetLayout;
+VkDescriptorPool      g_descriptorPool;
+VkDescriptorSet       g_descriptorSets[MAX_TEXTURES];
 // ==========================================
 float q_abs(float x) { return (x < 0) ? -x : x; }
 float q_sqrt(float x) {
@@ -65,14 +67,7 @@ float q_sin(float x) {
 float q_cos(float x) { return q_sin(x + (PI / 2.0f)); }
 int AABB(float x, float y, float posX, float posY, float width, float height) { return (posX - width / 2 <= x && x <= posX + width / 2) && (posY - height / 2 <= y && y <= posY + height / 2); }
 // ==========================================
-void print(const char* format, ...) {
-    printf("[QGPU]: ");
-    va_list args;
-    va_start(args, format);
-    vprintf(format, args);
-    va_end(args);
-    printf("\n");
-}
+void print(const char* format, ...) { printf("[QGPU]: "); va_list args; va_start(args, format); vprintf(format, args); va_end(args); printf("\n"); }
 // ==========================================
 static uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {
     VkPhysicalDeviceMemoryProperties memProperties;
@@ -120,8 +115,9 @@ static VkShaderModule createShaderModule(const char* filename) {
     return shaderModule;
 }
 // ==========================================
-void cleanup_textures() { for (int i = 0; i < TEXTURES; i++) { if (txts[i].pixels != NULL) { free(txts[i].pixels); txts[i].pixels = NULL; } } }
-void qgpuCreate(int width, int height, const char* title, void (*updateFunc)()) {
+void cleanup_textures() { for (int i = 0; i < MAX_TEXTURES; i++) { if (txts[i].pixels != NULL) {
+    if (g_ctx.device != VK_NULL_HANDLE) { vkDestroyBuffer(g_ctx.device, txts[i].buffer, NULL); vkFreeMemory(g_ctx.device, txts[i].memory, NULL); } txts[i].pixels = NULL; } } }
+void qgpuCreate(int width, int height, const char* title, void (*initFunc)(), void (*updateFunc)()) {
     if (!glfwInit()) return;
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     g_ctx.window = glfwCreateWindow(width, height, title, NULL, NULL);
@@ -217,9 +213,44 @@ void qgpuCreate(int width, int height, const char* title, void (*updateFunc)()) 
         .pDependencies = &dependency
     };
     vkCreateRenderPass(g_ctx.device, &renderPassInfo, NULL, &g_ctx.renderPass);
-    VkPushConstantRange pushConstantRange = { .stageFlags = VK_SHADER_STAGE_VERTEX_BIT, .offset = 0, .size = sizeof(float) * 4 };
+    VkDescriptorSetLayoutBinding layoutBinding = {
+        .binding = 0,
+        .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+        .descriptorCount = 1,
+        .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+        .pImmutableSamplers = NULL
+    };
+    VkDescriptorSetLayoutCreateInfo layoutInfo = {
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+        .bindingCount = 1,
+        .pBindings = &layoutBinding
+    };
+    vkCreateDescriptorSetLayout(g_ctx.device, &layoutInfo, NULL, &g_descriptorSetLayout);
+    VkDescriptorPoolSize poolSize = {
+        .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+        .descriptorCount = MAX_TEXTURES
+    };
+    VkDescriptorPoolCreateInfo descPoolInfo = {
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+        .poolSizeCount = 1,
+        .pPoolSizes = &poolSize,
+        .maxSets = MAX_TEXTURES
+    };
+    vkCreateDescriptorPool(g_ctx.device, &descPoolInfo, NULL, &g_descriptorPool);
+    VkDescriptorSetLayout layouts[MAX_TEXTURES];
+    for (int i = 0; i < MAX_TEXTURES; i++) { layouts[i] = g_descriptorSetLayout; }
+    VkDescriptorSetAllocateInfo allocInfoDesc = {
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+        .descriptorPool = g_descriptorPool,
+        .descriptorSetCount = MAX_TEXTURES,
+        .pSetLayouts = layouts
+    };
+    if (vkAllocateDescriptorSets(g_ctx.device, &allocInfoDesc, g_descriptorSets) != VK_SUCCESS) { print("Failed to allocate descriptor sets!"); }
+    VkPushConstantRange pushConstantRange = { .stageFlags = VK_SHADER_STAGE_VERTEX_BIT, .offset = 0, .size = 20 };
     VkPipelineLayoutCreateInfo pipelineLayoutInfo = {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+        .setLayoutCount = 1,
+        .pSetLayouts = &g_descriptorSetLayout,
         .pushConstantRangeCount = 1,
         .pPushConstantRanges = &pushConstantRange
     };
@@ -231,7 +262,7 @@ void qgpuCreate(int width, int height, const char* title, void (*updateFunc)()) 
         {.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, .stage = VK_SHADER_STAGE_FRAGMENT_BIT, .module = fragModule, .pName = "main"}
     };
     VkVertexInputBindingDescription bindingDesc = { .binding = 0, .stride = sizeof(QGPU_Vertex), .inputRate = VK_VERTEX_INPUT_RATE_VERTEX };
-    VkVertexInputAttributeDescription attribDescs[2] = {
+    VkVertexInputAttributeDescription attribDescs[3] = {
         {.binding = 0, .location = 0, .format = VK_FORMAT_R32G32_SFLOAT, .offset = offsetof(QGPU_Vertex, pos)},
         {.binding = 0, .location = 1, .format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = offsetof(QGPU_Vertex, color)}
     };
@@ -286,15 +317,16 @@ void qgpuCreate(int width, int height, const char* title, void (*updateFunc)()) 
         .commandBufferCount = 1
     };
     vkAllocateCommandBuffers(g_ctx.device, &allocInfo, &g_ctx.currentCmd);
-    createBuffer(sizeof(QGPU_Vertex) * 65536, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &g_ctx.vertexBuffer, &g_ctx.vertexBufferMemory);
-    createBuffer(sizeof(uint32_t) * 65536, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &g_ctx.indexBuffer, &g_ctx.indexBufferMemory);
-    vkMapMemory(g_ctx.device, g_ctx.vertexBufferMemory, 0, sizeof(QGPU_Vertex) * 65536, 0, &g_ctx.mappedVertexBuffer);
-    vkMapMemory(g_ctx.device, g_ctx.indexBufferMemory, 0, sizeof(uint32_t) * 65536, 0, &g_ctx.mappedIndexBuffer);
+    createBuffer(sizeof(QGPU_Vertex) * MAX_VERTICES, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &g_ctx.vertexBuffer, &g_ctx.vertexBufferMemory);
+    createBuffer(sizeof(uint32_t) * MAX_VERTICES * 1.5f, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &g_ctx.indexBuffer, &g_ctx.indexBufferMemory);
+    vkMapMemory(g_ctx.device, g_ctx.vertexBufferMemory, 0, sizeof(QGPU_Vertex) * MAX_VERTICES, 0, &g_ctx.mappedVertexBuffer);
+    vkMapMemory(g_ctx.device, g_ctx.indexBufferMemory, 0, sizeof(uint32_t) * (uint32_t)(MAX_VERTICES * 1.5f), 0, &g_ctx.mappedIndexBuffer);
     VkSemaphoreCreateInfo semaphoreInfo = { .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO };
     vkCreateSemaphore(g_ctx.device, &semaphoreInfo, NULL, &g_ctx.imageAvailableSemaphore);
     vkCreateSemaphore(g_ctx.device, &semaphoreInfo, NULL, &g_ctx.renderFinishedSemaphore);
     memset(g_ctx.lastKeyState, 0, sizeof(g_ctx.lastKeyState));
     memset(g_ctx.lastMouseState, 0, sizeof(g_ctx.lastMouseState));
+    if (initFunc) initFunc();
     while (!glfwWindowShouldClose(g_ctx.window)) {
         for (int i = 0; i < GLFW_KEY_LAST; i++) g_ctx.lastKeyState[i] = glfwGetKey(g_ctx.window, i);
         for (int i = 0; i < GLFW_MOUSE_BUTTON_LAST; i++) g_ctx.lastMouseState[i] = glfwGetMouseButton(g_ctx.window, i);
@@ -324,7 +356,7 @@ void qgpuCreate(int width, int height, const char* title, void (*updateFunc)()) 
         VkDeviceSize offsets[] = {0};
         vkCmdBindVertexBuffers(g_ctx.currentCmd, 0, 1, &g_ctx.vertexBuffer, offsets);
         vkCmdBindIndexBuffer(g_ctx.currentCmd, g_ctx.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
-        updateFunc();
+        if (updateFunc) updateFunc();
         vkCmdEndRenderPass(g_ctx.currentCmd);
         vkEndCommandBuffer(g_ctx.currentCmd);
         VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
@@ -369,23 +401,29 @@ void qgpuCreate(int width, int height, const char* title, void (*updateFunc)()) 
     vkDestroyPipelineLayout(g_ctx.device, g_ctx.pipelineLayout, NULL);
     vkDestroyRenderPass(g_ctx.device, g_ctx.renderPass, NULL);
     vkDestroySwapchainKHR(g_ctx.device, g_ctx.swapchain, NULL);
+    vkDestroyDescriptorPool(g_ctx.device, g_descriptorPool, NULL);
+    vkDestroyDescriptorSetLayout(g_ctx.device, g_descriptorSetLayout, NULL);
     vkDestroyDevice(g_ctx.device, NULL);
     vkDestroySurfaceKHR(g_ctx.instance, g_ctx.surface, NULL);
     vkDestroyInstance(g_ctx.instance, NULL);
     glfwDestroyWindow(g_ctx.window);
     glfwTerminate();
 }
-
 // ========================================================================================================================================================================
 // ========================================================================================================================================================================
 // ========================================================================================================================================================================
 void drawGeometry(float posX, float posY, QGPU_Vertex* vertices, uint32_t vCount, uint32_t* indices, uint32_t iCount) {
     if (vCount == 0 || iCount == 0) return;
-    if (g_ctx.currentVOffset + vCount >= 65536 || g_ctx.currentIOffset + iCount >= 65536) return;
-    int w, h;
-    glfwGetFramebufferSize(g_ctx.window, &w, &h);
-    float pushConstants[4] = { posX, posY, (float)w, (float)h };
-    vkCmdPushConstants(g_ctx.currentCmd, g_ctx.pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(float) * 4, pushConstants);
+    if (g_ctx.currentVOffset + vCount >= MAX_VERTICES || g_ctx.currentIOffset + iCount >= MAX_VERTICES * 1.5f) return;
+    int w, h; glfwGetFramebufferSize(g_ctx.window, &w, &h);
+    uint32_t pushData[5];
+    float fPosX = posX, fPosY = posY, fW = (float)w, fH = (float)h;
+    memcpy(&pushData[0], &fPosX, 4);
+    memcpy(&pushData[1], &fPosY, 4);
+    memcpy(&pushData[2], &fW, 4);
+    memcpy(&pushData[3], &fH, 4);
+    pushData[4] = g_currentRenderType;
+    vkCmdPushConstants(g_ctx.currentCmd, g_ctx.pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, 20, pushData);
     QGPU_Vertex* vDst = (QGPU_Vertex*)g_ctx.mappedVertexBuffer + g_ctx.currentVOffset;
     memcpy(vDst, vertices, vCount * sizeof(QGPU_Vertex));
     uint32_t* iDst = (uint32_t*)g_ctx.mappedIndexBuffer + g_ctx.currentIOffset;
@@ -493,88 +531,70 @@ void drawWireCircle(float posX, float posY, float radius, int segments, float th
     free(indices);
 }
 // ========================================================================================================================================================================
-int count_files_with_ext(const char *path, const char *ext) {
-    int count = 0;
-    struct dirent *entry;
-    struct stat statbuf;
-    DIR *dir = opendir(path);
-    if (!dir) return 0;
-    while ((entry = readdir(dir)) != NULL) {
-        char full_path[1024];
-        snprintf(full_path, sizeof(full_path), "%s/%s", path, entry->d_name);
-        if (stat(full_path, &statbuf) == -1) continue;
-        if (S_ISDIR(statbuf.st_mode)) { if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue; count += count_files_with_ext(full_path, ext); }
-        else { char *dot = strrchr(entry->d_name, '.'); if (dot && strcmp(dot, ext) == 0) { count++; } }
-    }
-    closedir(dir);
-    return count;
-}
 void loadTexture(const char* filename, int slot) {
-    if (slot < 0 || slot >= TEXTURES) return;
-    if (txts[slot].pixels != NULL) { free(txts[slot].pixels); txts[slot].pixels = NULL; }
+    if (slot < 0 || slot >= MAX_TEXTURES) return;
+    if (txts[slot].pixels != NULL) {
+        vkDestroyBuffer(g_ctx.device, txts[slot].buffer, NULL);
+        vkFreeMemory(g_ctx.device, txts[slot].memory, NULL);
+        free(txts[slot].pixels);
+        txts[slot].pixels = NULL;
+    }
     FILE* file = fopen(filename, "r");
-    if (!file) return;
+    if (!file) { print("Cannot find texture '%s'!", filename); return; }
     char line[16];
-    int width = 0, height = 0;
+    int width = 0, height = 0, currentPixel = 0;
     if (fgets(line, sizeof(line), file)) { sscanf(line, "%d %d", &width, &height); }
     int pixelCount = width * height;
-    unsigned char* pixelData = (unsigned char*)malloc(pixelCount * 4);
-    if (!pixelData) { fclose(file); return; }
-    int currentByte = 0;
-    while (fgets(line, sizeof(line), file) && currentByte < pixelCount * 4) {
-        int r, g, b, a;
-        if (sscanf(line, "%d %d %d %d", &r, &g, &b, &a) == 4) {
-            pixelData[currentByte++] = (unsigned char)r;
-            pixelData[currentByte++] = (unsigned char)g;
-            pixelData[currentByte++] = (unsigned char)b;
-            pixelData[currentByte++] = (unsigned char)a;
+    size_t ssboSize = sizeof(uint32_t) * 2 + (pixelCount * sizeof(uint32_t));
+    uint32_t* ssboData = (uint32_t*)malloc(ssboSize);
+    if (!ssboData) { fclose(file); return; }
+    ssboData[0] = (uint32_t)width;
+    ssboData[1] = (uint32_t)height;
+    while (fgets(line, sizeof(line), file) && currentPixel < pixelCount) {
+        int r, g, b, a; if (sscanf(line, "%d %d %d %d", &r, &g, &b, &a) == 4) {
+            uint32_t packedColor = ((uint32_t)a << 24) | ((uint32_t)b << 16) | ((uint32_t)g << 8) | (uint32_t)r;
+            ssboData[2 + currentPixel] = packedColor;
+            currentPixel++;
         }
     }
-    txts[slot].pixels = pixelData;
-    txts[slot].pixelCount = pixelCount;
+    fclose(file);
+    createBuffer(ssboSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &txts[slot].buffer, &txts[slot].memory);
+    void* mappedData;
+    vkMapMemory(g_ctx.device, txts[slot].memory, 0, ssboSize, 0, &mappedData);
+    memcpy(mappedData, ssboData, ssboSize);
+    vkUnmapMemory(g_ctx.device, txts[slot].memory);
+    free(ssboData);
+    VkDescriptorBufferInfo bufferInfo = { .buffer = txts[slot].buffer, .offset = 0, .range = ssboSize };
+    VkWriteDescriptorSet descriptorWrite = {
+        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .dstSet = g_descriptorSets[slot],
+        .dstBinding = 0,
+        .dstArrayElement = 0,
+        .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+        .descriptorCount = 1,
+        .pBufferInfo = &bufferInfo
+    };
+    vkUpdateDescriptorSets(g_ctx.device, 1, &descriptorWrite, 0, NULL);
+    txts[slot].pixels = (void*)1;
     txts[slot].width = width;
     txts[slot].height = height;
-    fclose(file);
-    printf("Loaded texture '%s' to slot '%d' (%dx%d)\n", filename, slot, width, height);
+    txts[slot].pixelCount = pixelCount;
+    printf("Loaded texture '%s' to SSBO slot '%d' (%dx%d)\n", filename, slot, width, height);
 }
 void drawTextureScale(float posX, float posY, int slot, float scale) {
-    if (slot < 0 || slot >= TEXTURES || txts[slot].pixels == NULL) return;
-    RawTexture* tex = &txts[slot];
-    int vc = tex->pixelCount * 4, ic = tex->pixelCount * 6;
-    float halfW = (tex->width * scale) / 2.0f, halfH = (tex->height * scale) / 2.0f;
-    QGPU_Vertex* v = malloc(vc * sizeof(QGPU_Vertex));
-    uint32_t* i_ptr = malloc(ic * sizeof(uint32_t));
-    if (!v || !i_ptr) { free(v); free(i_ptr); return; }
-    int vIdx = 0, iIdx = 0;
-    for (int y = 0; y < tex->height; y++) {
-        for (int x = 0; x < tex->width; x++) {
-            int p = (y * tex->width + x) * 4;
-            float r = tex->pixels[p] / 255.0f,
-            g = tex->pixels[p + 1] / 255.0f,
-            b = tex->pixels[p + 2] / 255.0f,
-            a = tex->pixels[p + 3] / 255.0f,
-            x0 = (x * scale) - halfW,
-            x1 = ((x + 1) * scale) - halfW,
-            y0 = halfH - ((y + 1) * scale),
-            y1 = halfH - (y * scale);
-            v[vIdx + 0] = (QGPU_Vertex){{x0, y1}, {r, g, b, a}};
-            v[vIdx + 1] = (QGPU_Vertex){{x1, y1}, {r, g, b, a}};
-            v[vIdx + 2] = (QGPU_Vertex){{x1, y0}, {r, g, b, a}};
-            v[vIdx + 3] = (QGPU_Vertex){{x0, y0}, {r, g, b, a}};
-            uint32_t offset = vIdx;
-            i_ptr[iIdx + 0] = offset + 0;
-            i_ptr[iIdx + 1] = offset + 1;
-            i_ptr[iIdx + 2] = offset + 2;
-            i_ptr[iIdx + 3] = offset + 0;
-            i_ptr[iIdx + 4] = offset + 2;
-            i_ptr[iIdx + 5] = offset + 3;
-            vIdx += 4;
-            iIdx += 6;
-        }
-    }
-    drawGeometry(posX, posY, v, vc, i_ptr, ic);
-    free(v);
-    free(i_ptr);
+    if (slot < 0 || slot >= MAX_TEXTURES || txts[slot].pixels == NULL) return;
+    float w = (txts[slot].width * scale) / 2.0f, h = (txts[slot].height * scale) / 2.0f;
+    QGPU_Vertex v[] = {
+        {{ -w,  h }, {0.0f, 0.0f, 1.0f, 1.0f}},
+        {{  w,  h }, {1.0f, 0.0f, 1.0f, 1.0f}},
+        {{  w, -h }, {1.0f, 1.0f, 1.0f, 1.0f}},
+        {{ -w, -h }, {0.0f, 1.0f, 1.0f, 1.0f}}
+    };
+    uint32_t i[] = {0, 1, 2,  0, 2, 3};
+    vkCmdBindDescriptorSets(g_ctx.currentCmd, VK_PIPELINE_BIND_POINT_GRAPHICS, g_ctx.pipelineLayout, 0, 1, &g_descriptorSets[slot], 0, NULL);
+    g_currentRenderType = 1;
+    drawGeometry(posX, posY, v, 4, i, 6);
+    g_currentRenderType = 0;
 }
 // ========================================================================================================================================================================
 int getKey(int key) { if (!g_ctx.window || key < 0 || key >= GLFW_KEY_LAST) return 0; return glfwGetKey(g_ctx.window, key) == GLFW_PRESS; }
@@ -635,3 +655,132 @@ int drawToggle(float posX, float posY, float width, float height, int* value, QC
     return m;
 }
 // ========================================================================================================================================================================
+static const unsigned char font_basic[138][8] = {
+    [128]  = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}, // Full block
+    [129]  = {0x18, 0x3C, 0x5A, 0x99, 0x18, 0x18, 0x18, 0x00}, // Up arrow
+    [130]  = {0x18, 0x18, 0x18, 0x99, 0x5A, 0x3C, 0x18, 0x00}, // Down arrow
+    [131]  = {0x10, 0x30, 0x60, 0xFF, 0x60, 0x30, 0x10, 0x00}, // Left arrow
+    [132]  = {0x08, 0x0C, 0x06, 0xFF, 0x06, 0x0C, 0x08, 0x00}, // Right arrow
+    [133]  = {0x18, 0x24, 0x24, 0x7e, 0x7e, 0x7e, 0x7e, 0x00}, // Locker
+    [134]  = {0x00, 0x18, 0x3c, 0x7e, 0x3c, 0x3c, 0x3c, 0x00}, // Home
+    [135]  = {0x00, 0x24, 0x7e, 0x7e, 0x7e, 0x3c, 0x18, 0x00}, // Heart
+    [136]  = {0x00, 0x60, 0x5c, 0x4e, 0x42, 0x42, 0x7e, 0x00}, // Folder
+    [137]  = {0x00, 0x7c, 0x4a, 0x46, 0x42, 0x42, 0x7e, 0x00}, // File
+    [' ']  = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+    ['!']  = {0x18, 0x18, 0x18, 0x18, 0x00, 0x00, 0x18, 0x00},
+    ['"']  = {0x66, 0x66, 0x66, 0x00, 0x00, 0x00, 0x00, 0x00},
+    ['#']  = {0x24, 0x24, 0x7E, 0x24, 0x7E, 0x24, 0x24, 0x00},
+    ['$']  = {0x18, 0x3E, 0x60, 0x3C, 0x06, 0x7C, 0x18, 0x00},
+    ['%']  = {0x62, 0x66, 0x0C, 0x18, 0x30, 0x66, 0x46, 0x00},
+    ['&']  = {0x38, 0x6C, 0x38, 0x76, 0xDC, 0xCC, 0x76, 0x00},
+    ['\''] = {0x18, 0x18, 0x30, 0x00, 0x00, 0x00, 0x00, 0x00},
+    ['(']  = {0x0C, 0x18, 0x30, 0x30, 0x30, 0x18, 0x0C, 0x00},
+    [')']  = {0x30, 0x18, 0x0C, 0x0C, 0x0C, 0x18, 0x30, 0x00},
+    ['*']  = {0x00, 0x14, 0x08, 0x3E, 0x08, 0x14, 0x00, 0x00},
+    ['+']  = {0x00, 0x18, 0x18, 0x7E, 0x18, 0x18, 0x00, 0x00},
+    [',']  = {0x00, 0x00, 0x00, 0x00, 0x00, 0x18, 0x18, 0x30},
+    ['-']  = {0x00, 0x00, 0x00, 0x7E, 0x00, 0x00, 0x00, 0x00},
+    ['.']  = {0x00, 0x00, 0x00, 0x00, 0x00, 0x18, 0x18, 0x00},
+    ['/']  = {0x02, 0x06, 0x0C, 0x18, 0x30, 0x60, 0x40, 0x00},
+
+    [':']  = {0x00, 0x18, 0x18, 0x00, 0x18, 0x18, 0x00, 0x00},
+    [';']  = {0x00, 0x18, 0x18, 0x00, 0x18, 0x18, 0x30, 0x00},
+    ['<']  = {0x0C, 0x18, 0x30, 0x60, 0x30, 0x18, 0x0C, 0x00},
+    ['=']  = {0x00, 0x00, 0x7E, 0x00, 0x7E, 0x00, 0x00, 0x00},
+    ['>']  = {0x30, 0x18, 0x0C, 0x03, 0x0C, 0x18, 0x30, 0x00},
+    ['?']  = {0x3C, 0x66, 0x06, 0x0C, 0x18, 0x00, 0x18, 0x00},
+    ['@']  = {0x3C, 0x42, 0x9D, 0xA1, 0xA1, 0x9D, 0x40, 0x3E},
+
+    ['[']  = {0x3C, 0x30, 0x30, 0x30, 0x30, 0x30, 0x3C, 0x00},
+    ['\\'] = {0x40, 0x30, 0x18, 0x0C, 0x06, 0x03, 0x01, 0x00},
+    [']']  = {0x3C, 0x0C, 0x0C, 0x0C, 0x0C, 0x0C, 0x3C, 0x00},
+    ['^']  = {0x18, 0x24, 0x42, 0x00, 0x00, 0x00, 0x00, 0x00},
+    ['_']  = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7E, 0x00},
+    ['`']  = {0x30, 0x30, 0x18, 0x00, 0x00, 0x00, 0x00, 0x00},
+
+    ['{']  = {0x0E, 0x18, 0x18, 0x30, 0x18, 0x18, 0x0E, 0x00},
+    ['|']  = {0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18},
+    ['}']  = {0x70, 0x18, 0x18, 0x0C, 0x18, 0x18, 0x70, 0x00},
+    ['~']  = {0x3A, 0x5C, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+
+    ['0']  = {0x3C, 0x66, 0x6E, 0x76, 0x66, 0x66, 0x3C, 0x00},
+    ['1']  = {0x18, 0x38, 0x18, 0x18, 0x18, 0x18, 0x3C, 0x00},
+    ['2']  = {0x3C, 0x66, 0x06, 0x0C, 0x30, 0x60, 0x7E, 0x00},
+    ['3']  = {0x3C, 0x66, 0x06, 0x1C, 0x06, 0x66, 0x3C, 0x00},
+    ['4']  = {0x0C, 0x1C, 0x2C, 0x4C, 0x7E, 0x0C, 0x0C, 0x00},
+    ['5']  = {0x7E, 0x60, 0x7C, 0x06, 0x06, 0x66, 0x3C, 0x00},
+    ['6']  = {0x1C, 0x30, 0x60, 0x7C, 0x66, 0x66, 0x3C, 0x00},
+    ['7']  = {0x7E, 0x06, 0x0C, 0x18, 0x30, 0x30, 0x30, 0x00},
+    ['8']  = {0x3C, 0x66, 0x66, 0x3C, 0x66, 0x66, 0x3C, 0x00},
+    ['9']  = {0x3C, 0x66, 0x66, 0x3E, 0x06, 0x0C, 0x38, 0x00},
+
+    ['A']  = {0x18, 0x3C, 0x66, 0x66, 0x7E, 0x66, 0x66, 0x00},
+    ['B']  = {0x7C, 0x66, 0x66, 0x7C, 0x66, 0x66, 0x7C, 0x00},
+    ['C']  = {0x3C, 0x66, 0x60, 0x60, 0x60, 0x66, 0x3C, 0x00},
+    ['D']  = {0x78, 0x6C, 0x66, 0x66, 0x66, 0x6C, 0x78, 0x00},
+    ['E']  = {0x7E, 0x60, 0x60, 0x7C, 0x60, 0x60, 0x7E, 0x00},
+    ['F']  = {0x7E, 0x60, 0x60, 0x7C, 0x60, 0x60, 0x60, 0x00},
+    ['G']  = {0x3C, 0x66, 0x60, 0x6E, 0x66, 0x66, 0x3E, 0x00},
+    ['H']  = {0x66, 0x66, 0x66, 0x7E, 0x66, 0x66, 0x66, 0x00},
+    ['I']  = {0x3C, 0x18, 0x18, 0x18, 0x18, 0x18, 0x3C, 0x00},
+    ['J']  = {0x1E, 0x06, 0x06, 0x06, 0x06, 0x66, 0x3C, 0x00},
+    ['K']  = {0x66, 0x6C, 0x78, 0x70, 0x78, 0x6C, 0x66, 0x00},
+    ['L']  = {0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x7E, 0x00},
+    ['M']  = {0x66, 0xEF, 0xD6, 0xD6, 0xC6, 0xC6, 0xC6, 0x00},
+    ['N']  = {0x66, 0x76, 0x7E, 0x6E, 0x66, 0x66, 0x66, 0x00},
+    ['O']  = {0x3C, 0x66, 0x66, 0x66, 0x66, 0x66, 0x3C, 0x00},
+    ['P']  = {0x7C, 0x66, 0x66, 0x7C, 0x60, 0x60, 0x60, 0x00},
+    ['Q']  = {0x3C, 0x66, 0x66, 0x66, 0x66, 0x3C, 0x1E, 0x03},
+    ['R']  = {0x7C, 0x66, 0x66, 0x7C, 0x78, 0x6C, 0x66, 0x00},
+    ['S']  = {0x3C, 0x66, 0x60, 0x3C, 0x06, 0x66, 0x3C, 0x00},
+    ['T']  = {0x7E, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x00},
+    ['U']  = {0x66, 0x66, 0x66, 0x66, 0x66, 0x66, 0x3C, 0x00},
+    ['V']  = {0x66, 0x66, 0x66, 0x66, 0x24, 0x24, 0x18, 0x00},
+    ['W']  = {0xC6, 0xC6, 0xC6, 0xD6, 0xD6, 0xEF, 0x66, 0x00},
+    ['X']  = {0x66, 0x66, 0x24, 0x18, 0x24, 0x66, 0x66, 0x00},
+    ['Y']  = {0x66, 0x66, 0x24, 0x18, 0x18, 0x18, 0x18, 0x00},
+    ['Z']  = {0x7E, 0x06, 0x0C, 0x18, 0x30, 0x60, 0x7E, 0x00},
+
+    ['a']  = {0x00, 0x00, 0x3C, 0x06, 0x3E, 0x66, 0x3E, 0x00},
+    ['b']  = {0x60, 0x60, 0x7C, 0x66, 0x66, 0x66, 0x7C, 0x00},
+    ['c']  = {0x00, 0x00, 0x3C, 0x60, 0x60, 0x66, 0x3C, 0x00},
+    ['d']  = {0x06, 0x06, 0x3E, 0x66, 0x66, 0x66, 0x3E, 0x00},
+    ['e']  = {0x00, 0x00, 0x3C, 0x66, 0x7E, 0x60, 0x3C, 0x00},
+    ['f']  = {0x1C, 0x22, 0x20, 0x7C, 0x20, 0x20, 0x20, 0x00},
+    ['g']  = {0x00, 0x00, 0x3E, 0x66, 0x66, 0x3E, 0x06, 0x7C},
+    ['h']  = {0x60, 0x60, 0x7C, 0x66, 0x66, 0x66, 0x66, 0x00},
+    ['i']  = {0x18, 0x00, 0x38, 0x18, 0x18, 0x18, 0x3C, 0x00},
+    ['j']  = {0x06, 0x00, 0x0E, 0x06, 0x06, 0x06, 0x06, 0x3C},
+    ['k']  = {0x60, 0x60, 0x66, 0x6C, 0x78, 0x6C, 0x66, 0x00},
+    ['l']  = {0x38, 0x18, 0x18, 0x18, 0x18, 0x18, 0x3C, 0x00},
+    ['m']  = {0x00, 0x00, 0x6C, 0xFE, 0xD6, 0xC6, 0xC6, 0x00},
+    ['n']  = {0x00, 0x00, 0x7C, 0x66, 0x66, 0x66, 0x66, 0x00},
+    ['o']  = {0x00, 0x00, 0x3C, 0x66, 0x66, 0x66, 0x3C, 0x00},
+    ['p']  = {0x00, 0x00, 0x7C, 0x66, 0x66, 0x7C, 0x60, 0x60},
+    ['q']  = {0x00, 0x00, 0x3E, 0x66, 0x66, 0x3E, 0x06, 0x06},
+    ['r']  = {0x00, 0x00, 0x7C, 0x66, 0x60, 0x60, 0x60, 0x00},
+    ['s']  = {0x00, 0x00, 0x3E, 0x60, 0x3C, 0x06, 0x7C, 0x00},
+    ['t']  = {0x20, 0x20, 0x7C, 0x20, 0x20, 0x22, 0x1C, 0x00},
+    ['u']  = {0x00, 0x00, 0x66, 0x66, 0x66, 0x66, 0x3E, 0x00},
+    ['v']  = {0x00, 0x00, 0x66, 0x66, 0x24, 0x24, 0x18, 0x00},
+    ['w']  = {0x00, 0x00, 0xC6, 0xD6, 0xD6, 0x7C, 0x28, 0x00},
+    ['x']  = {0x00, 0x00, 0x66, 0x24, 0x18, 0x24, 0x66, 0x00},
+    ['y']  = {0x00, 0x00, 0x66, 0x66, 0x66, 0x3E, 0x06, 0x7C},
+    ['z']  = {0x00, 0x00, 0x7E, 0x0C, 0x18, 0x30, 0x7E, 0x00}
+};
+void drawChar(float posX, float posY, unsigned char symbol, float scale, QColor color) {
+    if (symbol >= 138) return;
+    for (int row = 0; row < 8; row++) {
+        unsigned char row_byte = font_basic[symbol][row]; for (int col = 0; col < 8; col++)
+        { if ((row_byte >> (7 - col)) & 1) { float pixelX = posX + (col * scale), pixelY = posY - (row * scale); drawRect(pixelX, pixelY, scale, scale, color); } }
+    }
+}
+void drawText(float posX, float posY, char* text, float scale, QColor color) {
+    float sx = CHAR_SIZE * scale * 1.25, sy = CHAR_SIZE * scale * 1.25, cx = posX, cy = posY;
+    while (*text) {
+        if (*text == '\n') { cx = posX; cy -= sy; text++; continue; }
+        if (*text == ' ') { cx += sx; text++; continue; }
+        drawChar(cx, cy, *text, scale, color);
+        cx += sx; text++;
+    }
+}
