@@ -2,6 +2,7 @@
 #define QE_UI_H
 
 void updateUI();
-void drawToolButton(char* text, void (*action)());
+void drawToolButton(char* text, int choosed, void (*action)());
+void drawWindow(int win);
 
 #endif
