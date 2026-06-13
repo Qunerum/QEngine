@@ -1,4 +1,6 @@
 #include "../lib/qgpu.h"
+#include "../include/ui.h"
+#include "../include/main.h"
 
 QColor normalText = (QColor){.9, .9, .9, 1};
 QColor sideTitleText = (QColor){.7, .7, .7, 1};
@@ -13,22 +15,28 @@ QColor btnHover = (QColor){.36, .36, .36, 1};
 QColor btnPress = (QColor){.4, .4, .4, 1};
 
 int w = 0, h = 0,
-    toolBtns = 0;
+    toolBtns = 0, coderDelay = 0;
 float toolBtnW = 140, toolH = 20,
-        SceneW = 200, InspectorW = 200;
+        SceneW = 200, InspectorW = 200,
+        coderFilesH = 20, coderTextScale = 1.25;
 
-char* coderData;
-void setCoderData(char* data) { coderData = data; }
 void drawWindow(int win) {
     float xL = -w+SceneW, xR = w-SceneW,
             yU = h-toolH, yB = -h;
     switch (win) {
         case 0: /* Viewport */ break;
         case 1: // Coder
-            drawText(xL+5, yU-5, coderData, 1.25, normalText);
+            if (coderDelay >= CODER_CURSOR_DELAY) coderDelay = 0;
+            drawRect(0, yU-coderFilesH/2, w*2-SceneW-InspectorW, coderFilesH, sideBack);
+            drawText(xL+5, yU-5, "test.c", coderFilesH*0.075, sideTitleText);
+            for (int i=0;i<coder.lineCount;i++) { drawText(xL+5, yU-coderFilesH-5-(i*CHAR_SIZE*1.25*coderTextScale), coder.lines[i], coderTextScale, normalText); }
+            if (coderDelay >= CODER_CURSOR_DELAY/2)
+                drawRect(xL+5+(CHAR_SIZE*coderTextScale/2)+(coder.cursorX*CHAR_SIZE*1.25*coderTextScale), yU-coderFilesH-5-CHAR_SIZE*coderTextScale, CHAR_SIZE*coderTextScale, 2, WHITE);
+            coderDelay++;
             break;
     }
 }
+
 void updateUI(int win) {
     w = getWidth() / 2; h = getHeight() / 2; toolBtns = 0;
     drawRect(0, 0, w*2, h*2, BLACK); // Background
