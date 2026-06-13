@@ -5,13 +5,13 @@ CFLAGS = -Wall -Wextra -O2 -I. -Iinclude -Ilib
 LDFLAGS = -lglfw -lvulkan -ldl -lpthread -lX11 -lXxf86vm -lXrandr -lXi
 
 SHADERS_DIR = shaders
-BIN = bin
+OBJ = obj
 BUILD = build
 FILES = Files
 FILESB = $(BUILD)/Files
 
 SRCS = $(wildcard src/*.c) $(wildcard lib/*.c)
-OBJS = $(patsubst %.c, $(BIN)/%.o, $(notdir $(SRCS)))
+OBJS = $(patsubst %.c, $(OBJ)/%.o, $(notdir $(SRCS)))
 
 vpath %.c src lib
 
@@ -27,13 +27,13 @@ all: prepare
 	@$(MAKE) $(APP)
 
 prepare:
-	@mkdir -p $(BIN) $(BUILD) $(FILES) $(FILESB) src include
+	@mkdir -p $(OBJ) $(BUILD) $(FILES) $(FILESB) src include
 
 $(FILESB)/%.spv: $(SHADERS_DIR)/shader.%
 	@echo "Shader compilation $*..."
 	@$(GLSLC) $< -o $@
 
-$(BIN)/%.o: %.c
+$(OBJ)/%.o: %.c
 	@echo "Compilation $<..."
 	@$(CC) $(CFLAGS) -c $< -o $@
 $(APP): $(OBJS)
@@ -47,7 +47,7 @@ run: all
 
 clean:
 	@echo "Cleaning..."
-	@rm -rf $(BIN) $(BUILD)
+	@rm -rf $(OBJ) $(BUILD)
 	@echo "Cleaned!"
 
 .PHONY: all prepare run clean
