@@ -7,6 +7,7 @@
 #define MAX_VERTICES 65536 // (2^16) Max vertices in one frame ( Change if objects disappear :P )
 #define MAX_TEXTURES 16 // Max textures ( Change if you want :P )
 #define CHAR_SIZE 8
+#define TAB_SIZE 3
 // !===== Structs ==================================================!
 typedef struct { float pos[2]; float color[4]; } QGPU_Vertex;
 typedef struct { float r, g, b, a; } QColor;

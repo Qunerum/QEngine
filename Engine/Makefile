@@ -5,7 +5,7 @@ CFLAGS = -Wall -Wextra -O2 -I. -Iinclude -Ilib
 LDFLAGS = -lglfw -lvulkan -ldl -lpthread -lX11 -lXxf86vm -lXrandr -lXi
 
 SHADERS_DIR = shaders
-OBJ = obj
+OBJ = .obj
 BUILD = build
 FILES = Files
 FILESB = $(BUILD)/Files
@@ -15,7 +15,7 @@ OBJS = $(patsubst %.c, $(OBJ)/%.o, $(notdir $(SRCS)))
 
 vpath %.c src lib
 
-APP_NAME = qgpuApp
+APP_NAME = qengine
 APP = $(BUILD)/$(APP_NAME)
 
 VERT_SRC = $(SHADERS_DIR)/shader.vert
@@ -43,7 +43,7 @@ $(APP): $(OBJS)
 run: all
 	@echo "--- Starting $(APP) ---"
 	@cp -r $(FILES)/ $(BUILD)/
-	@cd $(BUILD) && ./$(APP_NAME)
+	@cd $(BUILD) && ./$(APP_NAME) $(ARGS)
 
 clean:
 	@echo "Cleaning..."
