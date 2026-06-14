@@ -29,9 +29,8 @@ void drawWindow(int win) {
             if (coderDelay >= CODER_CURSOR_DELAY) coderDelay = 0;
             drawRect(0, yU-coderFilesH/2, w*2-SceneW-InspectorW, coderFilesH, sideBack);
             drawText(xL+5, yU-5, "test.c", coderFilesH*0.075, sideTitleText);
-            for (int i=0;i<coder.lineCount;i++) { drawText(xL+5, yU-coderFilesH-5-(i*CHAR_SIZE*1.25*coderTextScale), coder.lines[i], coderTextScale, normalText); }
-            if (coderDelay >= CODER_CURSOR_DELAY/2)
-                drawRect(xL+5+(CHAR_SIZE*coderTextScale/2)+(coder.cursorX*CHAR_SIZE*1.25*coderTextScale), yU-coderFilesH-5-CHAR_SIZE*coderTextScale-(coder.cursorY*CHAR_SIZE*1.25*coderTextScale), CHAR_SIZE*coderTextScale, 2, WHITE);
+            drawText(xL+5, yU-coderFilesH-5, coderBuffer, coderTextScale, WHITE);
+            // if (coderDelay >= CODER_CURSOR_DELAY/2) drawRect(xL+5+(CHAR_SIZE*coderTextScale/2)+(coder.cursorX*CHAR_SIZE*1.25*coderTextScale), yU-coderFilesH-5-CHAR_SIZE*coderTextScale-(coder.cursorY*CHAR_SIZE*1.25*coderTextScale), CHAR_SIZE*coderTextScale, 2, WHITE);
             coderDelay++;
             break;
     }

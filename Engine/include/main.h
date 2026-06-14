@@ -1,10 +1,14 @@
 #ifndef QE_MAIN_H
 #define QE_MAIN_H
 
-#define MAX_LINE_LENGTH 4096
-#define MORE_LINES 512
-typedef struct { char* filename; char** lines; int lineCount; int maxLines; int cursorX; int cursorY; } QCoder;
+#define MAX_FILE_NAME_LEN 1024
+#define MAX_FILE_SIZE (1024*1024) // 1024KB , 1MB
+
+extern char coderOpenedFile[MAX_FILE_NAME_LEN];
+extern char coderBuffer[MAX_FILE_SIZE];
+extern int coderBufferLen, coderCursor;
+
+void qCoderInputChar(char c);
 void openFile(char* filename);
-extern QCoder coder;
 
 #endif

@@ -5,63 +5,17 @@
 #include "../include/text.h"
 #include <stdlib.h>
 
-QCoder coder;
-void qCoderOpenFile(char* filename) {
-    if (coder.lines) { for (int i=0;i<coder.lineCount;i++) free(coder.lines[i]); free(coder.lines); }
-    if (!coder.filename) coder.filename = (char*)malloc(MAX_LINE_LENGTH);
-    qStrcpy(coder.filename, filename);
-    char* rawText = qReadTextFile(coder.filename);
-    if (!rawText) {
-        coder.lineCount = 1;
-        coder.maxLines = MORE_LINES;
-        coder.lines = (char**)malloc(coder.maxLines * sizeof(char*));
-        coder.lines[0] = (char*)malloc(MAX_LINE_LENGTH);
-        coder.lines[0][0] = '\0';
-        return;
-    }
-    int actualLines = 1;
-    for (int i=0;rawText[i];i++) { if (rawText[i] == '\n') actualLines++; }
-    coder.lineCount = actualLines;
-    coder.maxLines = actualLines + MORE_LINES;
-    coder.lines = (char**)malloc(coder.maxLines * sizeof(char*));
-    int rawIdx = 0;
-    for (int l=0;l<actualLines;l++) {
-        coder.lines[l] = (char*)malloc(MAX_LINE_LENGTH);
-        int charIdx = 0;
-        while (rawText[rawIdx] && rawText[rawIdx] != '\n' && rawText[rawIdx] != '\r') {
-            if (charIdx < MAX_LINE_LENGTH - 1) {
-                coder.lines[l][charIdx] = rawText[rawIdx];
-                charIdx++;
-            }
-            rawIdx++;
-        }
-        coder.lines[l][charIdx] = '\0';
-        if (rawText[rawIdx] == '\r') rawIdx++;
-        if (rawText[rawIdx] == '\n') rawIdx++;
-    }
-    free(rawText);
-    coder.cursorX = 0;
-    coder.cursorY = 0;
-}
+char coderOpenedFile[MAX_FILE_NAME_LEN];
+char coderBuffer[MAX_FILE_SIZE];
+int coderBufferLen = 0, coderCursor = 0;
+void qCoderOpenFile(char* filename) { char* rawText = qReadTextFile(filename); if (rawText) qStrcpy(coderBuffer, rawText); free(rawText); print(coderBuffer); }
 void qCoderInputChar(char c) {
-    char* currentLine = coder.lines[coder.cursorY];
-    int len = qStrlen(currentLine);
-    if (len >= MAX_LINE_LENGTH - 1) return;
-    for (int i = len; i >= coder.cursorX; i--) { currentLine[i + 1] = currentLine[i]; }
-    currentLine[coder.cursorX] = c;
-    if (c != '\n') coder.cursorX++; else { coder.cursorX = 0; coder.cursorY++; }
+    for (int i = coderBufferLen; i >= coderCursor; i--) { coderBuffer[i + 1] = coderBuffer[i]; }
+    coderBuffer[coderCursor] = c;
 }
 void qCoderSave() {
-    char* bigBuffer = (char*)malloc(coder.lineCount * (MAX_LINE_LENGTH + 1));
-    bigBuffer[0] = '\0';
-    for (int i = 0; i < coder.lineCount; i++) { qStradd(bigBuffer, coder.lines[i]); if (i < coder.lineCount - 1) { qStradd(bigBuffer, "\n"); } }
-    qWriteTextFile(coder.filename, bigBuffer);
-    free(bigBuffer);
-    int oldX = coder.cursorX;
-    int oldY = coder.cursorY;
-    qCoderOpenFile(coder.filename);
-    coder.cursorX = oldX;
-    coder.cursorY = oldY;
+    qWriteTextFile(coderOpenedFile, coderBuffer);
+    qCoderOpenFile(coderOpenedFile);
 }
 
 int actualWindow = 1;
@@ -70,10 +24,10 @@ int toSetWin = 0; void setWin() { actualWindow = toSetWin; }
 void Init() {}
 void Update() {
     // int w = getWidth() / 2, h = getHeight() / 2;
-    if (onKey(QKEY_UP) && coder.cursorY > 0) coder.cursorY--;
-    if (onKey(QKEY_DOWN) && coder.cursorY < coder.maxLines) coder.cursorY++;
-    if (onKey(QKEY_LEFT) && coder.cursorX > 0) coder.cursorX--;
-    if (onKey(QKEY_RIGHT) && coder.cursorX < MAX_LINE_LENGTH) coder.cursorX++;
+    // if (onKey(QKEY_UP) && coder.cursorY > 0) coder.cursorY--;
+    // if (onKey(QKEY_DOWN) && coder.cursorY < coder.maxLines) coder.cursorY++;
+    if (onKey(QKEY_LEFT) && coderCursor > 0) coderCursor--;
+    if (onKey(QKEY_RIGHT) && coderCursor < MAX_FILE_SIZE - 1) coderCursor++;
 
     if (onKey(QKEY_ENTER)) { qCoderInputChar('\n'); }
     if (onKey(QKEY_A)) { qCoderInputChar('a'); }
