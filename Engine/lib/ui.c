@@ -31,7 +31,7 @@ void drawWindow(int win) {
             drawText(xL+5, yU-5, "test.c", coderFilesH*0.075, sideTitleText);
             for (int i=0;i<coder.lineCount;i++) { drawText(xL+5, yU-coderFilesH-5-(i*CHAR_SIZE*1.25*coderTextScale), coder.lines[i], coderTextScale, normalText); }
             if (coderDelay >= CODER_CURSOR_DELAY/2)
-                drawRect(xL+5+(CHAR_SIZE*coderTextScale/2)+(coder.cursorX*CHAR_SIZE*1.25*coderTextScale), yU-coderFilesH-5-CHAR_SIZE*coderTextScale, CHAR_SIZE*coderTextScale, 2, WHITE);
+                drawRect(xL+5+(CHAR_SIZE*coderTextScale/2)+(coder.cursorX*CHAR_SIZE*1.25*coderTextScale), yU-coderFilesH-5-CHAR_SIZE*coderTextScale-(coder.cursorY*CHAR_SIZE*1.25*coderTextScale), CHAR_SIZE*coderTextScale, 2, WHITE);
             coderDelay++;
             break;
     }

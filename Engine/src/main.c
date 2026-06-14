@@ -49,7 +49,7 @@ void qCoderInputChar(char c) {
     if (len >= MAX_LINE_LENGTH - 1) return;
     for (int i = len; i >= coder.cursorX; i--) { currentLine[i + 1] = currentLine[i]; }
     currentLine[coder.cursorX] = c;
-    coder.cursorX++;
+    if (c != '\n') coder.cursorX++; else { coder.cursorX = 0; coder.cursorY++; }
 }
 void qCoderSave() {
     char* bigBuffer = (char*)malloc(coder.lineCount * (MAX_LINE_LENGTH + 1));
@@ -70,9 +70,14 @@ int toSetWin = 0; void setWin() { actualWindow = toSetWin; }
 void Init() {}
 void Update() {
     // int w = getWidth() / 2, h = getHeight() / 2;
+    if (onKey(QKEY_UP) && coder.cursorY > 0) coder.cursorY--;
+    if (onKey(QKEY_DOWN) && coder.cursorY < coder.maxLines) coder.cursorY++;
     if (onKey(QKEY_LEFT) && coder.cursorX > 0) coder.cursorX--;
     if (onKey(QKEY_RIGHT) && coder.cursorX < MAX_LINE_LENGTH) coder.cursorX++;
+
+    if (onKey(QKEY_ENTER)) { qCoderInputChar('\n'); }
     if (onKey(QKEY_A)) { qCoderInputChar('a'); }
+    if (getKey(QKEY_LCTRL) && onKey(QKEY_S)) { print("Saving..."); qCoderSave(); }
 
     updateUI(actualWindow);
     toSetWin = 0; drawToolButton("Viewport", actualWindow == 0, setWin);
