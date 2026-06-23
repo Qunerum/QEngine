@@ -33,13 +33,11 @@ static inline Vector2 qMap_v2(Vector2 v, Vector2 oldMin, Vector2 oldMax, Vector2
 #define qMap(Value, oldMin, oldMax, newMin, newMax) _Generic((Value), float:qMap_f, Vector2:qMap_v2, Vector3:qMap_v3 )(Value, oldMin, oldMax, newMin, newMax)
 
 // = = = = = MATH = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-static inline float qSqr(float number) { return number*number; }
-static inline float qCub(float number) { return number*number*number; }
-
+static inline float qPow(float base, int exp) { if (exp == 0) return 1; float v = base; int absExp = exp < 0 ? -exp : exp; for (int i=1;i<absExp;i++) { v *= base; } if (exp < 0) v = 1.0f/v; return v; }
 static inline float qSqrt(float number) {	if (number <= 0.0f) return 0.0f; float x = number * 0.5f; for (int i=0;i<4;i++) x = 0.5f * (x + number / x); return x; }
 
-static inline float qDist_v2(Vector2 a, Vector2 b) { return qSqrt(qSqr(b.x - a.x) + qSqr(b.y - a.y)); }
-static inline float qDist_v3(Vector3 a, Vector3 b) { return qSqrt(qSqr(b.x - a.x) + qSqr(b.y - a.y) + qSqr(b.z - a.z)); }
+static inline float qDist_v2(Vector2 a, Vector2 b) { return qSqrt(qPow(b.x - a.x, 2) + qPow(b.y - a.y, 2)); }
+static inline float qDist_v3(Vector3 a, Vector3 b) { return qSqrt(qPow(b.x - a.x, 2) + qPow(b.y - a.y, 2) + qPow(b.z - a.z, 2)); }
 #define qDist(A, B) _Generic((A), Vector2:qDist_v2, Vector3:qDist_v3 )(A, B)
 
 #endif
