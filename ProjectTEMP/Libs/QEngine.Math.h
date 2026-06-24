@@ -17,12 +17,11 @@ static inline Vector3 qClamp_v3(Vector3 v, Vector3 min, Vector3 max) { return (V
 static inline Vector3Int qClamp_v3i(Vector3Int v, Vector3Int min, Vector3Int max) { return (Vector3Int){qClamp_i(v.x, min.x, max.x), qClamp_i(v.y, min.y, max.y), qClamp_i(v.z, min.z, max.z)}; }
 #define qClamp(Value, Min, Max) _Generic((Value), int:qClamp_i, float:qClamp_f, Vector2:qClamp_v2, Vector2Int:qClamp_v2i, Vector3:qClamp_v3, Vector3Int:qClamp_v3i )(Value, Min, Max)
 // = = = = = MAP = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-static inline float qMap_f(float v, float oldMin, float oldMax, float newMin, float newMax) {
-	if (oldMax - oldMin == 0.0f) return newMin; float pct = (v - oldMin) / (oldMax - oldMin); return qLerp_f(newMin, newMax, pct); }
+static inline float qMap_f(float v, float oldMin, float oldMax, float newMin, float newMax) { if (oldMax - oldMin == 0.0f) return newMin; float pct = (v - oldMin) / (oldMax - oldMin); return qLerp_f(newMin, newMax, pct); }
 static inline Vector2 qMap_v2(Vector2 v, Vector2 oldMin, Vector2 oldMax, Vector2 newMin, Vector2 newMax) {
 	return (Vector2){qMap_f(v.x, oldMin.x, oldMax.x, newMin.x, newMax.x), qMap_f(v.y, oldMin.y, oldMax.y, newMin.y, newMax.y)}; }
-	static inline Vector3 qMap_v3(Vector3 v, Vector3 oldMin, Vector3 oldMax, Vector3 newMin, Vector3 newMax) {
-		return (Vector3){qMap_f(v.x, oldMin.x, oldMax.x, newMin.x, newMax.x), qMap_f(v.y, oldMin.y, oldMax.y, newMin.y, newMax.y), qMap_f(v.z, oldMin.z, oldMax.z, newMin.z, newMax.z)}; }
+static inline Vector3 qMap_v3(Vector3 v, Vector3 oldMin, Vector3 oldMax, Vector3 newMin, Vector3 newMax) {
+	return (Vector3){qMap_f(v.x, oldMin.x, oldMax.x, newMin.x, newMax.x), qMap_f(v.y, oldMin.y, oldMax.y, newMin.y, newMax.y), qMap_f(v.z, oldMin.z, oldMax.z, newMin.z, newMax.z)}; }
 #define qMap(Value, oldMin, oldMax, newMin, newMax) _Generic((Value), float:qMap_f, Vector2:qMap_v2, Vector3:qMap_v3 )(Value, oldMin, oldMax, newMin, newMax)
 // = = = = = ABS (ABSOLUTE) = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 static inline int qAbs_i(int v) { return v < 0 ? -v : v; }

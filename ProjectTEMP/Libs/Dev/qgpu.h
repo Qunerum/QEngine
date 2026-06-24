@@ -1,7 +1,6 @@
 #ifndef QGPU_H
 #define QGPU_H
-
-#include <stdint.h>
+#include "../QEngine.h"
 
 #define FILES "Files/" // Use this in loadTexture: FILES "texturepath.qgt"
 #define MAX_VERTICES 65536 // (2^16) Max vertices in one frame ( Change if objects disappear :P )
