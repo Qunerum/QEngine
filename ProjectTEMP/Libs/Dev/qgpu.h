@@ -1,14 +1,15 @@
 #ifndef QGPU_H
 #define QGPU_H
-#include "../QEngine.h"
+
+#include <stdint.h>
 
 #define FILES "Files/" // Use this in loadTexture: FILES "texturepath.qgt"
 #define MAX_VERTICES 65536 // (2^16) Max vertices in one frame ( Change if objects disappear :P )
 #define MAX_TEXTURES 16 // Max textures ( Change if you want :P )
 #define CHAR_SIZE 8
-#define TAB_SIZE 3
 // !===== Structs ==================================================!
 typedef struct { float pos[2]; float color[4]; } QGPU_Vertex;
+typedef struct { float pos[3]; float color[4]; float normal[3]; } QGPU_Vertex3D;
 typedef struct { float r, g, b, a; } QColor;
 typedef struct { float points[96]; int pointCount; } QGPU_Char; // Max 32 points
 // !===== Colors ==================================================!
@@ -39,6 +40,14 @@ void drawLine(float x1, float y1, float x2, float y2, float thickness, QColor co
 void drawWireRect(float posX, float posY, float sizeX, float sizeY, float thickness, QColor color);
 void drawWireTriangle(float posX, float posY, float p1X, float p1Y, float p2X, float p2Y, float p3X, float p3Y, float thickness, QColor color);
 void drawWireCircle(float posX, float posY, float radius, int segments, float thickness, QColor color);
+// ===== Mesh ========================================
+int addLight(float x, float y, float z, float range, float intensity);
+void setLight(int id, float x, float y, float z, float range, float intensity);
+void setCameraOrtographic(int state);
+void drawMesh(float posX, float posY, float posZ, float rotX, float rotY, float rotZ, QGPU_Vertex3D* verts, uint32_t vCnt, uint32_t* inds, uint32_t iCnt);
+void drawPlane(float posX, float posY, float posZ, float rotX, float rotY, float rotZ, float sizeX, float sizeZ, QColor clr);
+void drawDisk(float posX, float posY, float posZ, float rotX, float rotY, float rotZ, float radius, uint32_t segments, QColor clr);
+void drawBox(float posX, float posY, float posZ, float rotX, float rotY, float rotZ, float sizeX, float sizeY, float sizeZ, QColor clr);
 // ===== Texture ========================================
 void loadTexture(const char* filename, int slot);
 void drawTextureScale(float posX, float posY, int slot, float scale);

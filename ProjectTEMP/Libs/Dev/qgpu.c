@@ -2,14 +2,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdarg.h>
-#include <dirent.h>
-#include <sys/stat.h>
-#include <vulkan/vulkan.h>
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 #include "qgpu.h"
 
 #define PI 3.14159265359f
+#define MAX_LIGHTS 128
 // ==========================================
 typedef struct {
     GLFWwindow* window;
@@ -34,35 +32,36 @@ typedef struct {
     VkSemaphore imageAvailableSemaphore;
     VkSemaphore renderFinishedSemaphore;
     VkCommandBuffer currentCmd;
-    uint32_t currentVOffset;
-    uint32_t currentIOffset;
-    int lastKeyState[GLFW_KEY_LAST];
-    int lastMouseState[GLFW_MOUSE_BUTTON_LAST];
-    void* mappedVertexBuffer;
-    void* mappedIndexBuffer;
+    uint32_t currentVOffset, currentIOffset;
+    int lastKeyState[GLFW_KEY_LAST], lastMouseState[GLFW_MOUSE_BUTTON_LAST];
+    void *mappedVertexBuffer, *mappedIndexBuffer;
 } InternalContext;
 typedef struct { unsigned char* pixels; int pixelCount; int width; int height; VkBuffer buffer; VkDeviceMemory memory; } RawTexture;
-static InternalContext g_ctx;
-RawTexture txts[MAX_TEXTURES];
-uint32_t g_currentRenderType = 0;
-VkDescriptorSetLayout g_descriptorSetLayout;
-VkDescriptorPool      g_descriptorPool;
-VkDescriptorSet       g_descriptorSets[MAX_TEXTURES];
+static InternalContext g_ctx; RawTexture txts[MAX_TEXTURES]; uint32_t g_currentRenderType = 0;
+VkDescriptorSetLayout g_descriptorSetLayout; VkDescriptorPool g_descriptorPool; VkDescriptorSet g_descriptorSets[MAX_TEXTURES];
+static int camOrtographic = 0;
+typedef struct { float x, y, z, range, intensity; } Light;
+Light lights[MAX_LIGHTS];
+int lightCount = 0;
 // ==========================================
 float q_abs(float x) { return (x < 0) ? -x : x; }
 float q_sqrt(float x) {
     if (x <= 0) return 0;
     float xhalf = 0.5f * x;
-    union { float f; int i; } conv;
-    conv.f = x; conv.i = 0x5f3759df - (conv.i >> 1);
-    x = conv.f; x = x * (1.5f - xhalf * x * x);
+    union {float f; int i;} conv;
+    conv.f = x;
+    conv.i = 0x5f3759df - (conv.i >> 1);
+    x = conv.f * (1.5f - xhalf * conv.f * conv.f);
     return 1.0f / x;
 }
 float q_sin(float x) {
-    while (x > PI) x -= 2.0f * PI;
-    while (x < -PI) x += 2.0f * PI;
-    float abs_x = q_abs(x), pi2 = PI * PI, sin_x = (16.0f * x * (PI - abs_x)) / (5.0f * pi2 - 4.0f * x * (PI - abs_x));
-    return sin_x;
+    while (x < 0.0f) x += 2.0f * PI;
+    while (x >= 2.0f * PI) x -= 2.0f * PI;
+    if (x > PI) x -= 2.0f * PI;
+    if (x > PI / 2.0f) x = PI - x;
+    if (x < -PI / 2.0f) x = -PI - x;
+    float x2 = x * x, x3 = x2 * x, x5 = x3 * x2, x7 = x5 * x2;
+    return x - (x3 / 6.0f) + (x5 / 120.0f) - (x7 / 5040.0f);
 }
 float q_cos(float x) { return q_sin(x + (PI / 2.0f)); }
 int AABB(float x, float y, float posX, float posY, float width, float height) { return (posX - width / 2 <= x && x <= posX + width / 2) && (posY - height / 2 <= y && y <= posY + height / 2); }
@@ -76,20 +75,11 @@ static uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags proper
     return 0;
 }
 static void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer* buffer, VkDeviceMemory* bufferMemory) {
-    VkBufferCreateInfo bufferInfo = {
-        .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-        .size = size,
-        .usage = usage,
-        .sharingMode = VK_SHARING_MODE_EXCLUSIVE
-    };
+    VkBufferCreateInfo bufferInfo = { .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO, .size = size, .usage = usage, .sharingMode = VK_SHARING_MODE_EXCLUSIVE };
     vkCreateBuffer(g_ctx.device, &bufferInfo, NULL, buffer);
     VkMemoryRequirements memReqs;
     vkGetBufferMemoryRequirements(g_ctx.device, *buffer, &memReqs);
-    VkMemoryAllocateInfo allocInfo = {
-        .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-        .allocationSize = memReqs.size,
-        .memoryTypeIndex = findMemoryType(memReqs.memoryTypeBits, properties)
-    };
+    VkMemoryAllocateInfo allocInfo = { .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO, .allocationSize = memReqs.size, .memoryTypeIndex = findMemoryType(memReqs.memoryTypeBits, properties)};
     vkAllocateMemory(g_ctx.device, &allocInfo, NULL, bufferMemory);
     vkBindBufferMemory(g_ctx.device, *buffer, *bufferMemory, 0);
 }
@@ -104,27 +94,31 @@ static VkShaderModule createShaderModule(const char* filename) {
     size_t readElements = fread(code, 1, length, file);
     (void)readElements;
     fclose(file);
-    VkShaderModuleCreateInfo createInfo = {
-        .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-        .codeSize = length,
-        .pCode = (uint32_t*)code
-    };
-    VkShaderModule shaderModule;
+    VkShaderModuleCreateInfo createInfo = { .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, .codeSize = length, .pCode = (uint32_t*)code }; VkShaderModule shaderModule;
     vkCreateShaderModule(g_ctx.device, &createInfo, NULL, &shaderModule);
     free(code);
     return shaderModule;
 }
 // ==========================================
-void cleanup_textures() { for (int i = 0; i < MAX_TEXTURES; i++) { if (txts[i].pixels != NULL) {
-    if (g_ctx.device != VK_NULL_HANDLE) { vkDestroyBuffer(g_ctx.device, txts[i].buffer, NULL); vkFreeMemory(g_ctx.device, txts[i].memory, NULL); } txts[i].pixels = NULL; } } }
+void cleanup_textures() {
+    for (int i = 0; i < MAX_TEXTURES; i++) {
+        if (txts[i].pixels != NULL) {
+            if (g_ctx.device != VK_NULL_HANDLE) {
+                vkDestroyBuffer(g_ctx.device, txts[i].buffer, NULL);
+                vkFreeMemory(g_ctx.device, txts[i].memory, NULL);
+            }
+            txts[i].pixels = NULL;
+        }
+    }
+}
 void qgpuCreate(int width, int height, const char* title, void (*initFunc)(), void (*updateFunc)()) {
     if (!glfwInit()) return;
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     g_ctx.window = glfwCreateWindow(width, height, title, NULL, NULL);
     uint32_t glfwExtensionCount = 0;
     const char** glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
-    VkInstanceCreateInfo instanceInfo = {
-        .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
+    VkInstanceCreateInfo instanceInfo = { .
+        sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
         .enabledExtensionCount = glfwExtensionCount,
         .ppEnabledExtensionNames = glfwExtensions
     };
@@ -133,13 +127,24 @@ void qgpuCreate(int width, int height, const char* title, void (*initFunc)(), vo
     uint32_t deviceCount = 0;
     vkEnumeratePhysicalDevices(g_ctx.instance, &deviceCount, NULL);
     VkPhysicalDevice* devices = malloc(sizeof(VkPhysicalDevice) * deviceCount);
-    vkEnumeratePhysicalDevices(g_ctx.instance, &deviceCount, devices);
-    g_ctx.physicalDevice = devices[0];
+    vkEnumeratePhysicalDevices(g_ctx.instance, &deviceCount, devices); g_ctx.physicalDevice = devices[0];
     free(devices);
     float queuePriority = 1.0f;
+    uint32_t queueFamilyCount = 0;
+    vkGetPhysicalDeviceQueueFamilyProperties(g_ctx.physicalDevice, &queueFamilyCount, NULL);
+    VkQueueFamilyProperties* queueFamilies = malloc(sizeof(VkQueueFamilyProperties) * queueFamilyCount);
+    vkGetPhysicalDeviceQueueFamilyProperties(g_ctx.physicalDevice, &queueFamilyCount, queueFamilies);
+    uint32_t graphicsQueueFamilyIndex = UINT32_MAX;
+    for (uint32_t i = 0; i < queueFamilyCount; i++) {
+        if (queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
+            graphicsQueueFamilyIndex = i;
+            break;
+        }
+    }
+    free(queueFamilies);
     VkDeviceQueueCreateInfo queueCreateInfo = {
         .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-        .queueFamilyIndex = 0,
+        .queueFamilyIndex = graphicsQueueFamilyIndex,
         .queueCount = 1,
         .pQueuePriorities = &queuePriority
     };
@@ -193,8 +198,15 @@ void qgpuCreate(int width, int height, const char* title, void (*initFunc)(), vo
         .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
         .finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
     };
-    VkAttachmentReference colorAttachmentRef = { .attachment = 0, .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL };
-    VkSubpassDescription subpass = { .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS, .colorAttachmentCount = 1, .pColorAttachments = &colorAttachmentRef };
+    VkAttachmentReference colorAttachmentRef = {
+        .attachment = 0,
+        .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+    };
+    VkSubpassDescription subpass = {
+        .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
+        .colorAttachmentCount = 1,
+        .pColorAttachments = &colorAttachmentRef
+    };
     VkSubpassDependency dependency = {
         .srcSubpass = VK_SUBPASS_EXTERNAL,
         .dstSubpass = 0,
@@ -238,15 +250,19 @@ void qgpuCreate(int width, int height, const char* title, void (*initFunc)(), vo
     };
     vkCreateDescriptorPool(g_ctx.device, &descPoolInfo, NULL, &g_descriptorPool);
     VkDescriptorSetLayout layouts[MAX_TEXTURES];
-    for (int i = 0; i < MAX_TEXTURES; i++) { layouts[i] = g_descriptorSetLayout; }
+    for (int i = 0; i < MAX_TEXTURES; i++) layouts[i] = g_descriptorSetLayout;
     VkDescriptorSetAllocateInfo allocInfoDesc = {
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
         .descriptorPool = g_descriptorPool,
         .descriptorSetCount = MAX_TEXTURES,
         .pSetLayouts = layouts
     };
-    if (vkAllocateDescriptorSets(g_ctx.device, &allocInfoDesc, g_descriptorSets) != VK_SUCCESS) { print("Failed to allocate descriptor sets!"); }
-    VkPushConstantRange pushConstantRange = { .stageFlags = VK_SHADER_STAGE_VERTEX_BIT, .offset = 0, .size = 20 };
+    if (vkAllocateDescriptorSets(g_ctx.device, &allocInfoDesc, g_descriptorSets) != VK_SUCCESS) print("Failed to allocate descriptor sets!");
+    VkPushConstantRange pushConstantRange = {
+        .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
+        .offset = 0,
+        .size = 20
+    };
     VkPipelineLayoutCreateInfo pipelineLayoutInfo = {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
         .setLayoutCount = 1,
@@ -258,13 +274,37 @@ void qgpuCreate(int width, int height, const char* title, void (*initFunc)(), vo
     VkShaderModule vertModule = createShaderModule(FILES "vert.spv");
     VkShaderModule fragModule = createShaderModule(FILES "frag.spv");
     VkPipelineShaderStageCreateInfo shaderStages[2] = {
-        {.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, .stage = VK_SHADER_STAGE_VERTEX_BIT, .module = vertModule, .pName = "main"},
-        {.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, .stage = VK_SHADER_STAGE_FRAGMENT_BIT, .module = fragModule, .pName = "main"}
+        {
+            .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+            .stage = VK_SHADER_STAGE_VERTEX_BIT,
+            .module = vertModule,
+            .pName = "main"
+        },
+        {
+            .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+            .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
+            .module = fragModule,
+            .pName = "main"
+        }
     };
-    VkVertexInputBindingDescription bindingDesc = { .binding = 0, .stride = sizeof(QGPU_Vertex), .inputRate = VK_VERTEX_INPUT_RATE_VERTEX };
+    VkVertexInputBindingDescription bindingDesc = {
+        .binding = 0,
+        .stride = sizeof(QGPU_Vertex),
+        .inputRate = VK_VERTEX_INPUT_RATE_VERTEX
+    };
     VkVertexInputAttributeDescription attribDescs[3] = {
-        {.binding = 0, .location = 0, .format = VK_FORMAT_R32G32_SFLOAT, .offset = offsetof(QGPU_Vertex, pos)},
-        {.binding = 0, .location = 1, .format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = offsetof(QGPU_Vertex, color)}
+        {
+            .binding = 0,
+            .location = 0,
+            .format = VK_FORMAT_R32G32_SFLOAT,
+            .offset = offsetof(QGPU_Vertex, pos)
+        },
+        {
+            .binding = 0,
+            .location = 1,
+            .format = VK_FORMAT_R32G32B32A32_SFLOAT,
+            .offset = offsetof(QGPU_Vertex, color)
+        }
     };
     VkPipelineVertexInputStateCreateInfo vertexInputInfo = {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
@@ -273,10 +313,25 @@ void qgpuCreate(int width, int height, const char* title, void (*initFunc)(), vo
         .vertexAttributeDescriptionCount = 2,
         .pVertexAttributeDescriptions = attribDescs
     };
-    VkPipelineInputAssemblyStateCreateInfo inputAssembly = { .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO, .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST };
-    VkPipelineViewportStateCreateInfo viewportState = { .sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO, .viewportCount = 1, .scissorCount = 1 };
-    VkPipelineRasterizationStateCreateInfo rasterizer = { .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO, .lineWidth = 1.0f, .cullMode = VK_CULL_MODE_NONE, .frontFace = VK_FRONT_FACE_CLOCKWISE };
-    VkPipelineMultisampleStateCreateInfo multisampling = { .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO, .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT };
+    VkPipelineInputAssemblyStateCreateInfo inputAssembly = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
+        .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST
+    };
+    VkPipelineViewportStateCreateInfo viewportState = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
+        .viewportCount = 1,
+        .scissorCount = 1
+    };
+    VkPipelineRasterizationStateCreateInfo rasterizer = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
+        .lineWidth = 1.0f,
+        .cullMode = VK_CULL_MODE_BACK_BIT,
+        .frontFace = VK_FRONT_FACE_CLOCKWISE
+    };
+    VkPipelineMultisampleStateCreateInfo multisampling = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
+        .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT
+    };
     VkPipelineColorBlendAttachmentState colorBlendAttachment = {
         .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
         .blendEnable = VK_TRUE,
@@ -287,14 +342,31 @@ void qgpuCreate(int width, int height, const char* title, void (*initFunc)(), vo
         .dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
         .alphaBlendOp = VK_BLEND_OP_ADD
     };
-    VkPipelineColorBlendStateCreateInfo colorBlending = { .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO, .attachmentCount = 1, .pAttachments = &colorBlendAttachment };
+    VkPipelineColorBlendStateCreateInfo colorBlending = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+        .attachmentCount = 1,
+        .pAttachments = &colorBlendAttachment
+    };
     VkDynamicState dynamicStates[] = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
-    VkPipelineDynamicStateCreateInfo dynamicState = { .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO, .dynamicStateCount = 2, .pDynamicStates = dynamicStates };
+    VkPipelineDynamicStateCreateInfo dynamicState = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
+        .dynamicStateCount = 2,
+        .pDynamicStates = dynamicStates
+    };
     VkGraphicsPipelineCreateInfo pipelineInfo = {
         .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
-        .stageCount = 2, .pStages = shaderStages, .pVertexInputState = &vertexInputInfo, .pInputAssemblyState = &inputAssembly,
-        .pViewportState = &viewportState, .pRasterizationState = &rasterizer, .pMultisampleState = &multisampling,
-        .pColorBlendState = &colorBlending, .pDynamicState = &dynamicState, .layout = g_ctx.pipelineLayout, .renderPass = g_ctx.renderPass, .subpass = 0
+        .stageCount = 2,
+        .pStages = shaderStages,
+        .pVertexInputState = &vertexInputInfo,
+        .pInputAssemblyState = &inputAssembly,
+        .pViewportState = &viewportState,
+        .pRasterizationState = &rasterizer,
+        .pMultisampleState = &multisampling,
+        .pColorBlendState = &colorBlending,
+        .pDynamicState = &dynamicState,
+        .layout = g_ctx.pipelineLayout,
+        .renderPass = g_ctx.renderPass,
+        .subpass = 0
     };
     vkCreateGraphicsPipelines(g_ctx.device, VK_NULL_HANDLE, 1, &pipelineInfo, NULL, &g_ctx.graphicsPipeline);
     vkDestroyShaderModule(g_ctx.device, fragModule, NULL);
@@ -302,13 +374,21 @@ void qgpuCreate(int width, int height, const char* title, void (*initFunc)(), vo
     g_ctx.swapchainFramebuffers = malloc(sizeof(VkFramebuffer) * g_ctx.imageCount);
     for (uint32_t i = 0; i < g_ctx.imageCount; i++) {
         VkFramebufferCreateInfo fbInfo = {
-            .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO, .renderPass = g_ctx.renderPass,
-            .attachmentCount = 1, .pAttachments = &g_ctx.swapchainImageViews[i],
-            .width = (uint32_t)fbW, .height = (uint32_t)fbH, .layers = 1
+            .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
+            .renderPass = g_ctx.renderPass,
+            .attachmentCount = 1,
+            .pAttachments = &g_ctx.swapchainImageViews[i],
+            .width = (uint32_t)fbW,
+            .height = (uint32_t)fbH,
+            .layers = 1
         };
         vkCreateFramebuffer(g_ctx.device, &fbInfo, NULL, &g_ctx.swapchainFramebuffers[i]);
     }
-    VkCommandPoolCreateInfo poolInfo = { .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO, .queueFamilyIndex = 0, .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT };
+    VkCommandPoolCreateInfo poolInfo = {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+        .queueFamilyIndex = 0,
+        .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT
+    };
     vkCreateCommandPool(g_ctx.device, &poolInfo, NULL, &g_ctx.commandPool);
     VkCommandBufferAllocateInfo allocInfo = {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
@@ -334,9 +414,13 @@ void qgpuCreate(int width, int height, const char* title, void (*initFunc)(), vo
         uint32_t imageIndex;
         VkResult result = vkAcquireNextImageKHR(g_ctx.device, g_ctx.swapchain, UINT64_MAX, g_ctx.imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
         if (result == VK_ERROR_OUT_OF_DATE_KHR) { continue; } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) { continue; }
-        g_ctx.currentVOffset = 0; g_ctx.currentIOffset = 0;
+        g_ctx.currentVOffset = 0;
+        g_ctx.currentIOffset = 0;
         vkResetCommandBuffer(g_ctx.currentCmd, 0);
-        VkCommandBufferBeginInfo beginInfo = { .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO, .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT };
+        VkCommandBufferBeginInfo beginInfo = {
+            .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+            .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
+        };
         vkBeginCommandBuffer(g_ctx.currentCmd, &beginInfo);
         VkClearValue clearColor = {{{0.1f, 0.1f, 0.1f, 1.0f}}};
         VkRenderPassBeginInfo renderPassInfo = {
@@ -370,7 +454,7 @@ void qgpuCreate(int width, int height, const char* title, void (*initFunc)(), vo
             .signalSemaphoreCount = 1,
             .pSignalSemaphores = &g_ctx.renderFinishedSemaphore
         };
-        if (vkQueueSubmit(g_ctx.graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS) { printf("Quene submit error!\n"); }
+        if (vkQueueSubmit(g_ctx.graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS) printf("Quene submit error!\n");
         VkPresentInfoKHR presentInfo = {
             .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
             .waitSemaphoreCount = 1,
@@ -393,7 +477,10 @@ void qgpuCreate(int width, int height, const char* title, void (*initFunc)(), vo
     vkDestroyBuffer(g_ctx.device, g_ctx.vertexBuffer, NULL);
     vkFreeMemory(g_ctx.device, g_ctx.vertexBufferMemory, NULL);
     vkDestroyCommandPool(g_ctx.device, g_ctx.commandPool, NULL);
-    for (uint32_t i = 0; i < g_ctx.imageCount; i++) { vkDestroyFramebuffer(g_ctx.device, g_ctx.swapchainFramebuffers[i], NULL); vkDestroyImageView(g_ctx.device, g_ctx.swapchainImageViews[i], NULL); }
+    for (uint32_t i = 0; i < g_ctx.imageCount; i++) {
+        vkDestroyFramebuffer(g_ctx.device, g_ctx.swapchainFramebuffers[i], NULL);
+        vkDestroyImageView(g_ctx.device, g_ctx.swapchainImageViews[i], NULL);
+    }
     free(g_ctx.swapchainFramebuffers);
     free(g_ctx.swapchainImageViews);
     free(g_ctx.swapchainImages);
@@ -413,9 +500,9 @@ void qgpuCreate(int width, int height, const char* title, void (*initFunc)(), vo
 // ========================================================================================================================================================================
 // ========================================================================================================================================================================
 void drawGeometry(float posX, float posY, QGPU_Vertex* vertices, uint32_t vCount, uint32_t* indices, uint32_t iCount) {
-    if (vCount == 0 || iCount == 0) return;
-    if (g_ctx.currentVOffset + vCount >= MAX_VERTICES || g_ctx.currentIOffset + iCount >= MAX_VERTICES * 1.5f) return;
-    int w, h; glfwGetFramebufferSize(g_ctx.window, &w, &h);
+    if (vCount == 0 || iCount == 0 || g_ctx.currentVOffset + vCount >= MAX_VERTICES || g_ctx.currentIOffset + iCount >= MAX_VERTICES * 1.5f) return;
+    int w, h;
+    glfwGetFramebufferSize(g_ctx.window, &w, &h);
     uint32_t pushData[5];
     float fPosX = posX, fPosY = posY, fW = (float)w, fH = (float)h;
     memcpy(&pushData[0], &fPosX, 4);
@@ -434,13 +521,12 @@ void drawGeometry(float posX, float posY, QGPU_Vertex* vertices, uint32_t vCount
 }
 // ========================================================================================================================================================================
 void drawRect(float posX, float posY, float sizeX, float sizeY, QColor clr) {
-    float r = clr.r, g = clr.g, b = clr.b, a = clr.a;
-    float x = sizeX / 2.0f, y = sizeY / 2.0f;
+    float r = clr.r, g = clr.g, b = clr.b, a = clr.a, x = sizeX / 2.0f, y = sizeY / 2.0f;
     QGPU_Vertex v[] = {
-        {{ -x ,  y}, {r, g, b, a}},
-        {{  x ,  y}, {r, g, b, a}},
-        {{  x , -y}, {r, g, b, a}},
-        {{ -x , -y}, {r, g, b, a}}
+        {{ -x, y}, {r, g, b, a}},
+        {{ x, y}, {r, g, b, a}},
+        {{ x, -y}, {r, g, b, a}},
+        {{ -x, -y}, {r, g, b, a}}
     };
     uint32_t i[] = {0, 1, 2,  0, 2, 3};
     drawGeometry(posX, posY, v, 4, i, 6);
@@ -457,15 +543,13 @@ void drawTriangle(float posX, float posY, float p1X, float p1Y, float p2X, float
 }
 void drawCircle(float posX, float posY, float radius, int segments, QColor clr) {
     float r = clr.r, g = clr.g, b = clr.b, a = clr.a;
-    int vCount = segments + 1;
-    int iCount = segments * 3;
+    int vCount = segments + 1, iCount = segments * 3;
     QGPU_Vertex* v = malloc(vCount * sizeof(QGPU_Vertex));
     uint32_t* indices = malloc(iCount * sizeof(uint32_t));
     v[0] = (QGPU_Vertex){{0.0f, 0.0f}, {r, g, b, a}};
     for (int i = 0; i < segments; i++) {
         float angle = ((float)i / segments) * 2.0f * PI;
         v[i + 1] = (QGPU_Vertex){{q_cos(angle) * radius, q_sin(angle) * radius}, {r, g, b, a}};
-
         int io = i * 3;
         indices[io + 0] = 0;
         indices[io + 1] = i + 1;
@@ -476,12 +560,9 @@ void drawCircle(float posX, float posY, float radius, int segments, QColor clr) 
     free(indices);
 }
 void drawLine(float x1, float y1, float x2, float y2, float thickness, QColor clr) {
-    float r = clr.r, g = clr.g, b = clr.b, a = clr.a;
-    float dx = x2 - x1, dy = y2 - y1;
-    float len = q_sqrt(dx * dx + dy * dy);
+    float r = clr.r, g = clr.g, b = clr.b, a = clr.a, dx = x2 - x1, dy = y2 - y1, len = q_sqrt(dx * dx + dy * dy);
     if (len == 0) return;
-    float nx = -dy / len * (thickness / 2.0f);
-    float ny =  dx / len * (thickness / 2.0f);
+    float nx = -dy / len * (thickness / 2.0f), ny =  dx / len * (thickness / 2.0f);
     QGPU_Vertex v[4] = {
         {{x1 + nx, y1 + ny}, {r, g, b, a}},
         {{x2 + nx, y2 + ny}, {r, g, b, a}},
@@ -504,32 +585,197 @@ void drawWireTriangle(float posX, float posY, float p1X, float p1Y, float p2X, f
     drawLine(posX + p3X, posY + p3Y, posX + p1X, posY + p1Y, thickness, clr);
 }
 void drawWireCircle(float posX, float posY, float radius, int segments, float thickness, QColor clr) {
-    float r = clr.r, g = clr.g, b = clr.b, a = clr.a;
-    int vCount = segments * 4;
-    int iCount = segments * 6;
+    float r = clr.r, g = clr.g, b = clr.b, a = clr.a; int vCount = segments * 4, iCount = segments * 6;
     QGPU_Vertex* v = malloc(vCount * sizeof(QGPU_Vertex));
     uint32_t* indices = malloc(iCount * sizeof(uint32_t));
     for (int i = 0; i < segments; i++) {
-        float a1 = ((float)i / segments) * 2.0f * PI
-        , a2 = ((float)(i + 1) / segments) * 2.0f * PI
-        , x1 = q_cos(a1) * radius, y1 = q_sin(a1) * radius
-        , x2 = q_cos(a2) * radius, y2 = q_sin(a2) * radius
-        , dx = x2 - x1, dy = y2 - y1
-        , len = q_sqrt(dx * dx + dy * dy);
+        float a1 = ((float)i / segments) * 2.0f * PI, a2 = ((float)(i + 1) / segments) * 2.0f * PI,
+        x1 = q_cos(a1) * radius, y1 = q_sin(a1) * radius,
+        x2 = q_cos(a2) * radius, y2 = q_sin(a2) * radius,
+        dx = x2 - x1, dy = y2 - y1,
+        len = q_sqrt(dx * dx + dy * dy);
         if (len == 0) len = 1.0f;
-        float nx = -dy / len * (thickness / 2.0f), ny =  dx / len * (thickness / 2.0f);
-        int vo = i * 4, io = i * 6;
+        float nx = -dy / len * (thickness / 2.0f), ny =  dx / len * (thickness / 2.0f); int vo = i * 4, io = i * 6;
         v[vo + 0] = (QGPU_Vertex){{x1 + nx, y1 + ny}, {r, g, b, a}};
         v[vo + 1] = (QGPU_Vertex){{x2 + nx, y2 + ny}, {r, g, b, a}};
         v[vo + 2] = (QGPU_Vertex){{x2 - nx, y2 - ny}, {r, g, b, a}};
         v[vo + 3] = (QGPU_Vertex){{x1 - nx, y1 - ny}, {r, g, b, a}};
-        indices[io + 0] = vo + 0; indices[io + 1] = vo + 1; indices[io + 2] = vo + 2;
-        indices[io + 3] = vo + 0; indices[io + 4] = vo + 2; indices[io + 5] = vo + 3;
+        indices[io + 0] = vo + 0;
+        indices[io + 1] = vo + 1;
+        indices[io + 2] = vo + 2;
+        indices[io + 3] = vo + 0;
+        indices[io + 4] = vo + 2;
+        indices[io + 5] = vo + 3;
     }
     drawGeometry(posX, posY, v, vCount, indices, iCount);
     free(v);
     free(indices);
 }
+// ========================================================================================================================================================================
+// ========================================================================================================================================================================
+int addLight(float x, float y, float z, float range, float intensity) {
+    if (lightCount >= MAX_LIGHTS) return -1;
+    lights[lightCount].x = x;
+    lights[lightCount].y = -y;
+    lights[lightCount].z = z;
+    lights[lightCount].range = range;
+    lights[lightCount].intensity = intensity;
+    lightCount++;
+    return lightCount - 1;
+}
+void setLight(int id, float x, float y, float z, float range, float intensity) {
+    id = id > lightCount ? lightCount : id < 0 ? 0 : id;
+    lights[id].x = x;
+    lights[id].y = -y;
+    lights[id].z = z;
+    lights[id].range = range;
+    lights[id].intensity = intensity;
+}
+void setCameraOrtographic(int state) { camOrtographic = state; }
+void drawMesh(float posX, float posY, float posZ, float rotX, float rotY, float rotZ, QGPU_Vertex3D* verts, uint32_t vCnt, uint32_t* inds, uint32_t iCnt) {
+    if (vCnt == 0 || iCnt == 0) return;
+    posY = -posY;
+    float radX = rotX * (PI / 180.0f), radY = rotY * (PI / 180.0f), radZ = rotZ * (PI / 180.0f),
+    cx = q_cos(radX), sx = q_sin(radX), cy = q_cos(radY), sy = q_sin(radY), cz = q_cos(radZ), sz = q_sin(radZ);
+    QGPU_Vertex* tempVerts = (QGPU_Vertex*)malloc(vCnt * sizeof(QGPU_Vertex));
+    if (!tempVerts) return;
+    float ambientIntensity = 0.15f;
+    for (uint32_t i = 0; i < vCnt; i++) {
+        float x = verts[i].pos[0], y = verts[i].pos[1], z = verts[i].pos[2],
+        x1 = x, y1 = y * cx - z * sx, z1 = y * sx + z * cx,
+        x2 = x1 * cy + z1 * sy, y2 = y1, z2 = -x1 * sy + z1 * cy,
+        x3 = x2 * cz - y2 * sz, y3 = x2 * sz + y2 * cz, z3 = z2,
+        worldX = x3 + posX, worldY = y3 + posY, worldZ = z3 + posZ;
+        if (camOrtographic) {
+            float orthoScale = 2.5f;
+            tempVerts[i].pos[0] = worldX * orthoScale;
+            tempVerts[i].pos[1] = -worldY * orthoScale;
+        } else {
+            float fovFactor = 1200.0f;
+            if (worldZ < 1.0f) { worldZ = 1.0f; }
+            tempVerts[i].pos[0] = (worldX * fovFactor) / worldZ;
+            tempVerts[i].pos[1] = (-worldY * fovFactor) / worldZ;
+        }
+        float nx_local = verts[i].normal[0], ny_local = verts[i].normal[1], nz_local = verts[i].normal[2],
+        nx1 = nx_local, ny1 = ny_local * cx - nz_local * sx, nz1 = ny_local * sx + nz_local * cx,
+        nx2 = nx1 * cy + nz1 * sy, ny2 = ny1, nz2 = -nx1 * sy + nz1 * cy,
+        nx = nx2 * cz - ny2 * sz, ny = nx2 * sz + ny2 * cz, nz = nz2,
+        totalLight = ambientIntensity;
+        if (lightCount > 0) {
+            for (int l = 0; l < lightCount; l++) {
+                float lx = lights[l].x - worldX, ly = lights[l].y - worldY, lz = lights[l].z - worldZ, dist = q_sqrt(lx*lx + ly*ly + lz*lz);
+                if (dist == 0.0f) dist = 1.0f;
+                lx /= dist; ly /= dist; lz /= dist;
+                float attenuation = 1.0f - (dist / lights[l].range);
+                if (attenuation < 0.0f) attenuation = 0.0f;
+                float dot = lx * nx + ly * ny + lz * nz;
+                if (dot < 0.0f) dot = 0.0f;
+                totalLight += dot * attenuation * lights[l].intensity;
+            }
+        } else { totalLight = 1.0f; }
+        if (totalLight > 1.5f) totalLight = 1.5f;
+        float finalR = verts[i].color[0] * totalLight;
+        float finalG = verts[i].color[1] * totalLight;
+        float finalB = verts[i].color[2] * totalLight;
+        tempVerts[i].color[0] = (finalR > 1.0f) ? 1.0f : finalR;
+        tempVerts[i].color[1] = (finalG > 1.0f) ? 1.0f : finalG;
+        tempVerts[i].color[2] = (finalB > 1.0f) ? 1.0f : finalB;
+        tempVerts[i].color[3] = verts[i].color[3];
+    }
+    drawGeometry(0, 0, tempVerts, vCnt, inds, iCnt);
+    free(tempVerts);
+}
+void drawPlane(float posX, float posY, float posZ, float rotX, float rotY, float rotZ, float sizeX, float sizeZ, QColor clr) {
+    float r = clr.r, g = clr.g, b = clr.b, a = clr.a, x = sizeX / 2, z = sizeZ / 2;
+    QGPU_Vertex3D v[4] = {
+        {{-x, 0, z}, {r, g, b, a}, {0, -1, 0}},
+        {{-x, 0, -z}, {r, g, b, a}, {0, -1, 0}},
+        {{x, 0, -z}, {r, g, b, a}, {0, -1, 0}},
+        {{x, 0, z}, {r, g, b, a}, {0, -1, 0}}
+    };
+    uint32_t i[] = {2, 1, 0, 3, 2, 0};
+    drawMesh(posX, posY, posZ, rotX, rotY, rotZ, v, 4, i, 6);
+}
+void drawDisk(float posX, float posY, float posZ, float rotX, float rotY, float rotZ, float radius, uint32_t segments, QColor clr) {
+    if (segments < 3) segments = 3;
+    uint32_t vCnt = segments + 1, iCnt = segments * 3;
+    QGPU_Vertex3D* v = (QGPU_Vertex3D*)malloc(vCnt * sizeof(QGPU_Vertex3D));
+    uint32_t* i = (uint32_t*)malloc(iCnt * sizeof(uint32_t));
+    if (!v || !i) {
+        if(v) free(v);
+        if(i) free(i);
+        return;
+    }
+    float r = clr.r, g = clr.g, b = clr.b, a = clr.a;
+    v[0].pos[0] = 0.0f;
+    v[0].pos[1] = 0.0f;
+    v[0].pos[2] = 0.0f;
+    v[0].color[0] = r;
+    v[0].color[1] = g;
+    v[0].color[2] = b;
+    v[0].color[3] = a;
+    v[0].normal[0] = 0.0f;
+    v[0].normal[1] = -1.0f;
+    v[0].normal[2] = 0.0f;
+    float angleStep = (2.0f * PI) / segments;
+    for (uint32_t s = 0; s < segments; s++) {
+        float angle = s * angleStep;
+        uint32_t vIdx = s + 1;
+        v[vIdx].pos[0] = q_cos(angle) * radius;
+        v[vIdx].pos[1] = 0.0f;
+        v[vIdx].pos[2] = q_sin(angle) * radius;
+        v[vIdx].color[0] = r;
+        v[vIdx].color[1] = g;
+        v[vIdx].color[2] = b;
+        v[vIdx].color[3] = a;
+        v[vIdx].normal[0] = 0.0f;
+        v[vIdx].normal[1] = -1.0f;
+        v[vIdx].normal[2] = 0.0f;
+    }
+    for (uint32_t s = 0; s < segments; s++) {
+        uint32_t iIdx = s * 3, currentVert = s + 1, nextVert = (s == segments - 1) ? 1 : s + 2;
+        i[iIdx] = 0;
+        i[iIdx + 1] = nextVert;
+        i[iIdx + 2] = currentVert;
+    }
+    drawMesh(posX, posY, posZ, rotX, rotY, rotZ, v, vCnt, i, iCnt);
+    free(v);
+    free(i);
+}
+void drawBox(float posX, float posY, float posZ, float rotX, float rotY, float rotZ, float sizeX, float sizeY, float sizeZ, QColor clr) {
+    float r = clr.r, g = clr.g, b = clr.b, a = clr.a, x = sizeX / 2.0f, y = sizeY / 2.0f, z = sizeZ / 2.0f;
+    QGPU_Vertex3D v[] = {
+        {{ -x, y, z }, {r, g, b, a}, {0.0f, 0.0f, 1.0f}},
+        {{ x, y, z }, {r, g, b, a}, {0.0f, 0.0f, 1.0f}},
+        {{ x, -y, z }, {r, g, b, a}, {0.0f, 0.0f, 1.0f}},
+        {{ -x, -y, z }, {r, g, b, a}, {0.0f, 0.0f, 1.0f}},
+        {{ -x, y, z }, {r, g, b, a}, {0.0f, 1.0f, 0.0f}},
+        {{ -x, y, -z }, {r, g, b, a}, {0.0f, 1.0f, 0.0f}},
+        {{ x, y, -z }, {r, g, b, a}, {0.0f, 1.0f, 0.0f}},
+        {{ x, y, z }, {r, g, b, a}, {0.0f, 1.0f, 0.0f}},
+        {{ x, y, z }, {r, g, b, a}, {1.0f, 0.0f, 0.0f}},
+        {{ x, y, -z }, {r, g, b, a}, {1.0f, 0.0f, 0.0f}},
+        {{ x, -y, -z }, {r, g, b, a}, {1.0f, 0.0f, 0.0f}},
+        {{ x, -y, z }, {r, g, b, a}, {1.0f, 0.0f, 0.0f}},
+        {{ x, -y, z }, {r, g, b, a}, {0.0f, -1.0f, 0.0f}},
+        {{ x, -y, -z }, {r, g, b, a}, {0.0f, -1.0f, 0.0f}},
+        {{ -x, -y, -z }, {r, g, b, a}, {0.0f, -1.0f, 0.0f}},
+        {{ -x, -y, z }, {r, g, b, a}, {0.0f, -1.0f, 0.0f}},
+        {{ -x, y, -z }, {r, g, b, a}, {-1.0f, 0.0f, 0.0f}},
+        {{ -x, y, z }, {r, g, b, a}, {-1.0f, 0.0f, 0.0f}},
+        {{ -x, -y, z }, {r, g, b, a}, {-1.0f, 0.0f, 0.0f}},
+        {{ -x, -y, -z }, {r, g, b, a}, {-1.0f, 0.0f, 0.0f}},
+        {{ x, y, -z }, {r, g, b, a}, {0.0f, 0.0f, -1.0f}},
+        {{ -x, y, -z }, {r, g, b, a}, {0.0f, 0.0f, -1.0f}},
+        {{ -x, -y, -z }, {r, g, b, a}, {0.0f, 0.0f, -1.0f}},
+        {{ x, -y, -z }, {r, g, b, a}, {0.0f, 0.0f, -1.0f}}
+    };
+    uint32_t i[] = { 0,1,2, 0,2,3, 4,5,6, 4,6,7, 8,9,10, 8,10,11, 12,13,14, 12,14,15, 16,17,18, 16,18,19, 20,21,22, 20,22,23 };
+    drawMesh(posX, posY, posZ, rotX, rotY, rotZ, v, 24, i, 36);
+}
+// Cylinder , Sphere , Capsule
+// ========================================================================================================================================================================
+// ========================================================================================================================================================================
 // ========================================================================================================================================================================
 void loadTexture(const char* filename, int slot) {
     if (slot < 0 || slot >= MAX_TEXTURES) return;
@@ -543,7 +789,7 @@ void loadTexture(const char* filename, int slot) {
     if (!file) { print("Cannot find texture '%s'!", filename); return; }
     char line[16];
     int width = 0, height = 0, currentPixel = 0;
-    if (fgets(line, sizeof(line), file)) { sscanf(line, "%d %d", &width, &height); }
+    if (fgets(line, sizeof(line), file)) sscanf(line, "%d %d", &width, &height);
     int pixelCount = width * height;
     size_t ssboSize = sizeof(uint32_t) * 2 + (pixelCount * sizeof(uint32_t));
     uint32_t* ssboData = (uint32_t*)malloc(ssboSize);
@@ -551,7 +797,8 @@ void loadTexture(const char* filename, int slot) {
     ssboData[0] = (uint32_t)width;
     ssboData[1] = (uint32_t)height;
     while (fgets(line, sizeof(line), file) && currentPixel < pixelCount) {
-        int r, g, b, a; if (sscanf(line, "%d %d %d %d", &r, &g, &b, &a) == 4) {
+        int r, g, b, a;
+        if (sscanf(line, "%d %d %d %d", &r, &g, &b, &a) == 4) {
             uint32_t packedColor = ((uint32_t)a << 24) | ((uint32_t)b << 16) | ((uint32_t)g << 8) | (uint32_t)r;
             ssboData[2 + currentPixel] = packedColor;
             currentPixel++;
@@ -564,7 +811,11 @@ void loadTexture(const char* filename, int slot) {
     memcpy(mappedData, ssboData, ssboSize);
     vkUnmapMemory(g_ctx.device, txts[slot].memory);
     free(ssboData);
-    VkDescriptorBufferInfo bufferInfo = { .buffer = txts[slot].buffer, .offset = 0, .range = ssboSize };
+    VkDescriptorBufferInfo bufferInfo = {
+        .buffer = txts[slot].buffer,
+        .offset = 0,
+        .range = ssboSize
+    };
     VkWriteDescriptorSet descriptorWrite = {
         .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
         .dstSet = g_descriptorSets[slot],
@@ -597,40 +848,59 @@ void drawTextureScale(float posX, float posY, int slot, float scale) {
     g_currentRenderType = 0;
 }
 // ========================================================================================================================================================================
-int getKey(int key) { if (!g_ctx.window || key < 0 || key >= GLFW_KEY_LAST) return 0; return glfwGetKey(g_ctx.window, key) == GLFW_PRESS; }
+int getKey(int key) {
+    if (!g_ctx.window || key < 0 || key >= GLFW_KEY_LAST) return 0;
+    return glfwGetKey(g_ctx.window, key) == GLFW_PRESS;
+}
 int onKey(int key) {
     if (!g_ctx.window || key < 0 || key >= GLFW_KEY_LAST) return 0;
-    int current = glfwGetKey(g_ctx.window, key);
-    int last = g_ctx.lastKeyState[key];
+    int current = glfwGetKey(g_ctx.window, key), last = g_ctx.lastKeyState[key];
     return (current == GLFW_PRESS && last == GLFW_RELEASE);
 }
-int getMouse(int button) { if (!g_ctx.window || button < 0 || button >= GLFW_MOUSE_BUTTON_LAST) return 0; return glfwGetMouseButton(g_ctx.window, button) == GLFW_PRESS; }
+int getMouse(int button) {
+    if (!g_ctx.window || button < 0 || button >= GLFW_MOUSE_BUTTON_LAST) return 0;
+    return glfwGetMouseButton(g_ctx.window, button) == GLFW_PRESS;
+}
 int onMouse(int button) {
     if (!g_ctx.window || button < 0 || button >= GLFW_MOUSE_BUTTON_LAST) return 0;
-    int current = glfwGetMouseButton(g_ctx.window, button);
-    int last = g_ctx.lastMouseState[button];
+    int current = glfwGetMouseButton(g_ctx.window, button), last = g_ctx.lastMouseState[button];
     return (current == GLFW_PRESS && last == GLFW_RELEASE);
 }
 void getMousePos(double* x, double* y) {
     if (!g_ctx.window || !x || !y) return;
-    double lx = 0, ly = 0; glfwGetCursorPos(g_ctx.window, &lx, &ly);
+    double lx = 0, ly = 0;
+    glfwGetCursorPos(g_ctx.window, &lx, &ly);
     *x = lx - (double)getWidth() / 2;
     *y = -(ly - (double)getHeight() / 2);
 }
-int getWidth() { int w, h; if (!g_ctx.window) return 0; glfwGetWindowSize(g_ctx.window, &w, &h); return w; }
-int getHeight() { int w, h; if (!g_ctx.window) return 0; glfwGetWindowSize(g_ctx.window, &w, &h); return h; }
+int getWidth() {
+    if (!g_ctx.window) return 0;
+    int w, h;
+    glfwGetWindowSize(g_ctx.window, &w, &h);
+    return w;
+}
+int getHeight() {
+    if (!g_ctx.window) return 0;
+    int w, h;
+    glfwGetWindowSize(g_ctx.window, &w, &h);
+    return h;
+}
 // ========================================================================================================================================================================
 int drawButton(float posX, float posY, float width, float height, QColor clr, QColor hoverClr, QColor pressClr) {
-    double mx, my; getMousePos(&mx, &my);
+    double mx, my;
+    getMousePos(&mx, &my);
     int hovered = AABB((float)mx, (float)my, posX, posY, width, height), o = 0;
-    if (hovered) { if (onMouse(LMB)) { o = 1; } else if (getMouse(LMB)) { o = 2; } }
+    if (hovered) {
+        if (onMouse(LMB)) o = 1;
+        else if (getMouse(LMB)) o = 2;
+    }
     drawRect(posX, posY, width, height, hovered ? (o == 0 ? hoverClr : pressClr) : clr);
     return o;
 }
 int drawSlider(float posX, float posY, float width, float height, float handleW, float handleH, float* value, float min, float max, QColor backgroundClr, QColor fillClr, QColor handleClr) {
-    double mx = 0, my = 0; getMousePos(&mx, &my);
-    int hovered = AABB((float)mx, (float)my, posX, posY, width, height);
-    int changed = 0;
+    double mx = 0, my = 0;
+    getMousePos(&mx, &my);
+    int hovered = AABB((float)mx, (float)my, posX, posY, width, height), changed = 0;
     if (getMouse(LMB)) {
         if (hovered) {
             float t = ((float)mx - (posX - width / 2.0f)) / width;
@@ -647,10 +917,10 @@ int drawSlider(float posX, float posY, float width, float height, float handleW,
     return changed;
 }
 int drawToggle(float posX, float posY, float width, float height, int* value, QColor offClr, QColor onClr) {
-    double mx, my; getMousePos(&mx, &my);
-    int hovered = AABB((float)mx, (float)my, posX, posY, width, height);
-    int m = hovered && onMouse(LMB);
-    if (m) { *value = !*value; }
+    double mx, my;
+    getMousePos(&mx, &my);
+    int hovered = AABB((float)mx, (float)my, posX, posY, width, height), m = hovered && onMouse(LMB);
+    if (m) *value = !*value;
     drawRect(posX, posY, width, height, *value == 0 ? offClr : onClr);
     return m;
 }
@@ -666,6 +936,7 @@ static const unsigned char font_basic[138][8] = {
     [135]  = {0x00, 0x24, 0x7e, 0x7e, 0x7e, 0x3c, 0x18, 0x00}, // Heart
     [136]  = {0x00, 0x60, 0x5c, 0x4e, 0x42, 0x42, 0x7e, 0x00}, // Folder
     [137]  = {0x00, 0x7c, 0x4a, 0x46, 0x42, 0x42, 0x7e, 0x00}, // File
+    [' ']  = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
     ['!']  = {0x18, 0x18, 0x18, 0x18, 0x00, 0x00, 0x18, 0x00},
     ['"']  = {0x66, 0x66, 0x66, 0x00, 0x00, 0x00, 0x00, 0x00},
     ['#']  = {0x24, 0x24, 0x7E, 0x24, 0x7E, 0x24, 0x24, 0x00},
@@ -771,17 +1042,29 @@ static const unsigned char font_basic[138][8] = {
 void drawChar(float posX, float posY, unsigned char symbol, float scale, QColor color) {
     if (symbol >= 138) return;
     for (int row = 0; row < 8; row++) {
-        unsigned char row_byte = font_basic[symbol][row]; for (int col = 0; col < 8; col++)
-        { if ((row_byte >> (7 - col)) & 1) { float pixelX = posX + (col * scale), pixelY = posY - (row * scale); drawRect(pixelX, pixelY, scale, scale, color); } }
+        unsigned char row_byte = font_basic[symbol][row];
+        for (int col = 0; col < 8; col++) {
+            if ((row_byte >> (7 - col)) & 1) {
+                float pixelX = posX + (col * scale), pixelY = posY - (row * scale);
+                drawRect(pixelX, pixelY, scale, scale, color);
+            }
+        }
     }
 }
 void drawText(float posX, float posY, char* text, float scale, QColor color) {
     float sx = CHAR_SIZE * scale * 1.25, sy = CHAR_SIZE * scale * 1.25, cx = posX, cy = posY;
     while (*text) {
-        if (*text == '\n') { cx = posX; cy -= sy; text++; continue; }
-        if (*text == ' ') { cx += sx; text++; continue; }
-        if (*text == '\t') { cx += sx*TAB_SIZE; text++; continue; }
-        drawChar(cx, cy, *text, scale, color);
-        cx += sx; text++;
+        if (*text == '\n') {
+            cx = posX;
+            cy -= sy;
+            text++;
+            continue;
+        }
+        if (*text == ' ') {
+            cx += sx;
+            text++;
+            continue;
+        }
+        drawChar(cx, cy, *text, scale, color); cx += sx; text++;
     }
 }
