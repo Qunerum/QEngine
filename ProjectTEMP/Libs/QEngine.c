@@ -34,4 +34,10 @@ void setCameraScale(Vector3 scale) { _camera.position = scale; }
 // = = = = = = = = = =
 
 
-
+// = = = = = INPUT = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+// = = = = = = = = = = getKeyState , onKeyDown
+int getKeyState(int keyCode) { return getKey(keyCode); }
+int onKeyDown(int keyCode) { return onKey(keyCode); }
+int getMouseButton(int mouseKey) { return getMouse(mouseKey); }
+int onMouseDown(int mouseKey) { return onMouse(mouseKey); }
+Vector2 getCursorPosition() { double x, y; getMousePos(&x, &y); return (Vector2){x, y}; }
