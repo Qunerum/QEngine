@@ -1,7 +1,10 @@
-#include "../Libs/QEngine.h"
+#include "QEngine.h"
+#include "QEngine.Text.h"
 
 void init() {
-
+	char* t = "AbCdE";
+	qReverse(t);
+	qPrint(t);
 }
 void update() {
 

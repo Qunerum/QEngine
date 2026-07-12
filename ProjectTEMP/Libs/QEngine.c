@@ -1,7 +1,8 @@
-#include "QEngine.h"
-#include "QEngine.Memory.h"
-#include "Dev/qgpu.h"
 #include "../Data/PROJECT.h"
+#include "../Assets/QEngine.h"
+#include "../Assets/QEngine.Memory.h"
+#include "Dev/qgpu.h"
+#include <stdarg.h>
 
 // = = = = = MEMORY = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 // = = = = = = = = = = qMalloc , qFree
@@ -17,7 +18,8 @@ void qFree(void* ptr) { if (!ptr) return; MemoryBlock* block = (MemoryBlock*)((c
 // = = = = = ENGINE = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 // = = = = = = = = = =
 static Camera _camera;
-// = = = = = = = = = = initEngineProject ,
+// = = = = = = = = = = qPrint , initEngineProject ,
+void qPrint(const char* format, ...) { va_list args; va_start(args, format); vprint(format, args); va_end(args); }
 int initEngineProject(void (*initFunc)(), void (*updateFunc)()) { initMem(); qgpuCreate(QEP_START_WIDTH, QEP_START_HEIGHT, QEP_NAME, initFunc, updateFunc); return 0; }
 
 

@@ -2,13 +2,14 @@
 #define QGPU_H
 
 #include <stdint.h>
+#include <stdarg.h>
 
 #define FILES "Files/" // Use this in loadTexture: FILES "texturepath.qgt"
 #define MAX_VERTICES 65536 // (2^16) Max vertices in one frame ( Change if objects disappear :P )
 #define MAX_TEXTURES 16 // Max textures ( Change if you want :P )
 #define CHAR_SIZE 8
 // !===== Structs ==================================================!
-typedef struct { float pos[2]; float color[4]; } QGPU_Vertex;
+typedef struct { float pos[3]; float color[4]; } QGPU_Vertex;
 typedef struct { float pos[3]; float color[4]; float normal[3]; } QGPU_Vertex3D;
 typedef struct { float r, g, b, a; } QColor;
 typedef struct { float points[96]; int pointCount; } QGPU_Char; // Max 32 points
@@ -27,6 +28,7 @@ typedef struct { float points[96]; int pointCount; } QGPU_Char; // Max 32 points
 #define DARK_BLUE   (QColor){0.0, 0.0, 0.5, 1.0}
 // !===== Console ==================================================!
 void print(const char* format, ...);
+void vprint(const char* format, va_list args);
 // !===== Init ==================================================!
 void qgpuCreate(int width, int height, const char* title, void (*initFunc)(), void (*updateFunc)());
 // !===== Drawing ==================================================!

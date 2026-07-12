@@ -3,7 +3,6 @@
 #include <stdint.h>
 #include <stddef.h>
 
-
 // = = = = = STRUCTURES = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 typedef struct { float x, y; } Vector2;
 typedef struct { int x, y; } Vector2Int;
@@ -14,7 +13,7 @@ typedef struct { Vector3 position, rotation, scale; } Transform;
 typedef struct { Vector3 position, rotation; float fov; } Camera;
 typedef struct { char* name; Transform transform; int isActive; } QObject;
 
-
+void qPrint(const char* format, ...);
 int initEngineProject(void (*initFunc)(), void (*updateFunc)());
 void addObjectToPublic(QObject object);
 Camera getCamera();
