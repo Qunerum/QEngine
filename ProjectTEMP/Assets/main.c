@@ -1,10 +1,10 @@
+#define QEngine_Text
 #include "QEngine.h"
-#include "QEngine.Text.h"
 
 void init() {
-	char* t = "AbCdE";
+	char t[] = "AbCdE";
 	qReverse(t);
-	qPrint(t);
+	qgPrint("%s\n", t);
 }
 void update() {
 

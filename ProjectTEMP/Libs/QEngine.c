@@ -1,11 +1,15 @@
-#include "../Data/PROJECT.h"
+#define QEngine_Input
+#define QEngine_IO
+#define QEngine_Math
+#define QEngine_Memory
+#define QEngine_Text
 #include "../Assets/QEngine.h"
-#include "../Assets/QEngine.Memory.h"
-#include "Dev/qgpu.h"
+
+#include "qgpu.h"
+#include "../Data/PROJECT.h"
 #include <stdarg.h>
 
 // = = = = = MEMORY = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-// = = = = = = = = = = qMalloc , qFree
 static char heap_memory[HEAP_SIZE]; static MemoryBlock* freeList = (MemoryBlock*)heap_memory; static int qMemoryInited = 0;
 void initMem() { if (qMemoryInited) return; qMemoryInited = 1; freeList->size = HEAP_SIZE - sizeof(MemoryBlock); freeList->free = 1; freeList->next = 0; }
 void* qMalloc(size_t size) { size = ALIGN(size); MemoryBlock* curr = freeList; while (curr) { if (curr->free && curr->size >= size) { if (curr->size > size + sizeof(MemoryBlock) + 8) {
@@ -16,16 +20,10 @@ void* qMalloc(size_t size) { size = ALIGN(size); MemoryBlock* curr = freeList; w
 void qFree(void* ptr) { if (!ptr) return; MemoryBlock* block = (MemoryBlock*)((char*)ptr - sizeof(MemoryBlock)); block->free = 1; MemoryBlock* curr = freeList;
 	while (curr && curr->next) { if (curr->free && curr->next->free) { curr->size += curr->next->size + sizeof(MemoryBlock); curr->next = curr->next->next; } else { curr = curr->next; } } }
 // = = = = = ENGINE = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-// = = = = = = = = = =
 static Camera _camera;
-// = = = = = = = = = = qPrint , initEngineProject ,
-void qPrint(const char* format, ...) { va_list args; va_start(args, format); vprint(format, args); va_end(args); }
 int initEngineProject(void (*initFunc)(), void (*updateFunc)()) { initMem(); qgpuCreate(QEP_START_WIDTH, QEP_START_HEIGHT, QEP_NAME, initFunc, updateFunc); return 0; }
 
-
-
 // = = = = = CAMERA = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-// = = = = = = = = = = setCamera ,
 Camera getCamera() { return _camera; }
 void setCamera(Camera camera) { _camera = camera; }
 void setCameraPos(Vector3 position) { _camera.position = position; }
@@ -33,13 +31,11 @@ void setCameraRot(Vector3 rotation) { _camera.position = rotation; }
 void setCameraScale(Vector3 scale) { _camera.position = scale; }
 
 // = = = = = GRAPHIC = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-// = = = = = = = = = =
 
 
 // = = = = = INPUT = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-// = = = = = = = = = = getKeyState , onKeyDown
-int getKeyState(int keyCode) { return getKey(keyCode); }
-int onKeyDown(int keyCode) { return onKey(keyCode); }
-int getMouseButton(int mouseKey) { return getMouse(mouseKey); }
-int onMouseDown(int mouseKey) { return onMouse(mouseKey); }
-Vector2 getCursorPosition() { double x, y; getMousePos(&x, &y); return (Vector2){x, y}; }
+int getKeyState(int keyCode) { return qgGetKey(keyCode); }
+int onKeyDown(int keyCode) { return qgOnKey(keyCode); }
+int getMouseButton(int mouseKey) { return qgGetMouse(mouseKey); }
+int onMouseDown(int mouseKey) { return qgOnMouse(mouseKey); }
+Vector2 getCursorPosition() { double x, y; qgGetMousePos(&x, &y); return (Vector2){x, y}; }
