@@ -3,7 +3,7 @@
 #define QEngine_Math
 #define QEngine_Memory
 #define QEngine_Text
-#include "../Assets/QEngine.h"
+#include "QEngine.h"
 
 #include "qgpu.h"
 #include "../Data/PROJECT.h"
