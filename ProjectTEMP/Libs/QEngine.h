@@ -57,7 +57,6 @@ typedef struct {
 } QObject;
 // = = = = = COLORS = = = = = = = = = = = = = = = = = = = =
 typedef struct { byte r, g, b, a; } Color;
-// 64 128 192 255
 #define Color_Transparent   (Color){  0,   0,   0,   0}
 #define Color_Black         (Color){  0,   0,   0, 255}
 #define Color_White         (Color){255, 255, 255, 255}
@@ -81,7 +80,7 @@ typedef struct { byte r, g, b, a; } Color;
 #define Color_Cyan          (Color){  0, 255, 255, 255}
 // ===== Dark =========================================
 #define Color_Dark_Gray     (Color){ 64,  64,  64, 255}
-#define Color_Dark_Red      (Color){ 64,   0,   0, 255}
+#define Color_Dark_Red      (Color){128,   0,   0, 255}
 #define Color_Dark_Green    (Color){  0, 128,   0, 255}
 #define Color_Dark_Yellow   (Color){128, 128,   0, 255}
 #define Color_Dark_Orange   (Color){128,  64,   0, 255}

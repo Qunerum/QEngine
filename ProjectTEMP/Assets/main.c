@@ -36,20 +36,11 @@ Color clrs[] = {
 	Color_Dark_Cyan,
 };
 void update() {
-	static int x = 0, i = 0;
-	static float y = 0, spd = 2, max = 50;
-	if (getKeyState(KEY_SPACE)) {
-		if (y >= max || y <= -max) {
-			if (y >= max) x = 1;
-			if (y <= -max) x = 0;
-			i++;
-			if (i >= 8) i = 0;
-		}
-		y += x ? -spd : spd;
+	for (int i = 0; i < 8; i++) {
+		drawRect((Vector3){-40, 100-(i*40), 0}, Vector3_Zero, (Vector2){40, 40}, clrs[i]);
+		drawRect((Vector3){0, 100-(i*40), 0}, Vector3_Zero, (Vector2){40, 40}, clrs[i+8]);
+		drawRect((Vector3){40, 100-(i*40), 0}, Vector3_Zero, (Vector2){40, 40}, clrs[i+16]);
 	}
-	drawRect((Vector3){-100, y, 0}, Vector3_Zero, (Vector2){100, 100}, clrs[i]);
-	drawRect((Vector3){0, y, 0}, Vector3_Zero, (Vector2){100, 100}, clrs[i+8]);
-	drawRect((Vector3){100, y, 0}, Vector3_Zero, (Vector2){100, 100}, clrs[i+16]);
 }
 
 int main() { return initEngineProject(init, update); }
