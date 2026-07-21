@@ -20,8 +20,21 @@ void* qMalloc(size_t size) { size = ALIGN(size); MemoryBlock* curr = freeList; w
 void qFree(void* ptr) { if (!ptr) return; MemoryBlock* block = (MemoryBlock*)((char*)ptr - sizeof(MemoryBlock)); block->free = 1; MemoryBlock* curr = freeList;
 	while (curr && curr->next) { if (curr->free && curr->next->free) { curr->size += curr->next->size + sizeof(MemoryBlock); curr->next = curr->next->next; } else { curr = curr->next; } } }
 // = = = = = ENGINE = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+extern void vprintc(int color, const char* format, va_list args);
+void print(const char* format, ...) {
+	va_list args;
+	va_start(args, format);
+	vprintc(244, format, args);
+	va_end(args);
+}
+
 static Camera _camera;
-int initEngineProject(void (*initFunc)(), void (*updateFunc)()) { initMem(); qgpuCreate(QEP_START_WIDTH, QEP_START_HEIGHT, QEP_NAME, initFunc, updateFunc); return 0; }
+int initEngineProject(void (*initFunc)(), void (*updateFunc)()) {
+	initMem();
+	qgSetBackground(.1f, .1f, .1f);
+	qgpuCreate(QEP_START_WIDTH, QEP_START_HEIGHT, QEP_NAME, initFunc, updateFunc);
+	return 0;
+}
 
 // = = = = = CAMERA = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 Camera getCamera() { return _camera; }
@@ -31,7 +44,15 @@ void setCameraRot(Vector3 rotation) { _camera.position = rotation; }
 void setCameraScale(Vector3 scale) { _camera.position = scale; }
 
 // = = = = = GRAPHIC = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-
+static float byteTo01(byte v) { return v / 255.0f; }
+void drawRect(Vector3 position, Vector3 rotation, Vector2 size, Color color) {
+	float px = position.x, py = position.y, pz = position.z,
+	x = size.x / 2, y = size.y / 2, r = byteTo01(color.r), g = byteTo01(color.g), b = byteTo01(color.b), a = byteTo01(color.a);
+	uint32_t v1 = qgAddVertex(px-x, py+y, pz, r, g, b, a), v2 = qgAddVertex(px+x, py+y, pz, r, g, b, a),
+	v3 = qgAddVertex(px-x, py-y, pz, r, g, b, a), v4 = qgAddVertex(px+x, py-y, pz, r, g, b, a);
+	qgAddIndex(v1); qgAddIndex(v2); qgAddIndex(v4);
+	qgAddIndex(v1); qgAddIndex(v4); qgAddIndex(v3);
+}
 
 // = = = = = INPUT = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 int getKeyState(int keyCode) { return qgGetKey(keyCode); }

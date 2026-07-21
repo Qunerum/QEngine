@@ -56,7 +56,7 @@ static int _showBanner = 1, _madeWith = 1, _showInfo = 1, _showColors = 1, _show
 // = = = QPrint
 static int qclamp(int v, int min, int max) { return v < min ? min : v > max ? max : v; }
 static int oldClr = 255, actClr = 255, actStyle = 0; // White , Regular text
-static void vprintc(int color, const char* format, va_list args) {
+void vprintc(int color, const char* format, va_list args) {
     printf("\033[%i;38;5;%im", actStyle, color);
     vprintf(format, args);
     printf("\033[0m");
@@ -88,12 +88,6 @@ void qgLog(const char* format, ...) {
     va_list args;
     va_start(args, format);
     vprintc(DARK_GRAY, format, args);
-    va_end(args);
-}
-void qgWarn(const char* format, ...) {
-    va_list args;
-    va_start(args, format);
-    vprintc(YELLOW, format, args);
     va_end(args);
 }
 void qgSetShow(int shower, int state) {
