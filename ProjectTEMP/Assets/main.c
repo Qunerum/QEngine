@@ -1,46 +1,33 @@
 #define QEngine_Input
-#define QEngine_Text
+#define QEngine_Math
+// #define QEngine_Memory
+// #define QEngine_IO
+// #define QEngine_Text
 #include "../Libs/QEngine.h"
 
+// Executed exactly once at start of the program.
 void init() {
-	char t[] = "AbCdE";
-	qReverse(t);
-	print("%s\n", t);
+	print("Hello, World!\n");
+	setDrawingMode(UI);
 }
-Color clrs[] = {
-	Color_Light_Gray,
-	Color_Light_Red,
-	Color_Light_Green,
-	Color_Light_Yellow,
-	Color_Light_Orange,
-	Color_Light_Blue,
-	Color_Light_Magenta,
-	Color_Light_Cyan,
 
-	Color_Gray,
-	Color_Red,
-	Color_Green,
-	Color_Yellow,
-	Color_Orange,
-	Color_Blue,
-	Color_Magenta,
-	Color_Cyan,
-
-	Color_Dark_Gray,
-	Color_Dark_Red,
-	Color_Dark_Green,
-	Color_Dark_Yellow,
-	Color_Dark_Orange,
-	Color_Dark_Blue,
-	Color_Dark_Magenta,
-	Color_Dark_Cyan,
-};
+// Executed continuosly on every frame.
 void update() {
-	for (int i = 0; i < 8; i++) {
-		drawRect((Vector3){-40, 100-(i*40), 0}, Vector3_Zero, (Vector2){40, 40}, clrs[i]);
-		drawRect((Vector3){0, 100-(i*40), 0}, Vector3_Zero, (Vector2){40, 40}, clrs[i+8]);
-		drawRect((Vector3){40, 100-(i*40), 0}, Vector3_Zero, (Vector2){40, 40}, clrs[i+16]);
-	}
+	static float x = 0, speed = 1;
+	static int toLeft = 0;
+	if (x > 100) toLeft = 1;
+	if (x < -100) toLeft = 0;
+	x += toLeft ? -speed : speed;
+
+	if (getKeyState(KEY_W) && speed < 20) speed += 0.1f;
+	if (getKeyState(KEY_S) && speed >= 0.1f) speed -= 0.1f;
+
+	static char info[32];
+	formatText(info, sizeof(info), "Speed: %.1f", speed);
+
+	drawText(Vector3_Mul(Vector3_Up, -60), Vector3_Zero, 2, info, Color_White);
+
+	drawRect((Vector3){x, 0, 0}, Vector3_Zero, Vector2_Mul(Vector2_One, 100), Color_Blue);
 }
 
 int main() { return initEngineProject(init, update); }

@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stddef.h>
 
+typedef enum { World, UI } qeDrawingMode;
 // = = = = = TYPES = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 typedef uint8_t byte;
 typedef int state;
@@ -91,9 +92,13 @@ typedef struct { byte r, g, b, a; } Color;
 
 // = = = = = FUNCTIONS = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 void print(const char* format, ...);
+int formatText(char* to, int length, const char* format, ...);
 
 int initEngineProject(void (*initFunc)(), void (*updateFunc)());
+
+void setDrawingMode(qeDrawingMode mode);
 void addObjectToPublic(QObject object);
+
 Camera getCamera();
 void setCamera(Camera camera);
 void setCameraPos(Vector3 position);
@@ -101,6 +106,8 @@ void setCameraRot(Vector3 rotation);
 void setCameraScale(Vector3 scale);
 
 void drawRect(Vector3 position, Vector3 rotation, Vector2 size, Color color);
+
+void drawText(Vector3 position, Vector3 rotation, float fontSize, const char* text, Color color);
 
 #ifdef QEngine_Input
 int getKeyState(int keyCode);
@@ -269,6 +276,21 @@ static inline int qAABB2D(Vector2 posA, Vector2 sizeA, Vector2 posB, Vector2 siz
 	minBy = posB.y - sizeB.y * 0.5f, maxBy = posB.y + sizeB.y * 0.5f;
 	return (minAx < maxBx && maxAx > minBx && minAy < maxBy && maxAy > minBy);
 }
+// = = = = = Math on Vectors = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+static inline Vector2 Vector2_Add(Vector2 A, Vector2 B) { return (Vector2){A.x + B.x, A.y + B.y}; }
+static inline Vector2 Vector2_Sub(Vector2 A, Vector2 B) { return (Vector2){A.x - B.x, A.y - B.y}; }
+static inline Vector2 Vector2_Mul(Vector2 A, float B) { return (Vector2){A.x * B, A.y * B}; }
+static inline Vector2 Vector2_Div(Vector2 A, float B) { if(B == 0.0f) { print("Cannot divide by zero!\n"); return Vector2_Zero; } return (Vector2){A.x / B, A.y / B}; }
+static inline Vector2Int Vector2Int_Add(Vector2Int A, Vector2Int B) { return (Vector2Int){A.x + B.x, A.y + B.y}; }
+static inline Vector2Int Vector2Int_Sub(Vector2Int A, Vector2Int B) { return (Vector2Int){A.x - B.x, A.y - B.y}; }
+
+static inline Vector3 Vector3_Add(Vector3 A, Vector3 B) { return (Vector3){A.x + B.x, A.y + B.y, A.z + B.z}; }
+static inline Vector3 Vector3_Sub(Vector3 A, Vector3 B) { return (Vector3){A.x - B.x, A.y - B.y, A.z - B.z}; }
+static inline Vector3 Vector3_Mul(Vector3 A, float B) { return (Vector3){A.x * B, A.y * B, A.z * B}; }
+static inline Vector3 Vector3_Div(Vector3 A, float B) { if(B == 0.0f) { print("Cannot divide by zero!\n"); return Vector3_Zero; } return (Vector3){A.x / B, A.y / B, A.z / B}; }
+static inline Vector3Int Vector3Int_Add(Vector3Int A, Vector3Int B) { return (Vector3Int){A.x + B.x, A.y + B.y, A.z + B.z}; }
+static inline Vector3Int Vector3Int_Sub(Vector3Int A, Vector3Int B) { return (Vector3Int){A.x - B.x, A.y - B.y, A.z - B.z}; }
+
 #endif
 
 #ifdef QEngine_Memory

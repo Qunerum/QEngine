@@ -1,12 +1,16 @@
 #ifndef QGPU_H
 #define QGPU_H
-
 #include <stdint.h>
 
-#define MAX_VERTICES 65536 // (2^16) Max vertices in one frame ( Change if objects disappear :P )
-// !===== Structs ==================================================!
+// !===== CONFIGURATION ==================================================================================================================================================!
+#define MAX_VERTICES 65536 // (2^16) Max vertices in one frame
+#define MAX_LIGHTS   1024  // (2^10) Max lights in one frame
+#define VSYNC 0
+#define MAX_SPHERE_RINGS 32
+#define MAX_SPHERE_SECTORS 32
+// !===== Structs ========================================================================================================================================================!
 typedef struct { float pos[3]; float color[4]; } QGPU_Vertex;
-// !===== Console ==================================================!
+// !===== Console ========================================================================================================================================================!
 #define QGPU_SHOW_BANNER          0
 #define QGPU_SHOW_MADE_WITH_QGPU  1
 #define QGPU_SHOW_INFO            2
@@ -17,24 +21,55 @@ void qgRestoreColor();
 void qgSetStyle(int style);
 void qgPrint(const char* format, ...);
 void qgLog(const char* format, ...);
+void qgLogVertices();
+void qgWarn(const char* format, ...);
+void qgError(const char* format, ...);
 void qgSetShow(int shower, int state);
-// !===== Init ==================================================!
+// !===== QGPU ===========================================================================================================================================================!
+// !===== Init
 void qgpuCreate(int width, int height, const char* title, void (*initFunc)(), void (*updateFunc)());
-// !===== Drawing ==================================================!
+// !===== Window
+float qgGetFPS();
+// !===== Drawing ========================================================================================================================================================!
 void qgSetBackground(float r, float g, float b);
+// !===== Rotation
+void qgSetRotationPivot(float x, float y, float z);
+void qgSetRotation(float rx, float ry, float rz);
+void qgResetRotation();
+// !===== Vertices & Indices
+#define QGPU_RENDER_TYPE_NO_LIGHT 0
+#define QGPU_RENDER_TYPE_LIGHT 1
+void qgSetRenderType(int type);
 uint32_t qgAddVertex(float x, float y, float layer, float r, float g, float b, float a);
 void qgAddIndex(uint32_t index);
 void qgAddGeometry(QGPU_Vertex* verts, uint32_t vCount, uint32_t* indices, uint32_t iCount);
-// !===== Screen ==================================================!
+// !===== Lights
+void qgAddLight(float x, float y, float z, float range, float intense);
+// !===== Ready 2D
+void qgAddTriangle(float p1x, float p1y, float p1z, float p2x, float p2y, float p2z, float p3x, float p3y, float p3z, float r, float g, float b, float a);
+void qgAddRect(float px, float py, float pz, float sx, float sy, float r, float g, float b, float a);
+void qgAddCircle(float px, float py, float layer, int segments, float radius, float r, float g, float b, float a);
+// !===== Ready 3D
+void qgAddBox(float px, float py, float pz, float sx, float sy, float sz, float r, float g, float b, float a);
+void qgAddSphere(float px, float py, float pz, float radius, int rings, int sectors, float r, float g, float b, float a);
+// !===== Screen =========================================================================================================================================================!
 int qgGetWidth();
 int qgGetHeight();
-// !===== Keyboard / Mouse ==================================================!
+// !===== Input ==========================================================================================================================================================!
 int qgGetKey(int key);
 int qgOnKey(int key);
 int qgGetMouse(int button);
 int qgOnMouse(int button);
 void qgGetMousePos(double* x, double* y);
-// ===== Keys ========================================
+// !===== Text ===========================================================================================================================================================!
+#define QGPU_FONT_STYLE_REGULAR 0
+#define QGPU_FONT_STYLE_BOLD 1
+#define QGPU_FONT_STYLE_ITALIC 2
+#define QGPU_FONT_STYLE_BOLD_ITALIC 3
+void qgSetFontData(float fontSize, int style, float r, float g, float b, float a);
+void qgAddChar(float px, float py, float pz, unsigned char c);
+void qgAddText(float px, float py, float pz, const char* text);
+// !===== Keys ===========================================================================================================================================================!
 #define LMB             0
 #define RMB             1
 #define QKEY_A          65
@@ -113,5 +148,4 @@ void qgPrintc(int color, const char* format, ...);
 #define DARK_CYAN     68
 
 #endif
-
 #endif
