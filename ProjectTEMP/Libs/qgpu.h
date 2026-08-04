@@ -66,8 +66,10 @@ void qgGetMousePos(double* x, double* y);
 #define QGPU_FONT_STYLE_BOLD 1
 #define QGPU_FONT_STYLE_ITALIC 2
 #define QGPU_FONT_STYLE_BOLD_ITALIC 3
+void qgConvertFont(const char* pathQFR, const char* pathQF);
+void qgLoadFont(const char* path);
 void qgSetFontData(float fontSize, int style, float r, float g, float b, float a);
-void qgAddChar(float px, float py, float pz, unsigned char c);
+void qgAddChar(float px, float py, float pz, uint16_t c);
 void qgAddText(float px, float py, float pz, const char* text);
 // !===== Keys ===========================================================================================================================================================!
 #define LMB             0

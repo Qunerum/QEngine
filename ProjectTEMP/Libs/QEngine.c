@@ -1,3 +1,6 @@
+#include <stdlib.h>
+#include <stdio.h>
+
 #define QEngine_Input
 #define QEngine_Math
 #define QEngine_Memory
@@ -11,18 +14,38 @@
 
 #define QENGINE_VERSION_MAJOR 0
 #define QENGINE_VERSION_MINOR 1
-#define QENGINE_VERSION_PATCH 0
+#define QENGINE_VERSION_PATCH 1
 
 // = = = = = MEMORY = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-static char heap_memory[HEAP_SIZE]; static MemoryBlock* freeList = (MemoryBlock*)heap_memory; static int qMemoryInited = 0;
-static void initMem() { if (qMemoryInited) return; qMemoryInited = 1; freeList->size = HEAP_SIZE - sizeof(MemoryBlock); freeList->free = 1; freeList->next = 0; }
-void* qMalloc(size_t size) { size = ALIGN(size); MemoryBlock* curr = freeList; while (curr) { if (curr->free && curr->size >= size) { if (curr->size > size + sizeof(MemoryBlock) + 8) {
-	MemoryBlock* nextBlock = (MemoryBlock*)((char*)curr + sizeof(MemoryBlock) + size); nextBlock->size = curr->size - size - sizeof(MemoryBlock);
-	nextBlock->free = 1; nextBlock->next = curr->next; curr->size = size; curr->next = nextBlock; }
-	curr->free = 0; unsigned char* p = (unsigned char*)((char*)curr + sizeof(MemoryBlock)); for(size_t i = 0; i < size; i++) p[i] = 0; return (void*)p; }
-	curr = curr->next; } return 0; /* Out of memory! */ }
-void qFree(void* ptr) { if (!ptr) return; MemoryBlock* block = (MemoryBlock*)((char*)ptr - sizeof(MemoryBlock)); block->free = 1; MemoryBlock* curr = freeList;
-	while (curr && curr->next) { if (curr->free && curr->next->free) { curr->size += curr->next->size + sizeof(MemoryBlock); curr->next = curr->next->next; } else { curr = curr->next; } } }
+void *qMalloc(size_t size) { return malloc(size); }
+void *qRealloc(void *ptr, size_t size) { return realloc(ptr, size); }
+void qFree(void *ptr) { free(ptr); }
+// = = = = = IO = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+char* qReadFileText(const char* filename) {
+	FILE* file = fopen(filename, "rb");
+	if (!file) return NULL;
+	fseek(file, 0, SEEK_END);
+	long size = ftell(file);
+	fseek(file, 0, SEEK_SET);
+	char* buffer = (char*)qMalloc(size + 1);
+	if (!buffer) { fclose(file); return NULL; }
+	fread(buffer, 1, size, file);
+	buffer[size] = '\0';
+	fclose(file);
+	return buffer;
+}
+int qWriteFileText(const char* filename, const char* text) {
+	FILE* file = fopen(filename, "w");
+	if (!file) return 0;
+	int result = fputs(text, file);
+	fclose(file);
+	return result != EOF;
+}
+int qFileExists(const char* filename) {
+	FILE* file = fopen(filename, "r");
+	if (file) { fclose(file); return 1; }
+	return 0;
+}
 // = = = = = ENGINE = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 extern void qgVprintc(int color, const char* format, va_list args);
 void print(const char* format, ...) {
@@ -41,7 +64,6 @@ int formatText(char* to, int length, const char* format, ...) {
 
 static Camera _camera;
 int initEngineProject(void (*initFunc)(), void (*updateFunc)()) {
-	initMem();
 	qgSetBackground(.1f, .1f, .1f);
 	qgpuCreate(QEP_START_WIDTH, QEP_START_HEIGHT, QEP_NAME, initFunc, updateFunc);
 	return 0;
@@ -54,7 +76,7 @@ void setDrawingMode(qeDrawingMode mode) {
 }
 
 void addObjectToPublic(QObject object) {
-
+	//
 }
 
 // = = = = = CAMERA = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
