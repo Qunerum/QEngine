@@ -6,4 +6,7 @@
 #define QEP_START_WIDTH 1280
 #define QEP_START_HEIGHT 720
 
+#define MAX_NAME_LENGTH 512
+#define MAX_MODULES_ON_QOBJ 32
+
 #endif

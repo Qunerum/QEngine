@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include "../Data/PROJECT.h"
 
 typedef enum { World, UI } qeDrawingMode;
 // = = = = = TYPES = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
@@ -45,16 +46,24 @@ typedef struct { int x, y, z; } Vector3Int;
 #define Vector3Int_Forward  (Vector3Int){0, 0, 1}
 #define Vector3Int_Backward (Vector3Int){0, 0, -1}
 // = = = = = END VECTORS = = = = = = = = = = = = = = = = = = = =
-
 typedef struct { Vector3 position, rotation, scale; } Transform;
 typedef struct {
 	Vector3 position, rotation;
 	float fov;
 } Camera;
+// = = = = = MODULES = = = = = = = = = = = = = = = = = = = =
 typedef struct {
-	char* name;
+	char name[MAX_NAME_LENGTH];
+	int id;
+	void (*init), (*update);
+} Module;
+#define MODULES_UI 000
+// = = = = = END MODULES = = = = = = = = = = = = = = = = = = = =
+typedef struct {
+	char name[MAX_NAME_LENGTH];
 	Transform transform;
 	state isActive;
+	int modules[MAX_MODULES_ON_QOBJ], modulesIn;
 } QObject;
 // = = = = = COLORS = = = = = = = = = = = = = = = = = = = =
 typedef struct { byte r, g, b, a; } Color;
@@ -97,17 +106,12 @@ int formatText(char* to, int length, const char* format, ...);
 int initEngineProject(void (*initFunc)(), void (*updateFunc)());
 
 void setDrawingMode(qeDrawingMode mode);
-void addObjectToPublic(QObject object);
 
 Camera getCamera();
 void setCamera(Camera camera);
 void setCameraPos(Vector3 position);
 void setCameraRot(Vector3 rotation);
 void setCameraScale(Vector3 scale);
-
-void drawRect(Vector3 position, Vector3 rotation, Vector2 size, Color color);
-
-void drawText(Vector3 position, Vector3 rotation, float fontSize, const char* text, Color color);
 
 #ifdef QEngine_Input
 int getKeyState(int keyCode);
