@@ -12,7 +12,6 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <sys/stat.h>
-
 // = = = = = MEMORY = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 void *qMalloc(size_t size) { return malloc(size); }
 void *qRealloc(void *ptr, size_t size) { return realloc(ptr, size); }

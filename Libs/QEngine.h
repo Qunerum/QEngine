@@ -5,6 +5,10 @@
 #include <stddef.h>
 #include "../Data/PROJECT.h"
 
+#define QENGINE_VERSION_MAJOR 0
+#define QENGINE_VERSION_MINOR 1
+#define QENGINE_VERSION_PATCH 2
+
 typedef enum { World, UI } qeDrawingMode;
 // = = = = = TYPES = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 typedef uint8_t byte;
@@ -51,19 +55,10 @@ typedef struct {
 	Vector3 position, rotation;
 	float fov;
 } Camera;
-// = = = = = MODULES = = = = = = = = = = = = = = = = = = = =
-typedef struct {
-	char name[MAX_NAME_LENGTH];
-	int id;
-	void (*init), (*update);
-} Module;
-#define MODULES_UI 000
-// = = = = = END MODULES = = = = = = = = = = = = = = = = = = = =
 typedef struct {
 	char name[MAX_NAME_LENGTH];
 	Transform transform;
 	state isActive;
-	int modules[MAX_MODULES_ON_QOBJ], modulesIn;
 } QObject;
 // = = = = = COLORS = = = = = = = = = = = = = = = = = = = =
 typedef struct { byte r, g, b, a; } Color;
@@ -164,9 +159,9 @@ Vector2 getCursorPosition();
 #ifdef QEngine_Math
 #define PI 3.14159265358979323846f
 // = = = = = LERP = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-static inline float qLerp_f(float A, float B, float t) { return A + t * (B - A); }
-static inline Vector2 qLerp_v2(Vector2 A, Vector2 B, float t) { return (Vector2){qLerp_f(A.x, B.x, t), qLerp_f(A.y, B.y, t)}; }
-static inline Vector3 qLerp_v3(Vector3 A, Vector3 B, float t) { return (Vector3){qLerp_f(A.x, B.x, t), qLerp_f(A.y, B.y, t), qLerp_f(A.z, B.z, t)}; }
+float qLerp_f(float A, float B, float t);
+Vector2 qLerp_v2(Vector2 A, Vector2 B, float t);
+Vector3 qLerp_v3(Vector3 A, Vector3 B, float t);
 #define qLerp(A, B, t) _Generic((A), float:qLerp_f, Vector2:qLerp_v2, Vector3:qLerp_v3 )(A, B, t)
 // = = = = = CLAMP = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 static inline int qClamp_i(int v, int min, int max) { return v > max ? max : v < min ? min : v; }

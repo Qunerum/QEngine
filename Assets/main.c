@@ -9,8 +9,13 @@
 static state isLight = false;
 float c(float v) { return v + isLight * 0.4f; }
 
-static int objListW = 300;
-void drawEngineUI(int w, int h) {
+static int w = 0, h = 0,
+objC = 0, objListW = 240;
+void drawObjOnList(QObject obj) {
+
+	objC++;
+}
+void drawEngineUI() {
 	// Object list
 	qgAddRect(-w / 2.f + objListW / 2.f, 0, 0, objListW, h, c(.2f), c(.2f), c(.2f), 1);
 }
@@ -19,10 +24,12 @@ void drawEngineUI(int w, int h) {
 void init() {
 	print("Application was made in QEngine v%i.%i.%i\n", QENGINE_VERSION_MAJOR, QENGINE_VERSION_MINOR, QENGINE_VERSION_PATCH);
 	setDrawingMode(UI);
+	print("%.1f\n", qLerp_f(0, 1, 0.5f));
 }
 void update() {
-	int w = qgGetWidth(), h = qgGetHeight();
-	drawEngineUI(w, h);
+	w = qgGetWidth();
+	h = qgGetHeight();
+	drawEngineUI();
 }
 
 int main() { return initEngineProject(init, update); }
