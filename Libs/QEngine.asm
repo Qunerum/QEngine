@@ -1,10 +1,14 @@
 bits 64
 default rel
-; LERP
+; = = = > LERP
 global qLerp_f
 global qLerp_v2
 global qLerp_v3
-; = = = > CLAMPS
+; = = = > ROUNDING
+global qFloor
+global qCeil
+; = = = > SQRT
+global qSqrt
 
 section .text
 ; = = = > LERP
@@ -28,5 +32,14 @@ qLerp_v3:
 	mulss   xmm3, xmm4
 	addss   xmm1, xmm3
 	ret
-; = = = > CLAMP
-; ...
+; = = = > ROUNDING
+qFloor:
+	roundss xmm0, xmm0, 1
+	ret
+qCeil:
+	roundss xmm0, xmm0, 2
+	ret
+; = = = > SQRT
+qSqrt:
+	sqrtss xmm0, xmm0
+	ret

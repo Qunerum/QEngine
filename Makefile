@@ -2,9 +2,9 @@ CC = gcc
 ASM = nasm
 GLSLC = glslc
 
-CFLAGS = -Wall -Wextra -O2 -I. -Iinclude -Ilib
+CFLAGS = -Wall -Wextra -O2 -I. -Iinclude -Ilib -ffunction-sections -fdata-sections
 ASMFLAGS = -f elf64
-LDFLAGS = -lglfw -lvulkan -ldl -lpthread -lX11 -lXxf86vm -lXrandr -lXi
+LDFLAGS = -lglfw -lvulkan -ldl -lpthread -lX11 -lXxf86vm -lXrandr -lXi -Wl,--gc-sections
 
 OBJ = .obj
 BUILD = Build

@@ -24,7 +24,6 @@ void drawEngineUI() {
 void init() {
 	print("Application was made in QEngine v%i.%i.%i\n", QENGINE_VERSION_MAJOR, QENGINE_VERSION_MINOR, QENGINE_VERSION_PATCH);
 	setDrawingMode(UI);
-	print("%.1f\n", qLerp_f(0, 1, 0.5f));
 }
 void update() {
 	w = qgGetWidth();

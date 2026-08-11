@@ -220,12 +220,7 @@ static inline float qPow(float base, int exp) {
 	return v;
 }
 // = = = = = SQRT (SQUARE ROOT) = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-static inline float qSqrt(float number) {
-	if (number <= 0.0f) return 0.0f;
-	float x = number * 0.5f;
-	for (int i = 0; i < 5; i++) x = 0.5f * (x + number / x);
-	return x;
-}
+float qSqrt(float number);
 // = = = = = DIST (DISTANCE) = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 static inline float qDist_v2(Vector2 a, Vector2 b) { return qSqrt(qPow(b.x - a.x, 2) + qPow(b.y - a.y, 2)); }
 static inline float qDist_v3(Vector3 a, Vector3 b) { return qSqrt(qPow(b.x - a.x, 2) + qPow(b.y - a.y, 2) + qPow(b.z - a.z, 2)); }
