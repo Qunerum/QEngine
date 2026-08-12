@@ -86,7 +86,11 @@ int formatText(char* to, int length, const char* format, ...) {
 }
 int initEngineProject(void (*initFunc)(), void (*updateFunc)()) {
 	qgSetBackground(0, 0, 0);
-	qgpuCreate(QEP_START_WIDTH, QEP_START_HEIGHT, QEP_NAME, initFunc, updateFunc);
+	char title[MAX_NAME_LENGTH];
+	if (IS_EDITOR) snprintf(title, sizeof(title), "QEngine %i.%i.%i <|> %s %s", QENGINE_VERSION_MAJOR, QENGINE_VERSION_MINOR, QENGINE_VERSION_PATCH, QEP_NAME, QEP_VERSION);
+	else snprintf(title, sizeof(title), "%s %s", QEP_NAME, QEP_VERSION);
+
+	qgpuCreate(QEP_START_WIDTH, QEP_START_HEIGHT, title, initFunc, updateFunc);
 	return 0;
 }
 // = = = = = CAMERA = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
@@ -107,6 +111,26 @@ static float byteTo01(byte v) { return v / 255.0f; }
 static void setRot(Vector3 position, Vector3 rotation) {
 	qgSetRotationPivot(position.x, position.y, position.z);
 	qgSetRotation(rotation.x, rotation.y, rotation.z);
+}
+void drawTriangle(Vector3 posA, Vector3 posB, Vector3 posC, Color color) {
+	qgAddTriangle(posA.x, posA.y, posA.z, posB.x, posB.y, posB.z, posC.x, posC.y, posC.z, byteTo01(color.r), byteTo01(color.g), byteTo01(color.b), byteTo01(color.a));
+}
+void drawRect(Vector3 position, Vector3 rotation, Vector2 size, Color color) {
+	setRot(position, rotation);
+	qgAddRect(position.x, position.y, position.z, size.x, size.y, byteTo01(color.r), byteTo01(color.g), byteTo01(color.b), byteTo01(color.a));
+}
+void drawCircle(Vector3 position, Vector3 rotation, int segments, float radius, Color color) {
+	setRot(position, rotation);
+	qgAddCircle(position.x, position.y, position.z, segments, radius, byteTo01(color.r), byteTo01(color.g), byteTo01(color.b), byteTo01(color.a));
+}
+
+void drawBox(Vector3 position, Vector3 rotation, Vector3 size, Color color) {
+	setRot(position, rotation);
+	qgAddBox(position.x, position.y, position.z, size.x, size.y, size.z, byteTo01(color.r), byteTo01(color.g), byteTo01(color.b), byteTo01(color.a));
+}
+void drawSphere(Vector3 position, Vector3 rotation, int rings, int sectors, float radius, Color color) {
+	setRot(position, rotation);
+	qgAddSphere(position.x, position.y, position.z, radius, rings, sectors, byteTo01(color.r), byteTo01(color.g), byteTo01(color.b), byteTo01(color.a));
 }
 // = = = = = INPUT = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 state getKeyState(int keyCode) { return qgGetKey(keyCode); }

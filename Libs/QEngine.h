@@ -7,7 +7,7 @@
 
 #define QENGINE_VERSION_MAJOR 0
 #define QENGINE_VERSION_MINOR 1
-#define QENGINE_VERSION_PATCH 2
+#define QENGINE_VERSION_PATCH 3
 
 typedef enum { World, UI } qeDrawingMode;
 // = = = = = TYPES = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
@@ -230,16 +230,9 @@ static inline float qLength_v2(Vector2 v) { return qSqrt(v.x * v.x + v.y * v.y);
 static inline float qLength_v3(Vector3 v) { return qSqrt(v.x * v.x + v.y * v.y + v.z * v.z); }
 #define qLength(V) _Generic((V), Vector2:qLength_v2, Vector3:qLength_v3 )(V)
 // = = = = = NORMALIZE = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-static inline Vector2 qNormalize_v2(Vector2 v) {
-	float len = qLength_v2(v);
-	if (len == 0.0f) return (Vector2){0.0f, 0.0f};
-	return (Vector2){v.x / len, v.y / len};
-}
-static inline Vector3 qNormalize_v3(Vector3 v) {
-	float len = qLength_v3(v);
-	if (len == 0.0f) return (Vector3){0.0f, 0.0f, 0.0f};
-	return (Vector3){v.x / len, v.y / len, v.z / len};
-}
+Vector2 qNormalize_v2(Vector2 v);
+Vector3 qNormalize_v3(Vector3 v);
+
 #define qNormalize(V) _Generic((V), Vector2:qNormalize_v2, Vector3:qNormalize_v3 )(V)
 // = = = = = DOT (DOT PRODUCT) = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 static inline float qDot_v2(Vector2 a, Vector2 b) { return a.x * b.x + a.y * b.y; }
@@ -249,7 +242,7 @@ static inline float qDot_v3i(Vector3Int a, Vector3Int b) { return a.x * b.x + a.
 #define qDot(A, B) _Generic((A), Vector2:qDot_v2, Vector2Int:qDot_v2i, Vector3:qDot_v3, Vector3Int:qDot_v3i )(A, B)
 // = = = = = CROSS (CROSS PRODUCT) = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 static inline float qCross_v2(Vector2 a, Vector2 b) { return a.x * b.y - a.y * b.x; }
-static inline Vector3 qCross_v3(Vector3 a, Vector3 b) {	return (Vector3){ a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x }; }
+static inline Vector3 qCross_v3(Vector3 a, Vector3 b) { return (Vector3){ a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x }; }
 #define qCross(A, B) _Generic((A), Vector2:qCross_v2, Vector3:qCross_v3 )(A, B)
 // = = = = = DEGREES & RADIANS = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 static inline float qDegToRad(float deg) { return deg * (PI / 180.0f); }
