@@ -6,8 +6,8 @@
 #include "../Data/PROJECT.h"
 
 #define QENGINE_VERSION_MAJOR 0
-#define QENGINE_VERSION_MINOR 1
-#define QENGINE_VERSION_PATCH 3
+#define QENGINE_VERSION_MINOR 2
+#define QENGINE_VERSION_PATCH 0
 
 typedef enum { World, UI } qeDrawingMode;
 typedef enum { Top_Left, Top, Top_Right, Left, Center, Right, Bottom_Left, Bottom, Bottom_Right } qeAlignMode;
@@ -19,6 +19,7 @@ typedef int state;
 // = = = = = STRUCTURES = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 // = = = = = VECTORS = = = = = = = = = = = = = = = = = = = =
 typedef struct { float x, y; } Vector2;
+#define Vector2(x, y)       ((Vector2){x, y})
 #define Vector2_Zero        (Vector2){0, 0}
 #define Vector2_One         (Vector2){1, 1}
 #define Vector2_Up          (Vector2){0, 1}
@@ -26,6 +27,7 @@ typedef struct { float x, y; } Vector2;
 #define Vector2_Left        (Vector2){-1, 0}
 #define Vector2_Right       (Vector2){1, 0}
 typedef struct { int x, y; } Vector2Int;
+#define Vector2Int(x, y)    ((Vector2Int){x, y})
 #define Vector2Int_Zero     (Vector2Int){0, 0}
 #define Vector2Int_One      (Vector2Int){1, 1}
 #define Vector2Int_Up       (Vector2Int){0, 1}
@@ -33,6 +35,7 @@ typedef struct { int x, y; } Vector2Int;
 #define Vector2Int_Left     (Vector2Int){-1, 0}
 #define Vector2Int_Right    (Vector2Int){1, 0}
 typedef struct { float x, y, z; } Vector3;
+#define Vector3(x, y, z)    ((Vector3){x, y, z})
 #define Vector3_Zero        (Vector3){0, 0, 0}
 #define Vector3_One         (Vector3){1, 1, 1}
 #define Vector3_Up          (Vector3){0, 1, 0}
@@ -42,6 +45,7 @@ typedef struct { float x, y, z; } Vector3;
 #define Vector3_Forward     (Vector3){0, 0, 1}
 #define Vector3_Backward    (Vector3){0, 0, -1}
 typedef struct { int x, y, z; } Vector3Int;
+#define Vector3Int(x, y, z) ((Vector3Int){x, y, z})
 #define Vector3Int_Zero     (Vector3Int){0, 0, 0}
 #define Vector3Int_One      (Vector3Int){1, 1, 1}
 #define Vector3Int_Up       (Vector3Int){0, 1, 0}
@@ -63,6 +67,7 @@ typedef struct {
 } QObject;
 // = = = = = COLORS = = = = = = = = = = = = = = = = = = = =
 typedef struct { byte r, g, b, a; } Color;
+#define ColorAll(x, a) ((Color){(x), (x), (x), (a)})
 #define Color_Transparent   (Color){  0,   0,   0,   0}
 #define Color_Black         (Color){  0,   0,   0, 255}
 #define Color_White         (Color){255, 255, 255, 255}

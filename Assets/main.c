@@ -7,25 +7,24 @@
 #include "../Libs/qgpu.h"
 
 static state isLight = false;
-float c(float v) { return v + isLight * 0.4f; }
+static Color c1;
 
 static int w = 0, h = 0,
-/*objC = 0,*/ objListW = 240;
-// void drawObjOnList(QObject obj) {
-	//
-	// objC++;
-// }
+objectListWidth = 300,
+managerWidth = 300;
 void drawEngineUI() {
 	// Object list
-	qgAddRect(-w / 2.f + objListW / 2.f, 0, 0, objListW, h, c(.2f), c(.2f), c(.2f), 1);
+	drawRect(Vector3(objectListWidth / 2.0f, 0, 0), Vector3_Zero, Vector2(objectListWidth, h), Left, c1);
 	// Manager
-	// drawRect();
+	drawRect(Vector3(-managerWidth / 2.0f, 0, 0), Vector3_Zero, Vector2(managerWidth, h), Right, c1);
 }
 
 
 void init() {
 	print("Application was made in QEngine v%i.%i.%i\n", QENGINE_VERSION_MAJOR, QENGINE_VERSION_MINOR, QENGINE_VERSION_PATCH);
 	setDrawingMode(UI);
+
+	c1 = ColorAll(isLight ? 163 : 51, 255);
 }
 void update() {
 	w = qgGetWidth();
