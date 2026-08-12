@@ -18,6 +18,8 @@ static int w = 0, h = 0,
 void drawEngineUI() {
 	// Object list
 	qgAddRect(-w / 2.f + objListW / 2.f, 0, 0, objListW, h, c(.2f), c(.2f), c(.2f), 1);
+	// Manager
+	// drawRect();
 }
 
 

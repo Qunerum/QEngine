@@ -112,16 +112,35 @@ static void setRot(Vector3 position, Vector3 rotation) {
 	qgSetRotationPivot(position.x, position.y, position.z);
 	qgSetRotation(rotation.x, rotation.y, rotation.z);
 }
+static Vector3 getPos(Vector3 pos, qeAlignMode align) {
+	Vector3 v = pos;
+	float w = qgGetWidth() / 2.0f, h = qgGetHeight() / 2.0f;
+	switch (align) {
+		case Top_Left: v.y += h; v.x -= w; return v;
+		case Top: v.y += h; return v;
+		case Top_Right: v.y += h; v.x += w; return v;
+		case Left: v.x -= w; return v;
+		case Center: return v;
+		case Right: v.x += w; return v;
+		case Bottom_Left: v.y -= h; v.x -= w; return v;
+		case Bottom: v.y -= h; return v;
+		case Bottom_Right: v.y -= h; v.x += w; return v;
+	}
+	return v;
+}
+
 void drawTriangle(Vector3 posA, Vector3 posB, Vector3 posC, Color color) {
 	qgAddTriangle(posA.x, posA.y, posA.z, posB.x, posB.y, posB.z, posC.x, posC.y, posC.z, byteTo01(color.r), byteTo01(color.g), byteTo01(color.b), byteTo01(color.a));
 }
-void drawRect(Vector3 position, Vector3 rotation, Vector2 size, Color color) {
+void drawRect(Vector3 position, Vector3 rotation, Vector2 size, qeAlignMode align, Color color) {
 	setRot(position, rotation);
-	qgAddRect(position.x, position.y, position.z, size.x, size.y, byteTo01(color.r), byteTo01(color.g), byteTo01(color.b), byteTo01(color.a));
+	Vector3 p = getPos(position, align);
+	qgAddRect(p.x, p.y, p.z, size.x, size.y, byteTo01(color.r), byteTo01(color.g), byteTo01(color.b), byteTo01(color.a));
 }
-void drawCircle(Vector3 position, Vector3 rotation, int segments, float radius, Color color) {
+void drawCircle(Vector3 position, Vector3 rotation, int segments, float radius, qeAlignMode align, Color color) {
 	setRot(position, rotation);
-	qgAddCircle(position.x, position.y, position.z, segments, radius, byteTo01(color.r), byteTo01(color.g), byteTo01(color.b), byteTo01(color.a));
+	Vector3 p = getPos(position, align);
+	qgAddCircle(p.x, p.y, p.z, segments, radius, byteTo01(color.r), byteTo01(color.g), byteTo01(color.b), byteTo01(color.a));
 }
 
 void drawBox(Vector3 position, Vector3 rotation, Vector3 size, Color color) {

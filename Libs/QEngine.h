@@ -10,6 +10,7 @@
 #define QENGINE_VERSION_PATCH 3
 
 typedef enum { World, UI } qeDrawingMode;
+typedef enum { Top_Left, Top, Top_Right, Left, Center, Right, Bottom_Left, Bottom, Bottom_Right } qeAlignMode;
 // = = = = = TYPES = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 typedef uint8_t byte;
 typedef int state;
@@ -107,6 +108,12 @@ void setCamera(Camera camera);
 void setCameraPos(Vector3 position);
 void setCameraRot(Vector3 rotation);
 void setCameraScale(Vector3 scale);
+
+void drawTriangle(Vector3 posA, Vector3 posB, Vector3 posC, Color color);
+void drawRect(Vector3 position, Vector3 rotation, Vector2 size, qeAlignMode align, Color color);
+void drawCircle(Vector3 position, Vector3 rotation, int segments, float radius, qeAlignMode align, Color color);
+void drawBox(Vector3 position, Vector3 rotation, Vector3 size, Color color);
+void drawSphere(Vector3 position, Vector3 rotation, int rings, int sectors, float radius, Color color);
 
 #ifdef QEngine_Input
 int getKeyState(int keyCode);
