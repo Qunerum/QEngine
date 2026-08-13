@@ -13,29 +13,45 @@ typedef enum { World, UI } qeDrawingMode;
 typedef enum { Top_Left, Top, Top_Right, Left, Center, Right, Bottom_Left, Bottom, Bottom_Right } qeAlignMode;
 // = = = = = TYPES = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 typedef uint8_t byte;
+// = = = = = state = = = = = = = = = = = = = = = = = = = =
 typedef int state;
 #define false 0
 #define true 1
 // = = = = = STRUCTURES = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-// = = = = = VECTORS = = = = = = = = = = = = = = = = = = = =
+// = = = = = Vector2 = = = = = = = = = = = = = = = = = = = =
 typedef struct { float x, y; } Vector2;
-#define Vector2(x, y)       ((Vector2){x, y})
+#define _GET_VEC2_MACRO(_1, _2, NAME, ...) NAME
+#define _Vec2_1(x)       ((Vector2){ (x), 0.0f })
+#define _Vec2_2(x, y)    ((Vector2){ (x), (y) })
+#define Vector2(...) _GET_VEC2_MACRO(__VA_ARGS__, _Vec2_2, _Vec2_1)(__VA_ARGS__)
+
 #define Vector2_Zero        (Vector2){0, 0}
 #define Vector2_One         (Vector2){1, 1}
 #define Vector2_Up          (Vector2){0, 1}
 #define Vector2_Down        (Vector2){0, -1}
 #define Vector2_Left        (Vector2){-1, 0}
 #define Vector2_Right       (Vector2){1, 0}
+// = = = = = Vector2Int = = = = = = = = = = = = = = = = = = = =
 typedef struct { int x, y; } Vector2Int;
-#define Vector2Int(x, y)    ((Vector2Int){x, y})
+#define _GET_VEC2I_MACRO(_1, _2, NAME, ...) NAME
+#define _Vec2I_1(x)       ((Vector2Int){ (x), 0 })
+#define _Vec2I_2(x, y)    ((Vector2Int){ (x), (y) })
+#define Vector2Int(...) _GET_VEC2I_MACRO(__VA_ARGS__, _Vec2I_2, _Vec2I_1)(__VA_ARGS__)
+
 #define Vector2Int_Zero     (Vector2Int){0, 0}
 #define Vector2Int_One      (Vector2Int){1, 1}
 #define Vector2Int_Up       (Vector2Int){0, 1}
 #define Vector2Int_Down     (Vector2Int){0, -1}
 #define Vector2Int_Left     (Vector2Int){-1, 0}
 #define Vector2Int_Right    (Vector2Int){1, 0}
+// = = = = = Vector3 = = = = = = = = = = = = = = = = = = = =
 typedef struct { float x, y, z; } Vector3;
-#define Vector3(x, y, z)    ((Vector3){x, y, z})
+#define _GET_VEC3_MACRO(_1, _2, _3, NAME, ...) NAME
+#define _Vec3_1(x)       ((Vector3){ (x), 0.0f, 0.0f })
+#define _Vec3_2(x, y)    ((Vector3){ (x), (y), 0.0f })
+#define _Vec3_3(x, y, z) ((Vector3){ (x), (y), (z) })
+#define Vector3(...) _GET_VEC3_MACRO(__VA_ARGS__, _Vec3_3, _Vec3_2, _Vec3_1)(__VA_ARGS__)
+
 #define Vector3_Zero        (Vector3){0, 0, 0}
 #define Vector3_One         (Vector3){1, 1, 1}
 #define Vector3_Up          (Vector3){0, 1, 0}
@@ -44,8 +60,14 @@ typedef struct { float x, y, z; } Vector3;
 #define Vector3_Right       (Vector3){1, 0, 0}
 #define Vector3_Forward     (Vector3){0, 0, 1}
 #define Vector3_Backward    (Vector3){0, 0, -1}
+// = = = = = Vector3Int = = = = = = = = = = = = = = = = = = = =
 typedef struct { int x, y, z; } Vector3Int;
-#define Vector3Int(x, y, z) ((Vector3Int){x, y, z})
+#define _GET_VEC3I_MACRO(_1, _2, _3, NAME, ...) NAME
+#define _Vec3I_1(x)       ((Vector3Int){ (x), 0, 0 })
+#define _Vec3I_2(x, y)    ((Vector3Int){ (x), (y), 0 })
+#define _Vec3I_3(x, y, z) ((Vector3Int){ (x), (y), (z) })
+#define Vector3Int(...) _GET_VEC3I_MACRO(__VA_ARGS__, _Vec3I_3, _Vec3I_2, _Vec3I_1)(__VA_ARGS__)
+
 #define Vector3Int_Zero     (Vector3Int){0, 0, 0}
 #define Vector3Int_One      (Vector3Int){1, 1, 1}
 #define Vector3Int_Up       (Vector3Int){0, 1, 0}
@@ -54,51 +76,58 @@ typedef struct { int x, y, z; } Vector3Int;
 #define Vector3Int_Right    (Vector3Int){1, 0, 0}
 #define Vector3Int_Forward  (Vector3Int){0, 0, 1}
 #define Vector3Int_Backward (Vector3Int){0, 0, -1}
-// = = = = = END VECTORS = = = = = = = = = = = = = = = = = = = =
+// = = = = = Transform = = = = = = = = = = = = = = = = = = = =
 typedef struct { Vector3 position, rotation, scale; } Transform;
+// = = = = = Camera = = = = = = = = = = = = = = = = = = = =
 typedef struct {
 	Vector3 position, rotation;
 	float fov;
 } Camera;
+// = = = = = QObject = = = = = = = = = = = = = = = = = = = =
 typedef struct {
 	char name[MAX_NAME_LENGTH];
 	Transform transform;
 	state isActive;
 } QObject;
-// = = = = = COLORS = = = = = = = = = = = = = = = = = = = =
+// = = = = = COLOR = = = = = = = = = = = = = = = = = = = =
 typedef struct { byte r, g, b, a; } Color;
-#define ColorAll(x, a) ((Color){(x), (x), (x), (a)})
-#define Color_Transparent   (Color){  0,   0,   0,   0}
-#define Color_Black         (Color){  0,   0,   0, 255}
-#define Color_White         (Color){255, 255, 255, 255}
-// ===== Light ========================================
-#define Color_Light_Gray    (Color){192, 192, 192, 255}
-#define Color_Light_Red     (Color){255,  64,  64, 255}
-#define Color_Light_Green   (Color){128, 255, 128, 255}
-#define Color_Light_Yellow  (Color){255, 255, 128, 255}
-#define Color_Light_Orange  (Color){255, 192,  64, 255}
-#define Color_Light_Blue    (Color){ 64,  64, 255, 255}
-#define Color_Light_Magenta (Color){255,  64, 255, 255}
-#define Color_Light_Cyan    (Color){128, 255, 255, 255}
-// ===== Normal =======================================
-#define Color_Gray          (Color){128, 128, 128, 255}
-#define Color_Red           (Color){255,   0,   0, 255}
-#define Color_Green         (Color){  0, 255,   0, 255}
-#define Color_Yellow        (Color){255, 255,   0, 255}
-#define Color_Orange        (Color){255, 128,   0, 255}
-#define Color_Blue          (Color){  0,   0, 255, 255}
-#define Color_Magenta       (Color){255,   0, 255, 255}
-#define Color_Cyan          (Color){  0, 255, 255, 255}
-// ===== Dark =========================================
-#define Color_Dark_Gray     (Color){ 64,  64,  64, 255}
-#define Color_Dark_Red      (Color){128,   0,   0, 255}
-#define Color_Dark_Green    (Color){  0, 128,   0, 255}
-#define Color_Dark_Yellow   (Color){128, 128,   0, 255}
-#define Color_Dark_Orange   (Color){128,  64,   0, 255}
-#define Color_Dark_Blue     (Color){  0,   0, 128, 255}
-#define Color_Dark_Magenta  (Color){128,   0, 128, 255}
-#define Color_Dark_Cyan     (Color){  0, 128, 128, 255}
-// = = = = = END COLORS = = = = = = = = = = = = = = = = = = = =
+#define _GET_COLOR_MACRO(_1, _2, _3, _4, NAME, ...) NAME
+#define _Color_1(x)          ((Color){ (x), (x), (x), 255 })
+#define _Color_2(x, a)       ((Color){ (x), (x), (x), (a) })
+#define _Color_3(r, g, b)    ((Color){ (r), (g), (b), 255 })
+#define _Color_4(r, g, b, a) ((Color){ (r), (g), (b), (a) })
+#define Color(...) _GET_COLOR_MACRO(__VA_ARGS__, _Color_4, _Color_3, _Color_2, _Color_1)(__VA_ARGS__)
+// = = = = = COLORS = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+#define Color_Transparent   Color(0, 0)
+#define Color_Black         Color(0)
+#define Color_White         Color(255)
+// = = = = = LIGHT = = = = = = = = = = = = = = = = = = = =
+#define Color_Light_Gray    Color(192, 192, 192)
+#define Color_Light_Red     Color(255, 64, 64)
+#define Color_Light_Green   Color(128, 255, 128)
+#define Color_Light_Yellow  Color(255, 255, 128)
+#define Color_Light_Orange  Color(255, 192, 64)
+#define Color_Light_Blue    Color(64, 64, 255)
+#define Color_Light_Magenta Color(255, 64, 255)
+#define Color_Light_Cyan    Color(128, 255, 255)
+// = = = = = NORMAL = = = = = = = = = = = = = = = = = = = =
+#define Color_Gray          Color(128, 128, 128)
+#define Color_Red           Color(255, 0, 0)
+#define Color_Green         Color(0, 255, 0)
+#define Color_Yellow        Color(255, 255, 0)
+#define Color_Orange        Color(255, 128, 0)
+#define Color_Blue          Color(0, 0, 255)
+#define Color_Magenta       Color(255, 0, 255)
+#define Color_Cyan          Color(0, 255, 255)
+// = = = = = DARK = = = = = = = = = = = = = = = = = = = =
+#define Color_Dark_Gray     Color(64, 64, 64)
+#define Color_Dark_Red      Color(128, 0, 0)
+#define Color_Dark_Green    Color(0, 128, 0)
+#define Color_Dark_Yellow   Color(128, 128, 0)
+#define Color_Dark_Orange   Color(128, 64, 0)
+#define Color_Dark_Blue     Color(0, 0, 128)
+#define Color_Dark_Magenta  Color(128, 0, 128)
+#define Color_Dark_Cyan     Color(0, 128, 128)
 
 // = = = = = FUNCTIONS = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 void print(const char* format, ...);
