@@ -1,11 +1,4 @@
-**/bin/
-**/obj/
 **/.obj/
-**/.obj/
-**/build/
 **/Build/
-**/*.sh
-**/*.bat
-**/*.qc
-**/*.qa
+
 **/*.kate-swp
