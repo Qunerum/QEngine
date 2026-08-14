@@ -1,56 +1,79 @@
-CC = gcc
-ASM = nasm
+APP_NAME = QEngineApp
+
+CC    = gcc
+ASM   = nasm
 GLSLC = glslc
 
-CFLAGS = -Wall -Wextra -O2 -I. -Iinclude -Ilib -ffunction-sections -fdata-sections
+BUILD         = Build
+BUILD_ENGINE  = $(BUILD)/Engine
+BUILD_PROJECT = $(BUILD)/Project
+
+OBJ_EDITOR = .obj/editor
+OBJ_GAME   = .obj/game
+
+FILES         = Assets
+FILES_PROJECT = $(BUILD_PROJECT)/$(FILES)
+
+CFLAGS   = -Wall -Wextra -O2 -I. -Iinclude -Ilib -ffunction-sections -fdata-sections
 ASMFLAGS = -f elf64
-LDFLAGS = -lglfw -lvulkan -ldl -lpthread -lX11 -lXxf86vm -lXrandr -lXi -Wl,--gc-sections -lasound -lpthread -lm
+LDFLAGS  = -lglfw -lvulkan -ldl -lpthread -lX11 -lXxf86vm -lXrandr -lXi -Wl,--gc-sections -lasound -lpthread -lm
 
-OBJ = .obj
-BUILD = Build
-FILES = Assets
-FILESB = $(BUILD)/$(FILES)
+C_SRCS   = $(wildcard Assets/*.c) $(wildcard Libs/*.c)
+ASM_SRCS = $(wildcard Assets/*.asm) $(wildcard Libs/*.asm)
 
-C_SRCS   = $(wildcard Assets/*.c) $(wildcard Libs/*.c) $(wildcard Libs/Dev/*.c)
-ASM_SRCS = $(wildcard Assets/*.asm) $(wildcard Libs/*.asm) $(wildcard Libs/Dev/*.asm)
+EDITOR_C_OBJS   = $(patsubst %.c, $(OBJ_EDITOR)/%.o, $(notdir $(C_SRCS)))
+EDITOR_ASM_OBJS = $(patsubst %.asm, $(OBJ_EDITOR)/%_asm.o, $(notdir $(ASM_SRCS)))
+EDITOR_OBJS     = $(EDITOR_C_OBJS) $(EDITOR_ASM_OBJS)
 
-C_OBJS   = $(patsubst %.c, $(OBJ)/%.o, $(notdir $(C_SRCS)))
-ASM_OBJS = $(patsubst %.asm, $(OBJ)/%_asm.o, $(notdir $(ASM_SRCS)))
-
-OBJS = $(C_OBJS) $(ASM_OBJS)
+GAME_C_OBJS   = $(patsubst %.c, $(OBJ_GAME)/%.o, $(notdir $(C_SRCS)))
+GAME_ASM_OBJS = $(patsubst %.asm, $(OBJ_GAME)/%_asm.o, $(notdir $(ASM_SRCS)))
+GAME_OBJS     = $(GAME_C_OBJS) $(GAME_ASM_OBJS)
 
 vpath %.c Assets Libs
 vpath %.asm Assets Libs
 
-APP_NAME = QEngineApp
-APP = $(BUILD)/$(APP_NAME)
+EDITOR = $(BUILD_ENGINE)/QEngine
+APP    = $(BUILD_PROJECT)/$(APP_NAME)
 
-all: prepare
-	@$(MAKE) $(APP)
+all: prepare editor
 
 prepare:
-	@mkdir -p $(OBJ) $(BUILD) $(FILES) $(FILESB)
+	@mkdir -p "$(OBJ_EDITOR)" "$(OBJ_GAME)" "$(BUILD_ENGINE)" "$(BUILD_PROJECT)" "$(FILES_PROJECT)"
 
-$(OBJ)/%.o: %.c
-	@echo "Compilation C $<..."
-	@$(CC) $(CFLAGS) -c $< -o $@
+editor: prepare $(EDITOR)
 
-$(OBJ)/%_asm.o: %.asm
+$(EDITOR): $(EDITOR_OBJS)
+	@$(CC) -o $@ $(EDITOR_OBJS) $(LDFLAGS)
+
+$(OBJ_EDITOR)/%.o: %.c
+	@echo "Compilation C (Editor) $<..."
+	@$(CC) $(CFLAGS) -DIS_EDITOR=1 -c $< -o $@
+
+$(OBJ_EDITOR)/%_asm.o: %.asm
 	@echo "Assembling ASM $<..."
 	@$(ASM) $(ASMFLAGS) $< -o $@
 
-$(APP): $(OBJS)
-	@echo "Linking app $(APP)..."
-	@$(CC) -o $@ $(OBJS) $(LDFLAGS)
+build: prepare $(APP)
 
-run: all
-	@echo "--- Starting $(APP) ---"
-	@rsync -a --exclude={'*.c','*.h','*.asm'} $(FILES)/ $(BUILD)/
-	@cd $(BUILD) && ./$(APP_NAME)
+$(APP): $(GAME_OBJS)
+	@$(CC) -o $@ $(GAME_OBJS) $(LDFLAGS)
+
+$(OBJ_GAME)/%.o: %.c
+	@echo "Compilation C (Game) $<..."
+	@$(CC) $(CFLAGS) -DIS_EDITOR=0 -c $< -o $@
+
+$(OBJ_GAME)/%_asm.o: %.asm
+	@echo "Assembling ASM $<..."
+	@$(ASM) $(ASMFLAGS) $< -o $@
+
+run: editor
+	@./$(EDITOR)
+
+play: build
+	@cd $(BUILD_PROJECT) && ./$(APP_NAME)
 
 clean:
-	@echo "Cleaning..."
-	@rm -rf $(OBJ) $(BUILD)
+	@rm -rf .obj $(BUILD)
 	@echo "Cleaned!"
 
-.PHONY: all prepare run clean
+.PHONY: all prepare build editor run play clean

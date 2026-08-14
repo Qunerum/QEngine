@@ -84,13 +84,35 @@ int formatText(char* to, int length, const char* format, ...) {
 	va_end(args);
 	return written;
 }
+static void (*userInit)() = NULL, (*userUpdate)() = NULL;
+static void qeInit() {
+	print("Application was made in QEngine v%i.%i.%i\n", QENGINE_VERSION_MAJOR, QENGINE_VERSION_MINOR, QENGINE_VERSION_PATCH);
+#if IS_EDITOR
+	setDrawingMode(UI);
+#else
+	if (userInit) userInit();
+#endif
+}
+static void qeUpdate() {
+#if IS_EDITOR
+	Color c1 = Color(60);
+	int w = getWidth(), h = getHeight();
+	drawRect(V3(150), Vector3_Zero, V2(300, h), Left, c1);
+#else
+	if (userUpdate) userUpdate();
+#endif
+}
 int initEngineProject(void (*initFunc)(), void (*updateFunc)()) {
 	if (!qsInit()) return 1;
 	qgSetBackground(0, 0, 0);
 	char title[MAX_NAME_LENGTH];
 	if (IS_EDITOR) snprintf(title, sizeof(title), "QEngine %i.%i.%i <|> %s %s", QENGINE_VERSION_MAJOR, QENGINE_VERSION_MINOR, QENGINE_VERSION_PATCH, QEP_NAME, QEP_VERSION);
 	else snprintf(title, sizeof(title), "%s %s", QEP_NAME, QEP_VERSION);
-	qgpuCreate(QEP_START_WIDTH, QEP_START_HEIGHT, title, initFunc, updateFunc);
+	if (!IS_EDITOR) {
+		userInit = initFunc;
+		userUpdate = updateFunc;
+	}
+	qgpuCreate(QEP_START_WIDTH, QEP_START_HEIGHT, title, qeInit, qeUpdate);
 	qsClose();
 	return 0;
 }
@@ -102,6 +124,8 @@ void setDrawingMode(qeDrawingMode mode) {
 		case UI: qgSetRenderType(QGPU_RENDER_TYPE_NO_LIGHT); break;
 	}
 }
+int getWidth() { return qgGetWidth(); }
+int getHeight() { return qgGetHeight(); }
 Camera getCamera() { return _camera; }
 void setCamera(Camera camera) { _camera = camera; }
 void setCameraPos(Vector3 position) { _camera.position = position; }

@@ -6,8 +6,8 @@
 #include "../Data/PROJECT.h"
 
 #define QENGINE_VERSION_MAJOR 0
-#define QENGINE_VERSION_MINOR 2
-#define QENGINE_VERSION_PATCH 1
+#define QENGINE_VERSION_MINOR 3
+#define QENGINE_VERSION_PATCH 0
 
 typedef enum { World, UI } qeDrawingMode;
 typedef enum { Top_Left, Top, Top_Right, Left, Center, Right, Bottom_Left, Bottom, Bottom_Right } qeAlignMode;
@@ -145,6 +145,9 @@ int formatText(char* to, int length, const char* format, ...);
 int initEngineProject(void (*initFunc)(), void (*updateFunc)());
 
 void setDrawingMode(qeDrawingMode mode);
+
+int getWidth();
+int getHeight();
 
 Camera getCamera();
 void setCamera(Camera camera);

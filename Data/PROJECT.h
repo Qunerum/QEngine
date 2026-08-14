@@ -7,6 +7,9 @@
 #define QEP_START_HEIGHT 720
 
 #define MAX_NAME_LENGTH 512
+
+#ifndef IS_EDITOR
 #define IS_EDITOR 1
+#endif
 
 #endif
