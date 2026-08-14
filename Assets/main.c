@@ -14,9 +14,9 @@ objectListWidth = 300,
 managerWidth = 300;
 void drawEngineUI() {
 	// Object list
-	drawRect(Vector3(objectListWidth / 2.0f), Vector3_Zero, Vector2(objectListWidth, h), Left, c1);
+	drawRect(V3(objectListWidth / 2.0f), Vector3_Zero, V2(objectListWidth, h), Left, c1);
 	// Manager
-	drawRect(Vector3(-managerWidth / 2.0f), Vector3_Zero, Vector2(managerWidth, h), Right, c1);
+	drawRect(V3(-managerWidth / 2.0f), Vector3_Zero, V2(managerWidth, h), Right, c1);
 }
 
 

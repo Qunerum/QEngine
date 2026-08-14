@@ -7,7 +7,7 @@
 
 #define QENGINE_VERSION_MAJOR 0
 #define QENGINE_VERSION_MINOR 2
-#define QENGINE_VERSION_PATCH 0
+#define QENGINE_VERSION_PATCH 1
 
 typedef enum { World, UI } qeDrawingMode;
 typedef enum { Top_Left, Top, Top_Right, Left, Center, Right, Bottom_Left, Bottom, Bottom_Right } qeAlignMode;
@@ -21,61 +21,69 @@ typedef int state;
 // = = = = = Vector2 = = = = = = = = = = = = = = = = = = = =
 typedef struct { float x, y; } Vector2;
 #define _GET_VEC2_MACRO(_1, _2, NAME, ...) NAME
-#define _Vec2_1(x)       ((Vector2){ (x), 0.0f })
-#define _Vec2_2(x, y)    ((Vector2){ (x), (y) })
+#define _Vec2_1(x) ((Vector2){ (x), 0.0f })
+#define _Vec2_2(x, y) ((Vector2){ (x), (y) })
 #define Vector2(...) _GET_VEC2_MACRO(__VA_ARGS__, _Vec2_2, _Vec2_1)(__VA_ARGS__)
+#define Vec2(...) _GET_VEC2_MACRO(__VA_ARGS__, _Vec2_2, _Vec2_1)(__VA_ARGS__)
+#define V2(...) _GET_VEC2_MACRO(__VA_ARGS__, _Vec2_2, _Vec2_1)(__VA_ARGS__)
 
-#define Vector2_Zero        (Vector2){0, 0}
-#define Vector2_One         (Vector2){1, 1}
-#define Vector2_Up          (Vector2){0, 1}
-#define Vector2_Down        (Vector2){0, -1}
-#define Vector2_Left        (Vector2){-1, 0}
-#define Vector2_Right       (Vector2){1, 0}
+#define Vector2_Zero V2(0, 0)
+#define Vector2_One V2(1, 1)
+#define Vector2_Up V2(0, 1)
+#define Vector2_Down V2(0, -1)
+#define Vector2_Left V2(-1, 0)
+#define Vector2_Right V2(1, 0)
 // = = = = = Vector2Int = = = = = = = = = = = = = = = = = = = =
 typedef struct { int x, y; } Vector2Int;
 #define _GET_VEC2I_MACRO(_1, _2, NAME, ...) NAME
-#define _Vec2I_1(x)       ((Vector2Int){ (x), 0 })
-#define _Vec2I_2(x, y)    ((Vector2Int){ (x), (y) })
+#define _Vec2I_1(x) ((Vector2Int){ (x), 0 })
+#define _Vec2I_2(x, y) ((Vector2Int){ (x), (y) })
 #define Vector2Int(...) _GET_VEC2I_MACRO(__VA_ARGS__, _Vec2I_2, _Vec2I_1)(__VA_ARGS__)
+#define Vec2Int(...) _GET_VEC2I_MACRO(__VA_ARGS__, _Vec2I_2, _Vec2I_1)(__VA_ARGS__)
+#define V2I(...) _GET_VEC2I_MACRO(__VA_ARGS__, _Vec2I_2, _Vec2I_1)(__VA_ARGS__)
 
-#define Vector2Int_Zero     (Vector2Int){0, 0}
-#define Vector2Int_One      (Vector2Int){1, 1}
-#define Vector2Int_Up       (Vector2Int){0, 1}
-#define Vector2Int_Down     (Vector2Int){0, -1}
-#define Vector2Int_Left     (Vector2Int){-1, 0}
-#define Vector2Int_Right    (Vector2Int){1, 0}
+#define Vector2Int_Zero V2I(0, 0)
+#define Vector2Int_One V2I(1, 1)
+#define Vector2Int_Up V2I(0, 1)
+#define Vector2Int_Down V2I(0, -1)
+#define Vector2Int_Left V2I(-1, 0)
+#define Vector2Int_Right V2I(1, 0)
 // = = = = = Vector3 = = = = = = = = = = = = = = = = = = = =
 typedef struct { float x, y, z; } Vector3;
 #define _GET_VEC3_MACRO(_1, _2, _3, NAME, ...) NAME
-#define _Vec3_1(x)       ((Vector3){ (x), 0.0f, 0.0f })
-#define _Vec3_2(x, y)    ((Vector3){ (x), (y), 0.0f })
+#define _Vec3_1(x) ((Vector3){ (x), 0.0f, 0.0f })
+#define _Vec3_2(x, y) ((Vector3){ (x), (y), 0.0f })
 #define _Vec3_3(x, y, z) ((Vector3){ (x), (y), (z) })
 #define Vector3(...) _GET_VEC3_MACRO(__VA_ARGS__, _Vec3_3, _Vec3_2, _Vec3_1)(__VA_ARGS__)
+#define Vec3(...) _GET_VEC3_MACRO(__VA_ARGS__, _Vec3_3, _Vec3_2, _Vec3_1)(__VA_ARGS__)
+#define V3(...) _GET_VEC3_MACRO(__VA_ARGS__, _Vec3_3, _Vec3_2, _Vec3_1)(__VA_ARGS__)
 
-#define Vector3_Zero        (Vector3){0, 0, 0}
-#define Vector3_One         (Vector3){1, 1, 1}
-#define Vector3_Up          (Vector3){0, 1, 0}
-#define Vector3_Down        (Vector3){0, -1, 0}
-#define Vector3_Left        (Vector3){-1, 0, 0}
-#define Vector3_Right       (Vector3){1, 0, 0}
-#define Vector3_Forward     (Vector3){0, 0, 1}
-#define Vector3_Backward    (Vector3){0, 0, -1}
+#define Vector3_Zero V3(0, 0, 0)
+#define Vector3_One V3(1, 1, 1)
+#define Vector3_Up V3(0, 1, 0)
+#define Vector3_Down V3(0, -1, 0)
+#define Vector3_Left V3(-1, 0, 0)
+#define Vector3_Right V3(1, 0, 0)
+#define Vector3_Forward V3(0, 0, 1)
+#define Vector3_Backward V3(0, 0, -1)
 // = = = = = Vector3Int = = = = = = = = = = = = = = = = = = = =
 typedef struct { int x, y, z; } Vector3Int;
 #define _GET_VEC3I_MACRO(_1, _2, _3, NAME, ...) NAME
-#define _Vec3I_1(x)       ((Vector3Int){ (x), 0, 0 })
-#define _Vec3I_2(x, y)    ((Vector3Int){ (x), (y), 0 })
+#define _Vec3I_1(x) ((Vector3Int){ (x), 0, 0 })
+#define _Vec3I_2(x, y) ((Vector3Int){ (x), (y), 0 })
 #define _Vec3I_3(x, y, z) ((Vector3Int){ (x), (y), (z) })
 #define Vector3Int(...) _GET_VEC3I_MACRO(__VA_ARGS__, _Vec3I_3, _Vec3I_2, _Vec3I_1)(__VA_ARGS__)
+#define Vec3Int(...) _GET_VEC3I_MACRO(__VA_ARGS__, _Vec3I_3, _Vec3I_2, _Vec3I_1)(__VA_ARGS__)
+#define V3I(...) _GET_VEC3I_MACRO(__VA_ARGS__, _Vec3I_3, _Vec3I_2, _Vec3I_1)(__VA_ARGS__)
 
-#define Vector3Int_Zero     (Vector3Int){0, 0, 0}
-#define Vector3Int_One      (Vector3Int){1, 1, 1}
-#define Vector3Int_Up       (Vector3Int){0, 1, 0}
-#define Vector3Int_Down     (Vector3Int){0, -1, 0}
-#define Vector3Int_Left     (Vector3Int){-1, 0, 0}
-#define Vector3Int_Right    (Vector3Int){1, 0, 0}
-#define Vector3Int_Forward  (Vector3Int){0, 0, 1}
-#define Vector3Int_Backward (Vector3Int){0, 0, -1}
+#define Vector3Int_Zero V3I(0, 0, 0)
+#define Vector3Int_One V3I(1, 1, 1)
+#define Vector3Int_Up V3I(0, 1, 0)
+#define Vector3Int_Down V3I(0, -1, 0)
+#define Vector3Int_Left V3I(-1, 0, 0)
+#define Vector3Int_Right V3I(1, 0, 0)
+#define Vector3Int_Forward V3I(0, 0, 1)
+#define Vector3Int_Backward V3I(0, 0, -1)
 // = = = = = Transform = = = = = = = = = = = = = = = = = = = =
 typedef struct { Vector3 position, rotation, scale; } Transform;
 // = = = = = Camera = = = = = = = = = = = = = = = = = = = =
@@ -92,42 +100,43 @@ typedef struct {
 // = = = = = COLOR = = = = = = = = = = = = = = = = = = = =
 typedef struct { byte r, g, b, a; } Color;
 #define _GET_COLOR_MACRO(_1, _2, _3, _4, NAME, ...) NAME
-#define _Color_1(x)          ((Color){ (x), (x), (x), 255 })
-#define _Color_2(x, a)       ((Color){ (x), (x), (x), (a) })
-#define _Color_3(r, g, b)    ((Color){ (r), (g), (b), 255 })
+#define _Color_1(x) ((Color){ (x), (x), (x), 255 })
+#define _Color_2(x, a) ((Color){ (x), (x), (x), (a) })
+#define _Color_3(r, g, b) ((Color){ (r), (g), (b), 255 })
 #define _Color_4(r, g, b, a) ((Color){ (r), (g), (b), (a) })
 #define Color(...) _GET_COLOR_MACRO(__VA_ARGS__, _Color_4, _Color_3, _Color_2, _Color_1)(__VA_ARGS__)
+#define Clr(...) _GET_COLOR_MACRO(__VA_ARGS__, _Color_4, _Color_3, _Color_2, _Color_1)(__VA_ARGS__)
 // = = = = = COLORS = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-#define Color_Transparent   Color(0, 0)
-#define Color_Black         Color(0)
-#define Color_White         Color(255)
+#define Color_Transparent   Clr(0, 0)
+#define Color_Black         Clr(0)
+#define Color_White         Clr(255)
 // = = = = = LIGHT = = = = = = = = = = = = = = = = = = = =
-#define Color_Light_Gray    Color(192, 192, 192)
-#define Color_Light_Red     Color(255, 64, 64)
-#define Color_Light_Green   Color(128, 255, 128)
-#define Color_Light_Yellow  Color(255, 255, 128)
-#define Color_Light_Orange  Color(255, 192, 64)
-#define Color_Light_Blue    Color(64, 64, 255)
-#define Color_Light_Magenta Color(255, 64, 255)
-#define Color_Light_Cyan    Color(128, 255, 255)
+#define Color_Light_Gray    Clr(192, 192, 192)
+#define Color_Light_Red     Clr(255, 64, 64)
+#define Color_Light_Green   Clr(128, 255, 128)
+#define Color_Light_Yellow  Clr(255, 255, 128)
+#define Color_Light_Orange  Clr(255, 192, 64)
+#define Color_Light_Blue    Clr(64, 64, 255)
+#define Color_Light_Magenta Clr(255, 64, 255)
+#define Color_Light_Cyan    Clr(128, 255, 255)
 // = = = = = NORMAL = = = = = = = = = = = = = = = = = = = =
-#define Color_Gray          Color(128, 128, 128)
-#define Color_Red           Color(255, 0, 0)
-#define Color_Green         Color(0, 255, 0)
-#define Color_Yellow        Color(255, 255, 0)
-#define Color_Orange        Color(255, 128, 0)
-#define Color_Blue          Color(0, 0, 255)
-#define Color_Magenta       Color(255, 0, 255)
-#define Color_Cyan          Color(0, 255, 255)
+#define Color_Gray          Clr(128, 128, 128)
+#define Color_Red           Clr(255, 0, 0)
+#define Color_Green         Clr(0, 255, 0)
+#define Color_Yellow        Clr(255, 255, 0)
+#define Color_Orange        Clr(255, 128, 0)
+#define Color_Blue          Clr(0, 0, 255)
+#define Color_Magenta       Clr(255, 0, 255)
+#define Color_Cyan          Clr(0, 255, 255)
 // = = = = = DARK = = = = = = = = = = = = = = = = = = = =
-#define Color_Dark_Gray     Color(64, 64, 64)
-#define Color_Dark_Red      Color(128, 0, 0)
-#define Color_Dark_Green    Color(0, 128, 0)
-#define Color_Dark_Yellow   Color(128, 128, 0)
-#define Color_Dark_Orange   Color(128, 64, 0)
-#define Color_Dark_Blue     Color(0, 0, 128)
-#define Color_Dark_Magenta  Color(128, 0, 128)
-#define Color_Dark_Cyan     Color(0, 128, 128)
+#define Color_Dark_Gray     Clr(64, 64, 64)
+#define Color_Dark_Red      Clr(128, 0, 0)
+#define Color_Dark_Green    Clr(0, 128, 0)
+#define Color_Dark_Yellow   Clr(128, 128, 0)
+#define Color_Dark_Orange   Clr(128, 64, 0)
+#define Color_Dark_Blue     Clr(0, 0, 128)
+#define Color_Dark_Magenta  Clr(128, 0, 128)
+#define Color_Dark_Cyan     Clr(0, 128, 128)
 
 // = = = = = FUNCTIONS = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 void print(const char* format, ...);
@@ -333,12 +342,12 @@ int qFileExists(const char* filename);
 #endif
 
 #ifdef QEngine_Text
-static inline int qLenStr(char* text) {
+static inline int qLenStr(const char* text) {
 	int i = 0;
 	while(text[i] != '\0') i++;
 	return i;
 }
-static inline void qCopy(char* dest, char* src) {
+static inline void qCopy(char* dest, const char* src) {
 	int i = 0;
 	while(src[i]) {
 		dest[i] = src[i];
@@ -346,7 +355,7 @@ static inline void qCopy(char* dest, char* src) {
 	}
 	dest[i] = '\0';
 }
-static inline int qIs(char* s1, char* s2) {
+static inline int qIs(const char* s1, const char* s2) {
 	int i = 0;
 	while(s1[i] && s2[i]) {
 		if (s1[i] != s2[i]) return 0;
@@ -354,7 +363,7 @@ static inline int qIs(char* s1, char* s2) {
 	}
 	return s1[i] == s2[i];
 }
-static inline void qAdd(char* dest, char* src) {
+static inline void qAdd(char* dest, const char* src) {
 	int i = qLenStr(dest), j = 0;
 	while (src[j]) {
 		dest[i] = src[j];

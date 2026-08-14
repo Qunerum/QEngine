@@ -6,6 +6,7 @@
 #include "QEngine.h"
 
 #include "qgpu.h"
+#include "qsound.h"
 #include "../Data/PROJECT.h"
 
 #include <stdlib.h>
@@ -48,7 +49,6 @@ state qFileExists(const char* filename) {
 	}
 	return false;
 }
-// . . .
 state qPathExists(const char* path) {
 	struct stat st;
 	if (stat(path, &st) == 0) return true;
@@ -85,12 +85,13 @@ int formatText(char* to, int length, const char* format, ...) {
 	return written;
 }
 int initEngineProject(void (*initFunc)(), void (*updateFunc)()) {
+	if (!qsInit()) return 1;
 	qgSetBackground(0, 0, 0);
 	char title[MAX_NAME_LENGTH];
 	if (IS_EDITOR) snprintf(title, sizeof(title), "QEngine %i.%i.%i <|> %s %s", QENGINE_VERSION_MAJOR, QENGINE_VERSION_MINOR, QENGINE_VERSION_PATCH, QEP_NAME, QEP_VERSION);
 	else snprintf(title, sizeof(title), "%s %s", QEP_NAME, QEP_VERSION);
-
 	qgpuCreate(QEP_START_WIDTH, QEP_START_HEIGHT, title, initFunc, updateFunc);
+	qsClose();
 	return 0;
 }
 // = = = = = CAMERA = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
