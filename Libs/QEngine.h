@@ -7,7 +7,7 @@
 
 #define QENGINE_VERSION_MAJOR 0
 #define QENGINE_VERSION_MINOR 3
-#define QENGINE_VERSION_PATCH 1
+#define QENGINE_VERSION_PATCH 2
 
 typedef enum { World, UI } qeDrawingMode;
 typedef enum { Top_Left, Top, Top_Right, Left, Center, Right, Bottom_Left, Bottom, Bottom_Right } qeAlignMode;
@@ -158,6 +158,7 @@ void setCameraScale(Vector3 scale);
 void drawTriangle(Vector3 posA, Vector3 posB, Vector3 posC, Color color);
 void drawRect(Vector3 position, Vector3 rotation, Vector2 size, qeAlignMode align, Color color);
 void drawCircle(Vector3 position, Vector3 rotation, int segments, float radius, qeAlignMode align, Color color);
+void drawText(const char* text, Vector3 position, Vector3 rotation, float fontSize, qeAlignMode align, Color color);
 
 state drawButton(Vector3 position, Vector3 rotation, Vector2 size, qeAlignMode align, Color clrBase, Color clrHover, Color clrPress);
 

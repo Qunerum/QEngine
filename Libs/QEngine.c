@@ -130,9 +130,12 @@ static void qeInit() {
 static void qeUpdate() {
 #if IS_EDITOR
 	int w = getWidth(), h = getHeight();
-
 	drawRect(V3(0, -15), Vector3_Zero, V2(w, 30), Top, c2);
-	if (drawButton(V3(77, -15), Vector3_Zero, V2(150, 26), Top_Left, c1, Clr(50), Clr(40))) {}
+
+	for (int i = 0; i < 5; i++) {
+		if (drawButton(V3(102 + 204 * i, -15), Vector3_Zero, V2(200, 26), Top_Left, window == i ? Clr(50) : c1, Clr(40), Clr(30))) { window = i; }
+		drawText("test.qeb", V3(5 + 204 * i, -5), Vector3_Zero, 1.5f, Top_Left, Color_White);
+	}
 
 
 	drawRect(V3(150, -15), Vector3_Zero, V2(300, h - 30), Left, c1);
@@ -188,6 +191,12 @@ void drawCircle(Vector3 position, Vector3 rotation, int segments, float radius, 
 	setRot(position, rotation);
 	Vector3 p = getPos(position, align);
 	qgAddCircle(p.x, p.y, p.z, segments, radius, byteTo01(color.r), byteTo01(color.g), byteTo01(color.b), byteTo01(color.a));
+}
+void drawText(const char* text, Vector3 position, Vector3 rotation, float fontSize, qeAlignMode align, Color color) {
+	setRot(position, rotation);
+	Vector3 p = getPos(position, align);
+	qgSetFontData(fontSize, QGPU_FONT_STYLE_REGULAR, byteTo01(color.r), byteTo01(color.g), byteTo01(color.b), byteTo01(color.a));
+	qgAddText(p.x, p.y, p.z, text);
 }
 
 state drawButton(Vector3 position, Vector3 rotation, Vector2 size, qeAlignMode align, Color clrBase, Color clrHover, Color clrPress) {
