@@ -5,7 +5,7 @@
 // !===== CONFIGURATION ==================================================================================================================================================!
 #define MAX_VERTICES 65536 // (2^16) Max vertices in one frame
 #define MAX_LIGHTS   1024  // (2^10) Max lights in one frame
-#define VSYNC 0
+#define VSYNC 1
 #define MAX_SPHERE_RINGS 32
 #define MAX_SPHERE_SECTORS 32
 // !===== Structs ========================================================================================================================================================!
@@ -52,15 +52,6 @@ void qgAddCircle(float px, float py, float layer, int segments, float radius, fl
 // !===== Ready 3D
 void qgAddBox(float px, float py, float pz, float sx, float sy, float sz, float r, float g, float b, float a);
 void qgAddSphere(float px, float py, float pz, float radius, int rings, int sectors, float r, float g, float b, float a);
-// !===== Screen =========================================================================================================================================================!
-int qgGetWidth();
-int qgGetHeight();
-// !===== Input ==========================================================================================================================================================!
-int qgGetKey(int key);
-int qgOnKey(int key);
-int qgGetMouse(int button);
-int qgOnMouse(int button);
-void qgGetMousePos(double* x, double* y);
 // !===== Text ===========================================================================================================================================================!
 #define QGPU_FONT_STYLE_REGULAR 0
 #define QGPU_FONT_STYLE_BOLD 1
@@ -71,6 +62,15 @@ void qgLoadFont(const char* path);
 void qgSetFontData(float fontSize, int style, float r, float g, float b, float a);
 void qgAddChar(float px, float py, float pz, uint16_t c);
 void qgAddText(float px, float py, float pz, const char* text);
+// !===== Input ==========================================================================================================================================================!
+int qgGetKey(int key);
+int qgOnKey(int key);
+int qgGetMouse(int button);
+int qgOnMouse(int button);
+void qgGetMousePos(float* x, float* y);
+// !===== Screen =========================================================================================================================================================!
+int qgGetWidth();
+int qgGetHeight();
 // !===== Keys ===========================================================================================================================================================!
 #define LMB             0
 #define RMB             1

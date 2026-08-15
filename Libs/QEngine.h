@@ -7,7 +7,7 @@
 
 #define QENGINE_VERSION_MAJOR 0
 #define QENGINE_VERSION_MINOR 3
-#define QENGINE_VERSION_PATCH 0
+#define QENGINE_VERSION_PATCH 1
 
 typedef enum { World, UI } qeDrawingMode;
 typedef enum { Top_Left, Top, Top_Right, Left, Center, Right, Bottom_Left, Bottom, Bottom_Right } qeAlignMode;
@@ -158,6 +158,9 @@ void setCameraScale(Vector3 scale);
 void drawTriangle(Vector3 posA, Vector3 posB, Vector3 posC, Color color);
 void drawRect(Vector3 position, Vector3 rotation, Vector2 size, qeAlignMode align, Color color);
 void drawCircle(Vector3 position, Vector3 rotation, int segments, float radius, qeAlignMode align, Color color);
+
+state drawButton(Vector3 position, Vector3 rotation, Vector2 size, qeAlignMode align, Color clrBase, Color clrHover, Color clrPress);
+
 void drawBox(Vector3 position, Vector3 rotation, Vector3 size, Color color);
 void drawSphere(Vector3 position, Vector3 rotation, int rings, int sectors, float radius, Color color);
 
@@ -285,7 +288,6 @@ static inline float qLength_v3(Vector3 v) { return qSqrt(v.x * v.x + v.y * v.y +
 // = = = = = NORMALIZE = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 Vector2 qNormalize_v2(Vector2 v);
 Vector3 qNormalize_v3(Vector3 v);
-
 #define qNormalize(V) _Generic((V), Vector2:qNormalize_v2, Vector3:qNormalize_v3 )(V)
 // = = = = = DOT (DOT PRODUCT) = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 static inline float qDot_v2(Vector2 a, Vector2 b) { return a.x * b.x + a.y * b.y; }

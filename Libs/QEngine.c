@@ -13,6 +13,7 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <sys/stat.h>
+#include <dirent.h>
 // = = = = = MEMORY = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 void *qMalloc(size_t size) { return malloc(size); }
 void *qRealloc(void *ptr, size_t size) { return realloc(ptr, size); }
@@ -85,19 +86,56 @@ int formatText(char* to, int length, const char* format, ...) {
 	return written;
 }
 static void (*userInit)() = NULL, (*userUpdate)() = NULL;
+
+#if IS_EDITOR
+static state isLight = false;
+static Color c1, c2;
+static int window = 0;
+#endif
+static Vector3 getPos(Vector3 pos, qeAlignMode align) {
+	Vector3 v = pos;
+	float w = qgGetWidth() / 2.0f, h = qgGetHeight() / 2.0f;
+	switch (align) {
+		case Top_Left: v.y += h; v.x -= w; return v;
+		case Top: v.y += h; return v;
+		case Top_Right: v.y += h; v.x += w; return v;
+		case Left: v.x -= w; return v;
+		case Center: return v;
+		case Right: v.x += w; return v;
+		case Bottom_Left: v.y -= h; v.x -= w; return v;
+		case Bottom: v.y -= h; return v;
+		case Bottom_Right: v.y -= h; v.x += w; return v;
+	}
+	return v;
+}
+static state mob(Vector3 pos, Vector2 size, qeAlignMode align) {
+	Vector2 m = getCursorPosition();
+	Vector3 p = getPos(pos, align);
+	float a = p.x - size.x / 2.0f, b = p.x + size.x / 2.0f, c = p.y - size.y / 2.0f, d = p.y + size.y / 2.0f;
+	return a <= m.x && m.x <= b && c <= m.y && m.y <= d;
+}
+
 static void qeInit() {
 	print("Application was made in QEngine v%i.%i.%i\n", QENGINE_VERSION_MAJOR, QENGINE_VERSION_MINOR, QENGINE_VERSION_PATCH);
 #if IS_EDITOR
 	setDrawingMode(UI);
+	c1 = isLight ? Clr(100) : Clr(60);
+	c2 = isLight ? Clr(120) : Clr(80);
+	qgSetBackground(0.1f, 0.1f, 0.1f);
 #else
 	if (userInit) userInit();
 #endif
 }
+
 static void qeUpdate() {
 #if IS_EDITOR
-	Color c1 = Color(60);
 	int w = getWidth(), h = getHeight();
-	drawRect(V3(150), Vector3_Zero, V2(300, h), Left, c1);
+
+	drawRect(V3(0, -15), Vector3_Zero, V2(w, 30), Top, c2);
+	if (drawButton(V3(77, -15), Vector3_Zero, V2(150, 26), Top_Left, c1, Clr(50), Clr(40))) {}
+
+
+	drawRect(V3(150, -15), Vector3_Zero, V2(300, h - 30), Left, c1);
 #else
 	if (userUpdate) userUpdate();
 #endif
@@ -137,22 +175,6 @@ static void setRot(Vector3 position, Vector3 rotation) {
 	qgSetRotationPivot(position.x, position.y, position.z);
 	qgSetRotation(rotation.x, rotation.y, rotation.z);
 }
-static Vector3 getPos(Vector3 pos, qeAlignMode align) {
-	Vector3 v = pos;
-	float w = qgGetWidth() / 2.0f, h = qgGetHeight() / 2.0f;
-	switch (align) {
-		case Top_Left: v.y += h; v.x -= w; return v;
-		case Top: v.y += h; return v;
-		case Top_Right: v.y += h; v.x += w; return v;
-		case Left: v.x -= w; return v;
-		case Center: return v;
-		case Right: v.x += w; return v;
-		case Bottom_Left: v.y -= h; v.x -= w; return v;
-		case Bottom: v.y -= h; return v;
-		case Bottom_Right: v.y -= h; v.x += w; return v;
-	}
-	return v;
-}
 
 void drawTriangle(Vector3 posA, Vector3 posB, Vector3 posC, Color color) {
 	qgAddTriangle(posA.x, posA.y, posA.z, posB.x, posB.y, posB.z, posC.x, posC.y, posC.z, byteTo01(color.r), byteTo01(color.g), byteTo01(color.b), byteTo01(color.a));
@@ -166,6 +188,15 @@ void drawCircle(Vector3 position, Vector3 rotation, int segments, float radius, 
 	setRot(position, rotation);
 	Vector3 p = getPos(position, align);
 	qgAddCircle(p.x, p.y, p.z, segments, radius, byteTo01(color.r), byteTo01(color.g), byteTo01(color.b), byteTo01(color.a));
+}
+
+state drawButton(Vector3 position, Vector3 rotation, Vector2 size, qeAlignMode align, Color clrBase, Color clrHover, Color clrPress) {
+	setRot(position, rotation);
+	Vector3 p = getPos(position, align);
+	state hover = mob(position, size, align);
+	Color c = hover ? getMouseButton(LMB) ? clrPress : clrHover : clrBase;
+	qgAddRect(p.x, p.y, p.z, size.x, size.y, byteTo01(c.r), byteTo01(c.g), byteTo01(c.b), byteTo01(c.a));
+	return hover && onMouseDown(LMB);
 }
 
 void drawBox(Vector3 position, Vector3 rotation, Vector3 size, Color color) {
@@ -182,7 +213,7 @@ state onKeyDown(int keyCode) { return qgOnKey(keyCode); }
 state getMouseButton(int mouseKey) { return qgGetMouse(mouseKey); }
 state onMouseDown(int mouseKey) { return qgOnMouse(mouseKey); }
 Vector2 getCursorPosition() {
-	double x, y;
+	float x, y;
 	qgGetMousePos(&x, &y);
-	return (Vector2){x, y};
+	return V2(x, y);
 }
