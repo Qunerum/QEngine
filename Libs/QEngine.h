@@ -165,6 +165,12 @@ state drawButton(Vector3 position, Vector3 rotation, Vector2 size, qeAlignMode a
 void drawBox(Vector3 position, Vector3 rotation, Vector3 size, Color color);
 void drawSphere(Vector3 position, Vector3 rotation, int rings, int sectors, float radius, Color color);
 
+#ifdef QEngine_Audio
+void convertAudio(const char* qsr_path, const char* qs_path);
+int loadAudio(const char* path);
+void playAudio(int audioID, uint8_t volume, float speed);
+#endif
+
 #ifdef QEngine_Input
 int getKeyState(int keyCode);
 int onKeyDown(int keyCode);
@@ -172,7 +178,6 @@ int getMouseButton(int mouseKey);
 int onMouseDown(int mouseKey);
 Vector2 getCursorPosition();
 
-// = = = = = KEYS = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 #define LMB             0
 #define RMB             1
 #define KEY_A          65
@@ -333,7 +338,6 @@ static inline Vector3 Vector3_Mul(Vector3 A, float B) { return (Vector3){A.x * B
 static inline Vector3 Vector3_Div(Vector3 A, float B) { if(B == 0.0f) { print("Cannot divide by zero!\n"); return Vector3_Zero; } return (Vector3){A.x / B, A.y / B, A.z / B}; }
 static inline Vector3Int Vector3Int_Add(Vector3Int A, Vector3Int B) { return (Vector3Int){A.x + B.x, A.y + B.y, A.z + B.z}; }
 static inline Vector3Int Vector3Int_Sub(Vector3Int A, Vector3Int B) { return (Vector3Int){A.x - B.x, A.y - B.y, A.z - B.z}; }
-
 #endif
 
 #ifdef QEngine_Memory

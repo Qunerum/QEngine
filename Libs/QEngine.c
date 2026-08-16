@@ -14,6 +14,10 @@
 #include <stdarg.h>
 #include <sys/stat.h>
 #include <dirent.h>
+// = = = = = AUDIO = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+void convertAudio(const char* qsr_path, const char* qs_path) { qsConvert(qsr_path, qs_path); }
+int loadAudio(const char* path) { return qsOpen(path); }
+void playAudio(int audioID, uint8_t volume, float speed) { qsPlay(audioID, volume, speed); }
 // = = = = = MEMORY = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 void *qMalloc(size_t size) { return malloc(size); }
 void *qRealloc(void *ptr, size_t size) { return realloc(ptr, size); }

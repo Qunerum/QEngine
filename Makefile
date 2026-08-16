@@ -70,6 +70,7 @@ run: editor
 	@./$(EDITOR)
 
 play: build
+	rsync -av --exclude={'*.c','*.h','*.asm','*.qc'} $(FILES)/ $(FILES_PROJECT)/
 	@cd $(BUILD_PROJECT) && ./$(APP_NAME)
 
 clean:
