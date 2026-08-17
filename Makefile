@@ -1,4 +1,5 @@
 APP_NAME = QEngineApp
+IGNORE_FILES = '*.c','*.h','*.asm','*.qbc','*.qsr','*.qfr'
 
 CC    = gcc
 ASM   = nasm
@@ -32,7 +33,7 @@ GAME_OBJS     = $(GAME_C_OBJS) $(GAME_ASM_OBJS)
 vpath %.c Assets Libs
 vpath %.asm Assets Libs
 
-EDITOR = $(BUILD_ENGINE)/QEngine
+EDITOR = $(BUILD_ENGINE)/QEngine_Editor
 APP    = $(BUILD_PROJECT)/$(APP_NAME)
 
 all: prepare editor
@@ -70,7 +71,7 @@ run: editor
 	@./$(EDITOR)
 
 play: build
-	rsync -av --exclude={'*.c','*.h','*.asm','*.qc'} $(FILES)/ $(FILES_PROJECT)/
+	rsync -av --exclude={$(IGNORE_FILES)} $(FILES)/ $(FILES_PROJECT)/
 	@cd $(BUILD_PROJECT) && ./$(APP_NAME)
 
 clean:

@@ -28,11 +28,17 @@ typedef struct { float x, y; } Vector2;
 #define V2(...) _GET_VEC2_MACRO(__VA_ARGS__, _Vec2_2, _Vec2_1)(__VA_ARGS__)
 
 #define Vector2_Zero V2(0, 0)
+#define V2_Zero V2(0, 0)
 #define Vector2_One V2(1, 1)
+#define V2_One V2(1, 1)
 #define Vector2_Up V2(0, 1)
+#define V2_Up V2(0, 1)
 #define Vector2_Down V2(0, -1)
+#define V2_Down V2(0, -1)
 #define Vector2_Left V2(-1, 0)
+#define V2_Left V2(-1, 0)
 #define Vector2_Right V2(1, 0)
+#define V2_Right V2(1, 0)
 // = = = = = Vector2Int = = = = = = = = = = = = = = = = = = = =
 typedef struct { int x, y; } Vector2Int;
 #define _GET_VEC2I_MACRO(_1, _2, NAME, ...) NAME
@@ -43,11 +49,17 @@ typedef struct { int x, y; } Vector2Int;
 #define V2I(...) _GET_VEC2I_MACRO(__VA_ARGS__, _Vec2I_2, _Vec2I_1)(__VA_ARGS__)
 
 #define Vector2Int_Zero V2I(0, 0)
+#define V2I_Zero V2I(0, 0)
 #define Vector2Int_One V2I(1, 1)
+#define V2I_One V2I(1, 1)
 #define Vector2Int_Up V2I(0, 1)
+#define V2I_Up V2I(0, 1)
 #define Vector2Int_Down V2I(0, -1)
+#define V2I_Down V2I(0, -1)
 #define Vector2Int_Left V2I(-1, 0)
+#define V2I_Left V2I(-1, 0)
 #define Vector2Int_Right V2I(1, 0)
+#define V2I_Right V2I(1, 0)
 // = = = = = Vector3 = = = = = = = = = = = = = = = = = = = =
 typedef struct { float x, y, z; } Vector3;
 #define _GET_VEC3_MACRO(_1, _2, _3, NAME, ...) NAME
@@ -59,13 +71,21 @@ typedef struct { float x, y, z; } Vector3;
 #define V3(...) _GET_VEC3_MACRO(__VA_ARGS__, _Vec3_3, _Vec3_2, _Vec3_1)(__VA_ARGS__)
 
 #define Vector3_Zero V3(0, 0, 0)
+#define V3_Zero V3(0, 0, 0)
 #define Vector3_One V3(1, 1, 1)
+#define V3_One V3(1, 1, 1)
 #define Vector3_Up V3(0, 1, 0)
+#define V3_Up V3(0, 1, 0)
 #define Vector3_Down V3(0, -1, 0)
+#define V3_Down V3(0, -1, 0)
 #define Vector3_Left V3(-1, 0, 0)
+#define V3_Left V3(-1, 0, 0)
 #define Vector3_Right V3(1, 0, 0)
+#define V3_Right V3(1, 0, 0)
 #define Vector3_Forward V3(0, 0, 1)
+#define V3_Forward V3(0, 0, 1)
 #define Vector3_Backward V3(0, 0, -1)
+#define V3_Backward V3(0, 0, -1)
 // = = = = = Vector3Int = = = = = = = = = = = = = = = = = = = =
 typedef struct { int x, y, z; } Vector3Int;
 #define _GET_VEC3I_MACRO(_1, _2, _3, NAME, ...) NAME
@@ -77,13 +97,21 @@ typedef struct { int x, y, z; } Vector3Int;
 #define V3I(...) _GET_VEC3I_MACRO(__VA_ARGS__, _Vec3I_3, _Vec3I_2, _Vec3I_1)(__VA_ARGS__)
 
 #define Vector3Int_Zero V3I(0, 0, 0)
+#define V3I_Zero V3I(0, 0, 0)
 #define Vector3Int_One V3I(1, 1, 1)
+#define V3I_One V3I(1, 1, 1)
 #define Vector3Int_Up V3I(0, 1, 0)
+#define V3I_Up V3I(0, 1, 0)
 #define Vector3Int_Down V3I(0, -1, 0)
+#define V3I_Down V3I(0, -1, 0)
 #define Vector3Int_Left V3I(-1, 0, 0)
+#define V3I_Left V3I(-1, 0, 0)
 #define Vector3Int_Right V3I(1, 0, 0)
+#define V3I_Right V3I(1, 0, 0)
 #define Vector3Int_Forward V3I(0, 0, 1)
+#define V3I_Forward V3I(0, 0, 1)
 #define Vector3Int_Backward V3I(0, 0, -1)
+#define V3I_Backward V3I(0, 0, -1)
 // = = = = = Transform = = = = = = = = = = = = = = = = = = = =
 typedef struct { Vector3 position, rotation, scale; } Transform;
 // = = = = = Camera = = = = = = = = = = = = = = = = = = = =

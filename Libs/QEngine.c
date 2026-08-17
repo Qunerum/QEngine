@@ -14,10 +14,6 @@
 #include <stdarg.h>
 #include <sys/stat.h>
 #include <dirent.h>
-// = = = = = AUDIO = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-void convertAudio(const char* qsr_path, const char* qs_path) { qsConvert(qsr_path, qs_path); }
-int loadAudio(const char* path) { return qsOpen(path); }
-void playAudio(int audioID, uint8_t volume, float speed) { qsPlay(audioID, volume, speed); }
 // = = = = = MEMORY = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 void *qMalloc(size_t size) { return malloc(size); }
 void *qRealloc(void *ptr, size_t size) { return realloc(ptr, size); }
@@ -220,6 +216,10 @@ void drawSphere(Vector3 position, Vector3 rotation, int rings, int sectors, floa
 	setRot(position, rotation);
 	qgAddSphere(position.x, position.y, position.z, radius, rings, sectors, byteTo01(color.r), byteTo01(color.g), byteTo01(color.b), byteTo01(color.a));
 }
+// = = = = = AUDIO = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+void convertAudio(const char* qsr_path, const char* qs_path) { qsConvert(qsr_path, qs_path); }
+int loadAudio(const char* path) { return qsOpen(path); }
+void playAudio(int audioID, uint8_t volume, float speed) { qsPlay(audioID, volume, speed); }
 // = = = = = INPUT = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 state getKeyState(int keyCode) { return qgGetKey(keyCode); }
 state onKeyDown(int keyCode) { return qgOnKey(keyCode); }

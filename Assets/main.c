@@ -12,9 +12,7 @@ void init() {
 	s = loadAudio("Assets/sound.qs");
 }
 void update() {
-	if (onKeyDown(KEY_SPACE)) {
-		playAudio(s, 255, 1);
-	}
+	if (onKeyDown(KEY_SPACE)) playAudio(s, 255, 1);
 }
 
 int main() { return initEngineProject(init, update); }
