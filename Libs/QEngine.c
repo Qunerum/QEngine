@@ -115,7 +115,6 @@ static state mob(Vector3 pos, Vector2 size, qeAlignMode align) {
 	return a <= m.x && m.x <= b && c <= m.y && m.y <= d;
 }
 
-static state isCaps = false;
 static void qeInit() {
 	print("Application was made in QEngine v%i.%i.%i\n", QENGINE_VERSION_MAJOR, QENGINE_VERSION_MINOR, QENGINE_VERSION_PATCH);
 #if IS_EDITOR
@@ -127,8 +126,26 @@ static void qeInit() {
 	if (userInit) userInit();
 #endif
 }
+static state isCaps = false, inputOn = false;
+static char qinput[MAX_INPUT + 1];
+static int inputLen = 0;
 static void qeUpdate() {
+// = = = = = INPUT = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 	if (onKeyDown(KEY_CAPSLOCK)) isCaps = !isCaps;
+	char c = getPressedLetter();
+	if (c && inputOn) {
+		if (c == '\b' && inputLen > 0) {
+			inputLen--;
+			qinput[inputLen] = '\0';
+		}
+		else if (inputLen <= MAX_INPUT) {
+			qinput[inputLen] = c;
+			qinput[inputLen + 1] = '\0';
+			inputLen++;
+		}
+	}
+
+// = = = = = EDITOR = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 #if IS_EDITOR
 	int w = getWidth(), h = getHeight();
 	drawRect(V3(0, -15), Vector3_Zero, V2(w, 30), Top, c2);
@@ -137,7 +154,6 @@ static void qeUpdate() {
 		if (drawButton(V3(102 + 204 * i, -15), Vector3_Zero, V2(200, 26), Top_Left, window == i ? Clr(50) : c1, Clr(40), Clr(30))) { window = i; }
 		drawText("test.qeb", V3(5 + 204 * i, -5), Vector3_Zero, 1.5f, Top_Left, Color_White);
 	}
-
 
 	drawRect(V3(150, -15), Vector3_Zero, V2(300, h - 30), Left, c1);
 #else
@@ -222,7 +238,13 @@ void convertAudio(const char* qsr_path, const char* qs_path) { qsConvert(qsr_pat
 int loadAudio(const char* path) { return qsOpen(path); }
 void playAudio(int audioID, uint8_t volume, float speed) { qsPlay(audioID, volume, speed); }
 // = = = = = INPUT = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-state getKeyState(int keyCode) { if (keyCode == KEY_CAPSLOCK) return isCaps; return qgGetKey(keyCode); }
+void enableInput() { inputOn = true; }
+void disableInput() { inputOn = false; }
+void getInput(char* buffor, unsigned int length) { qCopy(buffor, length, qinput); }
+state getKeyState(int keyCode) {
+	if (keyCode == KEY_CAPSLOCK) return isCaps;
+	return qgGetKey(keyCode);
+}
 state onKeyDown(int keyCode) { return qgOnKey(keyCode); }
 char getPressedLetter() {
 	for (int i = 65; i <= 90; i++) {

@@ -71,7 +71,7 @@ run: editor
 	@./$(EDITOR)
 
 play: build
-	rsync -av --exclude={$(IGNORE_FILES)} $(FILES)/ $(FILES_PROJECT)/
+	@rsync -a --exclude={$(IGNORE_FILES)} $(FILES)/ $(FILES_PROJECT)/
 	@cd $(BUILD_PROJECT) && ./$(APP_NAME)
 
 clean:

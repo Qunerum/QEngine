@@ -7,14 +7,14 @@
 
 #define QENGINE_VERSION_MAJOR 0
 #define QENGINE_VERSION_MINOR 3
-#define QENGINE_VERSION_PATCH 4
+#define QENGINE_VERSION_PATCH 5
 
 typedef enum { World, UI } qeDrawingMode;
 typedef enum { Top_Left, Top, Top_Right, Left, Center, Right, Bottom_Left, Bottom, Bottom_Right } qeAlignMode;
 // = = = = = TYPES = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 typedef uint8_t byte;
 // = = = = = state = = = = = = = = = = = = = = = = = = = =
-typedef int state;
+typedef uint8_t state;
 #define false 0
 #define true 1
 // = = = = = STRUCTURES = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
@@ -200,11 +200,16 @@ void playAudio(int audioID, uint8_t volume, float speed);
 #endif
 
 #ifdef QEngine_Input
-int getKeyState(int keyCode);
-int onKeyDown(int keyCode);
+#define MAX_INPUT 1024
+
+void enableInput();
+void disableInput();
+void getInput(char* buffor, unsigned int length);
+state getKeyState(int keyCode);
+state onKeyDown(int keyCode);
 char getPressedLetter();
-int getMouseButton(int mouseKey);
-int onMouseDown(int mouseKey);
+state getMouseButton(int mouseKey);
+state onMouseDown(int mouseKey);
 Vector2 getCursorPosition();
 
 #define LMB             0
@@ -377,26 +382,26 @@ void qFree(void* ptr);
 
 #ifdef QEngine_IO
 char* qReadFileText(const char* filename);
-int qWriteFileText(const char* filename, const char* text);
-int qFileExists(const char* filename);
+state qWriteFileText(const char* filename, const char* text);
+state qFileExists(const char* filename);
 #endif
 
 #ifdef QEngine_Text
-static inline int qLenStr(const char* text) {
-	int i = 0;
+static inline unsigned int qLenStr(const char* text) {
+	unsigned int i = 0;
 	while(text[i] != '\0') i++;
 	return i;
 }
-static inline void qCopy(char* dest, const char* src) {
-	int i = 0;
-	while(src[i]) {
+static inline void qCopy(char* dest, unsigned int destLength, const char* src) {
+	unsigned int i = 0;
+	while(src[i] && i < destLength) {
 		dest[i] = src[i];
 		i++;
 	}
 	dest[i] = '\0';
 }
-static inline int qIs(const char* s1, const char* s2) {
-	int i = 0;
+static inline state qIs(const char* s1, const char* s2) {
+	unsigned int i = 0;
 	while(s1[i] && s2[i]) {
 		if (s1[i] != s2[i]) return 0;
 		i++;
@@ -404,7 +409,7 @@ static inline int qIs(const char* s1, const char* s2) {
 	return s1[i] == s2[i];
 }
 static inline void qAdd(char* dest, const char* src) {
-	int i = qLenStr(dest), j = 0;
+	unsigned int i = qLenStr(dest), j = 0;
 	while (src[j]) {
 		dest[i] = src[j];
 		i++;
@@ -413,7 +418,7 @@ static inline void qAdd(char* dest, const char* src) {
 	dest[i] = '\0';
 }
 static inline void qReverse(char* text) {
-	int l = qLenStr(text), a = 0, b = l - 1;
+	unsigned int l = qLenStr(text), a = 0, b = l - 1;
 	while (a < b) {
 		char t = text[a];
 		text[a] = text[b];

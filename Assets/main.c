@@ -12,15 +12,11 @@ void init() {
 	convertAudio("Assets/sound.qsr", "Assets/sound.qs");
 	s = loadAudio("Assets/sound.qs");
 	setDrawingMode(UI);
+	enableInput();
 }
 void update() {
 	if (onKeyDown(KEY_SPACE)) playAudio(s, 255, 1);
-	char c = getPressedLetter();
-	if (c && x < 32) {
-		t[x] = c;
-		t[x+1] = '\0';
-		x++;
-	}
+	getInput(t, 33);
 	drawText(t, V3_Zero, V3_Zero, 1.6f, Center, Color_White);
 }
 
