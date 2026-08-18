@@ -15,11 +15,12 @@
 #include <sys/stat.h>
 #include <dirent.h>
 // = = = = = MEMORY = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-void *qMalloc(size_t size) { return malloc(size); }
-void *qRealloc(void *ptr, size_t size) { return realloc(ptr, size); }
+void *qMalloc(const uint size) { return malloc(size); }
+void *qRealloc(void *ptr, const uint size) { return realloc(ptr, size); }
 void qFree(void *ptr) { free(ptr); }
 // = = = = = IO = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 char* qReadFileText(const char* filename) {
+	if (!filename) return NULL;
 	FILE* file = fopen(filename, "rb");
 	if (!file) return NULL;
 	fseek(file, 0, SEEK_END);
@@ -36,6 +37,7 @@ char* qReadFileText(const char* filename) {
 	return buffer;
 }
 state qWriteFileText(const char* filename, const char* text) {
+	if (!filename || !text) return false;
 	FILE* file = fopen(filename, "w");
 	if (!file) return false;
 	int result = fputs(text, file);
@@ -43,6 +45,7 @@ state qWriteFileText(const char* filename, const char* text) {
 	return result != EOF;
 }
 state qFileExists(const char* filename) {
+	if (!filename) return false;
 	FILE* file = fopen(filename, "r");
 	if (file) {
 		fclose(file);
@@ -51,11 +54,13 @@ state qFileExists(const char* filename) {
 	return false;
 }
 state qPathExists(const char* path) {
+	if (!path) return false;
 	struct stat st;
 	if (stat(path, &st) == 0) return true;
 	return false;
 }
 state qCopyFile(const char* srcPath, const char* dstPath) {
+	if (!srcPath || !dstPath) return false;
 	FILE* src = fopen(srcPath, "rb");
 	if (!src) return false;
 	FILE* dst = fopen(dstPath, "wb");
@@ -71,17 +76,17 @@ state qCopyFile(const char* srcPath, const char* dstPath) {
 	return true;
 }
 // = = = = = ENGINE = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-extern void qgVprintc(int color, const char* format, va_list args);
+extern void qgVprintc(const int color, const char* format, va_list args);
 void print(const char* format, ...) {
 	va_list args;
 	va_start(args, format);
 	qgVprintc(244, format, args);
 	va_end(args);
 }
-int formatText(char* to, int length, const char* format, ...) {
+state formatText(char* to, const uint length, const char* format, ...) {
 	va_list args;
 	va_start(args, format);
-	int written = vsnprintf(to, length, format, args);
+	state written = vsnprintf(to, length, format, args);
 	va_end(args);
 	return written;
 }
@@ -92,7 +97,7 @@ static state isLight = false;
 static Color c1, c2;
 static int window = 0;
 #endif
-static Vector3 getPos(Vector3 pos, qeAlignMode align) {
+static Vector3 getPos(const Vector3 pos, const qeAlignMode align) {
 	Vector3 v = pos;
 	float w = qgGetWidth() / 2.0f, h = qgGetHeight() / 2.0f;
 	switch (align) {
@@ -108,7 +113,7 @@ static Vector3 getPos(Vector3 pos, qeAlignMode align) {
 	}
 	return v;
 }
-static state mob(Vector3 pos, Vector2 size, qeAlignMode align) {
+static state mob(const Vector3 pos, const Vector2 size, const qeAlignMode align) {
 	Vector2 m = getCursorPosition();
 	Vector3 p = getPos(pos, align);
 	float a = p.x - size.x / 2.0f, b = p.x + size.x / 2.0f, c = p.y - size.y / 2.0f, d = p.y + size.y / 2.0f;
@@ -128,26 +133,25 @@ static void qeInit() {
 }
 static state isCaps = false, inputOn = false;
 static char qinput[MAX_INPUT + 1];
-static int inputLen = 0;
+static uint inputLen = 0, userMax = MAX_INPUT;
 static void qeUpdate() {
 // = = = = = INPUT = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 	if (onKeyDown(KEY_CAPSLOCK)) isCaps = !isCaps;
-	char c = getPressedLetter();
+	char c = getPressedKey();
 	if (c && inputOn) {
 		if (c == '\b' && inputLen > 0) {
 			inputLen--;
 			qinput[inputLen] = '\0';
 		}
-		else if (inputLen <= MAX_INPUT) {
+		else if (inputLen < userMax) {
 			qinput[inputLen] = c;
 			qinput[inputLen + 1] = '\0';
 			inputLen++;
 		}
 	}
-
 // = = = = = EDITOR = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 #if IS_EDITOR
-	int w = getWidth(), h = getHeight();
+	uint w = getWidth(), h = getHeight();
 	drawRect(V3(0, -15), Vector3_Zero, V2(w, 30), Top, c2);
 
 	for (int i = 0; i < 5; i++) {
@@ -176,47 +180,47 @@ int initEngineProject(void (*initFunc)(), void (*updateFunc)()) {
 }
 // = = = = = CAMERA = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 static Camera _camera;
-void setDrawingMode(qeDrawingMode mode) {
+void setDrawingMode(const qeDrawingMode mode) {
 	switch (mode) {
 		case World: qgSetRenderType(QGPU_RENDER_TYPE_LIGHT); break;
 		case UI: qgSetRenderType(QGPU_RENDER_TYPE_NO_LIGHT); break;
 	}
 }
-int getWidth() { return qgGetWidth(); }
-int getHeight() { return qgGetHeight(); }
+uint getWidth() { return qgGetWidth(); }
+uint getHeight() { return qgGetHeight(); }
 Camera getCamera() { return _camera; }
-void setCamera(Camera camera) { _camera = camera; }
-void setCameraPos(Vector3 position) { _camera.position = position; }
-void setCameraRot(Vector3 rotation) { _camera.position = rotation; }
-void setCameraScale(Vector3 scale) { _camera.position = scale; }
+void setCamera(const Camera camera) { _camera = camera; }
+void setCameraPos(const Vector3 position) { _camera.position = position; }
+void setCameraRot(const Vector3 rotation) { _camera.position = rotation; }
+void setCameraScale(const Vector3 scale) { _camera.position = scale; }
 // = = = = = GRAPHIC = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-static float byteTo01(byte v) { return v / 255.0f; }
-static void setRot(Vector3 position, Vector3 rotation) {
+static float byteTo01(const byte v) { return v / 255.0f; }
+static void setRot(const Vector3 position, const Vector3 rotation) {
 	qgSetRotationPivot(position.x, position.y, position.z);
 	qgSetRotation(rotation.x, rotation.y, rotation.z);
 }
 
-void drawTriangle(Vector3 posA, Vector3 posB, Vector3 posC, Color color) {
+void drawTriangle(const Vector3 posA, const Vector3 posB, const Vector3 posC, const Color color) {
 	qgAddTriangle(posA.x, posA.y, posA.z, posB.x, posB.y, posB.z, posC.x, posC.y, posC.z, byteTo01(color.r), byteTo01(color.g), byteTo01(color.b), byteTo01(color.a));
 }
-void drawRect(Vector3 position, Vector3 rotation, Vector2 size, qeAlignMode align, Color color) {
+void drawRect(const Vector3 position, const Vector3 rotation, const Vector2 size, const qeAlignMode align, const Color color) {
 	setRot(position, rotation);
 	Vector3 p = getPos(position, align);
 	qgAddRect(p.x, p.y, p.z, size.x, size.y, byteTo01(color.r), byteTo01(color.g), byteTo01(color.b), byteTo01(color.a));
 }
-void drawCircle(Vector3 position, Vector3 rotation, int segments, float radius, qeAlignMode align, Color color) {
+void drawCircle(const Vector3 position, const Vector3 rotation, const uint segments, const float radius, const qeAlignMode align, const Color color) {
 	setRot(position, rotation);
 	Vector3 p = getPos(position, align);
 	qgAddCircle(p.x, p.y, p.z, segments, radius, byteTo01(color.r), byteTo01(color.g), byteTo01(color.b), byteTo01(color.a));
 }
-void drawText(const char* text, Vector3 position, Vector3 rotation, float fontSize, qeAlignMode align, Color color) {
+void drawText(const char* text, const Vector3 position, const Vector3 rotation, const float fontSize, const qeAlignMode align, const Color color) {
 	setRot(position, rotation);
 	Vector3 p = getPos(position, align);
 	qgSetFontData(fontSize, QGPU_FONT_STYLE_REGULAR, byteTo01(color.r), byteTo01(color.g), byteTo01(color.b), byteTo01(color.a));
 	qgAddText(p.x, p.y, p.z, text);
 }
 
-state drawButton(Vector3 position, Vector3 rotation, Vector2 size, qeAlignMode align, Color clrBase, Color clrHover, Color clrPress) {
+state drawButton(const Vector3 position, const Vector3 rotation, const Vector2 size, const qeAlignMode align, const Color clrBase, const Color clrHover, const Color clrPress) {
 	setRot(position, rotation);
 	Vector3 p = getPos(position, align);
 	state hover = mob(position, size, align);
@@ -225,38 +229,51 @@ state drawButton(Vector3 position, Vector3 rotation, Vector2 size, qeAlignMode a
 	return hover && onMouseDown(LMB);
 }
 
-void drawBox(Vector3 position, Vector3 rotation, Vector3 size, Color color) {
+void drawBox(const Vector3 position, const Vector3 rotation, const Vector3 size, const Color color) {
 	setRot(position, rotation);
 	qgAddBox(position.x, position.y, position.z, size.x, size.y, size.z, byteTo01(color.r), byteTo01(color.g), byteTo01(color.b), byteTo01(color.a));
 }
-void drawSphere(Vector3 position, Vector3 rotation, int rings, int sectors, float radius, Color color) {
+void drawSphere(const Vector3 position, const Vector3 rotation, const uint rings, const uint sectors, const float radius, const Color color) {
 	setRot(position, rotation);
 	qgAddSphere(position.x, position.y, position.z, radius, rings, sectors, byteTo01(color.r), byteTo01(color.g), byteTo01(color.b), byteTo01(color.a));
 }
 // = = = = = AUDIO = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 void convertAudio(const char* qsr_path, const char* qs_path) { qsConvert(qsr_path, qs_path); }
-int loadAudio(const char* path) { return qsOpen(path); }
-void playAudio(int audioID, uint8_t volume, float speed) { qsPlay(audioID, volume, speed); }
+uint loadAudio(const char* path) { return qsOpen(path); }
+void playAudio(const uint audioID, const uint8_t volume, const float speed) { qsPlay(audioID, volume, speed); }
 // = = = = = INPUT = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 void enableInput() { inputOn = true; }
 void disableInput() { inputOn = false; }
-void getInput(char* buffor, unsigned int length) { qCopy(buffor, length, qinput); }
-state getKeyState(int keyCode) {
+void setMaxInput(uint max) { if (max > MAX_INPUT) { userMax = MAX_INPUT; return; } userMax = max; }
+void getInput(char* buffor, const uint length) { qCopy(buffor, length, qinput); }
+state getKeyState(const uint keyCode) {
 	if (keyCode == KEY_CAPSLOCK) return isCaps;
 	return qgGetKey(keyCode);
 }
-state onKeyDown(int keyCode) { return qgOnKey(keyCode); }
-char getPressedLetter() {
-	for (int i = 65; i <= 90; i++) {
-		if (onKeyDown(i)) {
-			if ((getKeyState(KEY_CAPSLOCK) && !getKeyState(KEY_LSHIFT)) || (!getKeyState(KEY_CAPSLOCK) && getKeyState(KEY_LSHIFT))) return i;
-			return i + 32;
-		}
-	}
-	return false;
+state onKeyDown(const uint keyCode) { return qgOnKey(keyCode); }
+
+typedef struct { char normal, shifted; } KeyMap;
+static const KeyMap keymap[] = {
+	{ '0', ')' }, { '1', '!' }, { '2', '@' }, { '3', '#' }, { '4', '$' }, { '5', '%' }, { '6', '^' },
+	{ '7', '&' }, { '8', '*' }, { '9', '(' }, { '\'', '"'}, { ',', '<' }, { '-', '_' }, { '.', '>'  },
+	{ '/', '?' }, { ';', ':' }, { '=', '+' }, { '[', '{'  }, { '\\', '|'}, { ']', '}' }, { '`', '~' }
+};
+static const uint mapSize = sizeof(keymap) / sizeof(KeyMap);
+
+char getPressedKey() {
+	if (onKeyDown(KEY_SPACE)) return ' ';
+	if (onKeyDown(KEY_BACKSPACE)) return '\b';
+	if (onKeyDown(KEY_ENTER)) return '\n';
+	state caps = getKeyState(KEY_CAPSLOCK) != 0,
+	shift = getKeyState(KEY_LSHIFT) != 0,
+	isUpper = caps ^ shift;
+	for (uint key = KEY_A; key <= KEY_Z; key++) if (onKeyDown(key)) return isUpper ? key : (key + 32);
+	for (uint i = 0; i < mapSize; i++) if (onKeyDown(keymap[i].normal)) return shift ? keymap[i].shifted : keymap[i].normal;
+	return 0;
 }
-state getMouseButton(int mouseKey) { return qgGetMouse(mouseKey); }
-state onMouseDown(int mouseKey) { return qgOnMouse(mouseKey); }
+
+state getMouseButton(const uint mouseKey) { return qgGetMouse(mouseKey); }
+state onMouseDown(const uint mouseKey) { return qgOnMouse(mouseKey); }
 
 Vector2 getCursorPosition() {
 	float x, y;
