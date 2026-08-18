@@ -6,13 +6,22 @@
 // #define QEngine_Text
 #include "../Libs/QEngine.h"
 
-int s = 0;
+int s = 0, x = 0;
+char t[33];
 void init() {
 	convertAudio("Assets/sound.qsr", "Assets/sound.qs");
 	s = loadAudio("Assets/sound.qs");
+	setDrawingMode(UI);
 }
 void update() {
 	if (onKeyDown(KEY_SPACE)) playAudio(s, 255, 1);
+	char c = getPressedLetter();
+	if (c && x < 32) {
+		t[x] = c;
+		t[x+1] = '\0';
+		x++;
+	}
+	drawText(t, V3_Zero, V3_Zero, 1.6f, Center, Color_White);
 }
 
 int main() { return initEngineProject(init, update); }

@@ -115,6 +115,7 @@ static state mob(Vector3 pos, Vector2 size, qeAlignMode align) {
 	return a <= m.x && m.x <= b && c <= m.y && m.y <= d;
 }
 
+static state isCaps = false;
 static void qeInit() {
 	print("Application was made in QEngine v%i.%i.%i\n", QENGINE_VERSION_MAJOR, QENGINE_VERSION_MINOR, QENGINE_VERSION_PATCH);
 #if IS_EDITOR
@@ -126,8 +127,8 @@ static void qeInit() {
 	if (userInit) userInit();
 #endif
 }
-
 static void qeUpdate() {
+	if (onKeyDown(KEY_CAPSLOCK)) isCaps = !isCaps;
 #if IS_EDITOR
 	int w = getWidth(), h = getHeight();
 	drawRect(V3(0, -15), Vector3_Zero, V2(w, 30), Top, c2);
@@ -221,10 +222,20 @@ void convertAudio(const char* qsr_path, const char* qs_path) { qsConvert(qsr_pat
 int loadAudio(const char* path) { return qsOpen(path); }
 void playAudio(int audioID, uint8_t volume, float speed) { qsPlay(audioID, volume, speed); }
 // = = = = = INPUT = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-state getKeyState(int keyCode) { return qgGetKey(keyCode); }
+state getKeyState(int keyCode) { if (keyCode == KEY_CAPSLOCK) return isCaps; return qgGetKey(keyCode); }
 state onKeyDown(int keyCode) { return qgOnKey(keyCode); }
+char getPressedLetter() {
+	for (int i = 65; i <= 90; i++) {
+		if (onKeyDown(i)) {
+			if ((getKeyState(KEY_CAPSLOCK) && !getKeyState(KEY_LSHIFT)) || (!getKeyState(KEY_CAPSLOCK) && getKeyState(KEY_LSHIFT))) return i;
+			return i + 32;
+		}
+	}
+	return false;
+}
 state getMouseButton(int mouseKey) { return qgGetMouse(mouseKey); }
 state onMouseDown(int mouseKey) { return qgOnMouse(mouseKey); }
+
 Vector2 getCursorPosition() {
 	float x, y;
 	qgGetMousePos(&x, &y);

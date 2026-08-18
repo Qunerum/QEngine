@@ -7,7 +7,7 @@
 
 #define QENGINE_VERSION_MAJOR 0
 #define QENGINE_VERSION_MINOR 3
-#define QENGINE_VERSION_PATCH 2
+#define QENGINE_VERSION_PATCH 4
 
 typedef enum { World, UI } qeDrawingMode;
 typedef enum { Top_Left, Top, Top_Right, Left, Center, Right, Bottom_Left, Bottom, Bottom_Right } qeAlignMode;
@@ -202,6 +202,7 @@ void playAudio(int audioID, uint8_t volume, float speed);
 #ifdef QEngine_Input
 int getKeyState(int keyCode);
 int onKeyDown(int keyCode);
+char getPressedLetter();
 int getMouseButton(int mouseKey);
 int onMouseDown(int mouseKey);
 Vector2 getCursorPosition();
@@ -244,6 +245,7 @@ Vector2 getCursorPosition();
 #define KEY_LEFT       263
 #define KEY_DOWN       264
 #define KEY_UP         265
+#define KEY_CAPSLOCK   280
 #endif
 
 #ifdef QEngine_Math
