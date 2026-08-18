@@ -242,7 +242,7 @@ void convertAudio(const char* qsr_path, const char* qs_path) { qsConvert(qsr_pat
 uint loadAudio(const char* path) { return qsOpen(path); }
 void playAudio(const uint audioID, const uint8_t volume, const float speed) { qsPlay(audioID, volume, speed); }
 // = = = = = INPUT = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-void clearInput() { qinput[0] = '\0'; }
+void clearInput() { qinput[0] = '\0'; inputLen = 0; }
 void enableInput() { inputOn = true; }
 void disableInput() { inputOn = false; }
 void setMaxInput(uint max) { if (max > MAX_INPUT) { userMax = MAX_INPUT; return; } userMax = max; }
