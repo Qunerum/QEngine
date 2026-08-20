@@ -7,7 +7,7 @@
 
 #define QENGINE_VERSION_MAJOR 0
 #define QENGINE_VERSION_MINOR 4
-#define QENGINE_VERSION_PATCH 2
+#define QENGINE_VERSION_PATCH 4
 
 typedef enum { World, UI } qeDrawingMode;
 typedef enum { Top_Left, Top, Top_Right, Left, Center, Right, Bottom_Left, Bottom, Bottom_Right } qeAlignMode;
@@ -208,6 +208,7 @@ void playAudio(const int audioID, const uint8_t volume, const float speed);
 void clearInput();
 void enableInput();
 void disableInput();
+state getInputState();
 void setMaxInput(uint max);
 void getInput(char* buffor, const uint length);
 state getKeyState(const uint keyCode);

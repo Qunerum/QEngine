@@ -11,7 +11,7 @@
 
 #define QGPU_VERSION_MAJOR 1
 #define QGPU_VERSION_MINOR 2
-#define QGPU_VERSION_PATCH 5
+#define QGPU_VERSION_PATCH 7
 
 // ========================================================================================================================================================================
 // ===== QGPU =============================================================================================================================================================
@@ -52,38 +52,38 @@ static InternalContext g_ctx;
 static double lastTime = 0;
 static float backgroundR, backgroundG, backgroundB, lights[MAX_LIGHTS * 5], currentFPS;
 static int lightCount, frameCount;
-uint32_t* sphereVertexIndices;
+static uint32_t* sphereVertexIndices;
 #define qFontX 8
 #define qFontY 11
 #define qFontMax 6
 typedef struct { int8_t data[qFontY][qFontMax]; } qgChar;
-qgChar newChars[65536] = {0};
+static qgChar newChars[65536] = {0};
 // ========================================================================================================================================================================
 // ===== TOOLS ============================================================================================================================================================
 // ========================================================================================================================================================================
 static int len(const char* t) { int x = 0; while (t[x] != '\0') x++; return x; }
 static float PI = 3.14159265358979323846f;
-static int qclamp(int v, int min, int max) { return v < min ? min : v > max ? max : v; }
-static float qclampf(float v, float min, float max) { return v < min ? min : v > max ? max : v; }
-static float qpow(float v, float exp) {
+static int qclamp(const int v, const int min, const int max) { return v < min ? min : v > max ? max : v; }
+static float qclampf(const float v, const float min, const float max) { return v < min ? min : v > max ? max : v; }
+static float qpow(const float v, const float exp) {
 	if (exp == 0) return 1;
 	float r = 1;
 	for (int i = 0; i < exp; i++) r *= v;
 	return r;
 }
-static float qsqrt(float number) {
+static float qsqrt(const float number) {
 	if (number <= 0.0f) return 0.0f;
 	float x = number * 0.5f;
 	for (int i = 0; i < 4; i++) x = 0.5f * (x + number / x);
 	return x;
 }
-static unsigned long long factorial(int n) {
+static unsigned long long factorial(const int n) {
 	unsigned long long result = 1;
 	for (int i = 1; i <= n; i++) result *= i;
 	return result;
 }
-float toRad(float degrees) { return degrees * (PI / 180.0f); }
-static float qSin(float rad) {
+float toRad(const float degrees) { return degrees * (PI / 180.0f); }
+static float qSin(const float rad) {
 	float sum = 0.0f;
 	for (int i = 0; i < 10; i++) {
 		int sign = (i % 2 == 0) ? 1 : -1, power_exp = 2 * i + 1;
@@ -91,7 +91,7 @@ static float qSin(float rad) {
 	}
 	return sum;
 }
-static float qCos(float rad) {
+static float qCos(const float rad) {
 	float sum = 0.0f;
 	for (int i = 0; i < 10; i++) {
 		int sign = (i % 2 == 0) ? 1 : -1, power_exp = 2 * i;
@@ -108,7 +108,7 @@ static void transformPoint(float* x, float* y, float* z) {
 	*y = y3 + g_ctx.pivotY;
 	*z = z3 + g_ctx.pivotZ;
 }
-static float getLight(float x, float y, float z) {
+static float getLight(const float x, const float y, const float z) {
 	float totalLight = 0.1f;
 	for (int i = 0; i < lightCount; i++) {
 		float lx = lights[i*5], ly = lights[i*5+1], lz = lights[i*5+2], rng = lights[i*5+3], pow = lights[i*5+4];
@@ -127,12 +127,12 @@ static float getLight(float x, float y, float z) {
 static int _showBanner = 1, _madeWith = 1, _showInfo = 1, _showColors = 1, _showLogs = 1, qgpuClr = MAGENTA, creator = LIGHT_RED, title = YELLOW, frame = GRAY, frmTxt = LIGHT_GRAY;
 // ===== QPrint
 static int oldClr = 255, actClr = 255, actStyle = 0; // White , Regular text
-void qgVprintc(int color, const char* format, va_list args) {
+void qgVprintc(const int color, const char* format, va_list args) {
 	printf("\033[%i;38;5;%im", actStyle, color);
 	vprintf(format, args);
 	printf("\033[0m");
 }
-void qgSetColor(int color) {
+void qgSetColor(const int color) {
 	oldClr = actClr;
 	actClr = qclamp(color, 0, 255);
 }
@@ -141,8 +141,8 @@ void qgRestoreColor() {
 	actClr = oldClr;
 	oldClr = x;
 }
-void qgSetStyle(int style) { actStyle = qclamp(style, 0, 1); }
-void qgPrintc(int color, const char* format, ...) {
+void qgSetStyle(const int style) { actStyle = qclamp(style, 0, 1); }
+void qgPrintc(const int color, const char* format, ...) {
 	va_list args;
 	va_start(args, format);
 	qgVprintc(color, format, args);
@@ -184,7 +184,7 @@ void qgError(const char* format, ...) {
 	va_end(args);
 	exit(1);
 }
-void qgSetShow(int shower, int state) {
+void qgSetShow(const int shower, const int state) {
 	switch (shower) {
 		case QGPU_SHOW_BANNER: _showBanner = state; break;
 		case QGPU_SHOW_MADE_WITH_QGPU: _madeWith = state; break;
@@ -209,7 +209,7 @@ static void printInfo() {
 	qgPrintc(frame, "║ "); qgPrintc(frmTxt, "Creator: "); qgPrintc(creator, "Qunerum"); qgPrintc(frame, "       ╔╗\n");
 	qgPrintc(frame, "╚════════════════════════╩╝\n");
 }
-static void c(int v) { printf("\033[0;38;5;%im██ ", v); }
+static void c(const int v) { printf("\033[0;38;5;%im██ ", v); }
 static void printColors() {
 	qgPrintc(frame,"╔═╣  "); qgPrintc(title, "Colors"); qgPrintc(frame, "  ╠═╗  ╔═══════╗\n");
 	qgPrintc(frame,"╚═╦══════════╦═╝  ║ "); c(WHITE); c(BLACK); qgPrintc(frame,"║\n");
@@ -222,14 +222,14 @@ static void printColors() {
 // ========================================================================================================================================================================
 // ===== UTILITY ==========================================================================================================================================================
 // ========================================================================================================================================================================
-static uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {
+static uint32_t findMemoryType(const uint32_t typeFilter, const VkMemoryPropertyFlags properties) {
 	VkPhysicalDeviceMemoryProperties memProperties;
 	vkGetPhysicalDeviceMemoryProperties(g_ctx.physicalDevice, &memProperties);
 	for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++)
 		if ((typeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties) return i;
 	return 0;
 }
-void createDepthResources(int width, int height) {
+void createDepthResources(const unsigned int width, const unsigned int height) {
 	VkImageCreateInfo imageInfo = {
 		.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
 		.imageType = VK_IMAGE_TYPE_2D,
@@ -268,7 +268,7 @@ void createDepthResources(int width, int height) {
 	};
 	if (vkCreateImageView(g_ctx.device, &viewInfo, NULL, &g_ctx.depthImageView) != VK_SUCCESS) { }
 }
-static void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer* buffer, VkDeviceMemory* bufferMemory) {
+static void createBuffer(const VkDeviceSize size, const VkBufferUsageFlags usage, const VkMemoryPropertyFlags properties, VkBuffer* buffer, VkDeviceMemory* bufferMemory) {
 	VkBufferCreateInfo bufferInfo = {
 		.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
 		.size = size,
@@ -299,7 +299,7 @@ void render() {
 // ===== INIT =============================================================================================================================================================
 // ========================================================================================================================================================================
 static int inInit = 0;
-void qgpuCreate(int width, int height, const char* title, void (*initFunc)(), void (*updateFunc)()) {
+void qgpuCreate(const unsigned int width, const unsigned int height, const char* title, void (*initFunc)(), void (*updateFunc)()) {
 	if (!glfwInit()) return;
 	sphereVertexIndices = malloc(sizeof(uint32_t) * (MAX_SPHERE_RINGS + 1) * (MAX_SPHERE_SECTORS + 1));
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
@@ -761,19 +761,19 @@ float qgGetFPS() { return currentFPS; }
 // ========================================================================================================================================================================
 // ===== DRAWING ==========================================================================================================================================================
 // ========================================================================================================================================================================
-void qgSetBackground(float r, float g, float b) {
+void qgSetBackground(const float r, const float g, const float b) {
 	backgroundR = r;
 	backgroundG = g;
 	backgroundB = b;
 }
 // ===== ROTATION
-void qgSetRotationPivot(float x, float y, float z) {
+void qgSetRotationPivot(const float x, const float y, const float z) {
 	g_ctx.pivotX = x;
 	g_ctx.pivotY = y;
 	g_ctx.pivotZ = z;
 }
-static float rndToNrm(float v) { return v - ((int)(v / 360.0f) * 360.0f); }
-void qgSetRotation(float rx, float ry, float rz) {
+static float rndToNrm(const float v) { return v - ((int)(v / 360.0f) * 360.0f); }
+void qgSetRotation(const float rx, const float ry, const float rz) {
 	g_ctx.rotX = rndToNrm(rx);
 	g_ctx.rotY = rndToNrm(ry);
 	g_ctx.rotZ = rndToNrm(rz);
@@ -790,13 +790,13 @@ void qgResetRotation() {
 }
 // ===== VERTICES & INDICES ===============================================================================================================================================
 static int qLightOn = 1;
-void qgSetRenderType(int type) {
+void qgSetRenderType(const int type) {
 	switch (type) {
 		case QGPU_RENDER_TYPE_NO_LIGHT: qLightOn = 0; break;
 		case QGPU_RENDER_TYPE_LIGHT: qLightOn = 1; break;
 	}
 }
-uint32_t qgAddVertex(float x, float y, float z, float r, float g, float b, float a) {
+uint32_t qgAddVertex(float x, float y, float z, const float r, const float g, const float b, const float a) {
 	if (g_ctx.currentVOffset >= MAX_VERTICES) { qgWarn("Cannot add new vertex\n"); return -1; }
 	transformPoint(&x, &y, &z);
 	QGPU_Vertex* vDst = (QGPU_Vertex*)g_ctx.mappedVertexBuffer + g_ctx.currentVOffset;
@@ -811,20 +811,20 @@ uint32_t qgAddVertex(float x, float y, float z, float r, float g, float b, float
 	g_ctx.currentVOffset++;
 	return g_ctx.currentVOffset-1;
 }
-void qgAddIndex(uint32_t index) {
+void qgAddIndex(const uint32_t index) {
 	if (g_ctx.currentIOffset >= (uint32_t)(MAX_VERTICES * 3)) { qgWarn("Cannot add new index\n"); return; }
 	uint32_t* iDst = (uint32_t*)g_ctx.mappedIndexBuffer + g_ctx.currentIOffset;
 	*iDst = index;
 	g_ctx.currentIOffset++;
 }
-void qgAddGeometry(QGPU_Vertex* verts, uint32_t vCount, uint32_t* indices, uint32_t iCount) {
+void qgAddGeometry(const QGPU_Vertex* verts, const uint32_t vCount, const uint32_t* indices, const uint32_t iCount) {
 	if (vCount <= 0 || iCount <= 0) { qgWarn("The number of vertices or indices is less than or equal to 0\n"); return; }
 	uint32_t baseVertexOffset = g_ctx.currentVOffset;
 	for (uint32_t i = 0; i < vCount; i++) qgAddVertex(verts[i].pos[0], verts[i].pos[1], verts[i].pos[2], verts[i].color[0], verts[i].color[1], verts[i].color[2], verts[i].color[3]);
 	for (uint32_t i = 0; i < iCount; i++) qgAddIndex(indices[i] + baseVertexOffset);
 }
 // ===== LIGHTS ===========================================================================================================================================================
-void qgAddLight(float x, float y, float z, float range, float intense) {
+void qgAddLight(const float x, const float y, const float z, const float range, const float intense) {
 	if (lightCount >= MAX_LIGHTS) { qgWarn("Cannot add new light\n"); return; }
 	int l = lightCount * 5;
 	lights[ l ] = x;
@@ -835,12 +835,12 @@ void qgAddLight(float x, float y, float z, float range, float intense) {
 	lightCount++;
 }
 // ===== READY 2D ==========================================================================================================================================================
-void qgAddTriangle(float p1x, float p1y, float p1z, float p2x, float p2y, float p2z, float p3x, float p3y, float p3z, float r, float g, float b, float a) {
+void qgAddTriangle(const float p1x, const float p1y, const float p1z, const float p2x, const float p2y, const float p2z, const float p3x, const float p3y, const float p3z, const float r, const float g, const float b, const float a) {
 	qgAddIndex(qgAddVertex(p1x, p1y, p1z, r, g, b, a));
 	qgAddIndex(qgAddVertex(p2x, p2y, p2z, r, g, b, a));
 	qgAddIndex(qgAddVertex(p3x, p3y, p3z, r, g, b, a));
 }
-void qgAddRect(float px, float py, float pz, float sx, float sy, float r, float g, float b, float a) {
+void qgAddRect(const float px, const float py, const float pz, const float sx, const float sy, const float r, const float g, const float b, const float a) {
 	float x = sx / 2, y = sy / 2, v[4] = {
 		px - x, px + x,
 		py - y, py + y
@@ -848,13 +848,13 @@ void qgAddRect(float px, float py, float pz, float sx, float sy, float r, float 
 	qgAddTriangle(v[0], v[3], pz, v[1], v[3], pz, v[1], v[2], pz, r, g, b, a);
 	qgAddTriangle(v[0], v[3], pz, v[1], v[2], pz, v[0], v[2], pz, r, g, b, a);
 }
-void qgAddCircle(float px, float py, float pz, int segments, float radius, float r, float g, float b, float a) {
+void qgAddCircle(const float px, const float py, const float pz, const unsigned int segments, const float radius, const float r, const float g, const float b, const float a) {
 	if (segments < 3) return;
 	float angleStep = (2.0f * PI) / segments;
 	uint32_t center = qgAddVertex(px, py, pz, r, g, b, a),
 	first = qgAddVertex(px + radius, py, pz, r, g, b, a),
 	last = first;
-	for (int i = 1; i < segments; i++) {
+	for (unsigned int i = 1; i < segments; i++) {
 		float currentAngle = angleStep * i, cx = qCos(currentAngle) * radius, cy = qSin(currentAngle) * radius;
 		qgAddIndex(center);
 		uint32_t v = qgAddVertex(px + cx, py + cy, pz, r, g, b, a);
@@ -867,7 +867,7 @@ void qgAddCircle(float px, float py, float pz, int segments, float radius, float
 	qgAddIndex(last);
 }
 // ===== READY 3D ==========================================================================================================================================================
-void qgAddBox(float px, float py, float pz, float sx, float sy, float sz, float r, float g, float b, float a) {
+void qgAddBox(const float px, const float py, const float pz, const float sx, const float sy, const float sz, const float r, const float g, const float b, const float a) {
 	float x = sx / 2, y = sy / 2, z = sz / 2, v[24] = {
 		px-x, py+y, pz+z,
 		px+x, py+y, pz+z,
@@ -891,27 +891,27 @@ void qgAddBox(float px, float py, float pz, float sx, float sy, float sz, float 
 	qgAddTriangle(v[9], v[10], v[11], v[6], v[7], v[8], v[18], v[19], v[20], r, g, b, a);
 	qgAddTriangle(v[9], v[10], v[11], v[18], v[19], v[20], v[21], v[22], v[23], r, g, b, a);
 }
-void qgAddSphere(float px, float py, float pz, float radius, int rings, int sectors, float r, float g, float b, float a) {
+void qgAddSphere(const float px, const float py, const float pz, const float radius, const unsigned int rings, const unsigned int sectors, const float r, const float g, const float b, const float a) {
 	if (rings < 2 || sectors < 3) return;
 	if (!sphereVertexIndices) return;
-	for (int i = 0; i <= rings; ++i) {
-		float v = (float)i / (float)rings;
-		float phi = v * PI;
-		float yCost = qCos(phi);
-		float ySint = qSin(phi);
-		for (int j = 0; j <= sectors; ++j) {
-			float u = (float)j / (float)sectors;
-			float theta = u * (2.0f * PI);
-			float x = px + radius * ySint * qCos(theta);
-			float y = py + radius * yCost;
-			float z = pz + radius * ySint * qSin(theta);
+	for (unsigned int i = 0; i <= rings; ++i) {
+		float v = (float)i / (float)rings,
+		phi = v * PI,
+		yCost = qCos(phi),
+		ySint = qSin(phi);
+		for (unsigned int j = 0; j <= sectors; ++j) {
+			float u = (float)j / (float)sectors,
+			theta = u * (2.0f * PI),
+			x = px + radius * ySint * qCos(theta),
+			y = py + radius * yCost,
+			z = pz + radius * ySint * qSin(theta);
 			sphereVertexIndices[i * (sectors + 1) + j] = qgAddVertex(x, y, z, r, g, b, a);
 		}
 	}
-	for (int i = 0; i < rings; ++i) {
-		for (int j = 0; j < sectors; ++j) {
-			uint32_t first = i * (sectors + 1) + j;
-			uint32_t second = first + sectors + 1;
+	for (unsigned int i = 0; i < rings; ++i) {
+		for (unsigned int j = 0; j < sectors; ++j) {
+			uint32_t first = i * (sectors + 1) + j,
+			second = first + sectors + 1;
 			qgAddIndex(sphereVertexIndices[first]);
 			qgAddIndex(sphereVertexIndices[second]);
 			qgAddIndex(sphereVertexIndices[first + 1]);
@@ -926,7 +926,7 @@ void qgAddSphere(float px, float py, float pz, float radius, int rings, int sect
 // ========================================================================================================================================================================
 static float qFontSize = 16, qFontR = 1, qFontG = 1, qFontB = 1, qFontA = 1;
 static int qFontStyle = QGPU_FONT_STYLE_REGULAR;
-static uint8_t cti(char c) {
+static uint8_t cti(const char c) {
 	switch (c) {
 		case '0': return 0;
 		case '1': return 1;
@@ -1003,7 +1003,7 @@ void qgLoadFont(const char* path) {
 	qgLog("Added a %i new chars!\n", len);
 	fclose(qf);
 }
-void qgSetFontData(float fontSize, int style, float r, float g, float b, float a) {
+void qgSetFontData(const float fontSize, const int style, const float r, const float g, const float b, const float a) {
 	qFontSize = fontSize;
 	qFontStyle = style;
 	qFontR = r;
@@ -1011,7 +1011,7 @@ void qgSetFontData(float fontSize, int style, float r, float g, float b, float a
 	qFontB = b;
 	qFontA = a;
 }
-static qgChar qFont[128] = {
+static const qgChar qFont[128] = {
 // ===== ! " # $ % & ' ( ) * + , - . / ====================================================================================================================================
 	['!'] = (qgChar){.data = {{0}, {0}, {0}, {3, -12}, {3, -12}, {3, -12}, {3, -12}, {3, -12}, {0}, {3, -12}, {0}}},
 	['"'] = (qgChar){.data = {{0}, {0}, {0}, {1, 12, 2, -12}, {1, 12, 2, -12}, {1, 12, 2, -12}, {0}, {0}, {0}, {0}, {0}}},
@@ -1114,19 +1114,18 @@ static qgChar qFont[128] = {
 	['y'] = (qgChar){.data = {{0}, {0}, {0}, {0}, {0}, {1, 12, 2, -12}, {1, 12, 2, -12}, {1, 12, 2, -12}, {2, -15}, {5, -12}, {1, -15}}},
 	['z'] = (qgChar){.data = {{0}, {0}, {0}, {0}, {0}, {1, -16}, {4, -12}, {3, -12}, {2, -12}, {1, -16}, {0}}}
 };
-void qgAddChar(float px, float py, float pz, uint16_t c) {
+void qgAddChar(const float px, const float py, const float pz, const uint16_t c) {
 	qgChar qc = newChars[c];
 	if (c < 128) qc = qFont[c];
-
-	for (int ly = 0; ly < qFontY; ly++) {
+	for (unsigned int ly = 0; ly < qFontY; ly++) {
 		int x = 0;
-		for (int lx = 0; lx < qFontMax; lx++) {
+		for (unsigned int lx = 0; lx < qFontMax; lx++) {
 			int8_t v = qc.data[ly][lx];
 			if (v == 0) break;
-			int isEnd = v < 0;
+			uint8_t isEnd = v < 0;
 			if (isEnd) v = -v;
 			if (v > 10) {
-				int width_units = v - 10;
+				unsigned int width_units = v - 10;
 				float center_offset = x + (width_units * 0.5f),
 				nx = px + (center_offset * qFontSize),
 				ny = py - (ly * qFontSize);
@@ -1137,8 +1136,8 @@ void qgAddChar(float px, float py, float pz, uint16_t c) {
 		}
 	}
 }
-int ih(char c) { return (c >= '0' && c <= '9') || (c >= 'A' && c <= 'F'); }
-void qgAddText(float px, float py, float pz, const char* text) {
+uint8_t ih(const char c) { return (c >= '0' && c <= '9') || (c >= 'A' && c <= 'F'); }
+void qgAddText(const float px, const float py, const float pz, const char* text) {
 	int x = 0, y = 0, i = 0, l = len(text);
 	while (text[i] != '\0') {
 		if (text[i] == '\n') {
@@ -1171,21 +1170,21 @@ void qgAddText(float px, float py, float pz, const char* text) {
 // ========================================================================================================================================================================
 // ===== INPUT ============================================================================================================================================================
 // ========================================================================================================================================================================
-int qgGetKey(int key) {
-	if (!g_ctx.window || key < 0 || key >= GLFW_KEY_LAST) return 0;
+uint8_t qgGetKey(const unsigned int key) {
+	if (!g_ctx.window || key >= GLFW_KEY_LAST) return 0;
 	return glfwGetKey(g_ctx.window, key) == GLFW_PRESS;
 }
-int qgOnKey(int key) {
-	if (!g_ctx.window || key < 0 || key >= GLFW_KEY_LAST) return 0;
+uint8_t qgOnKey(const unsigned int key) {
+	if (!g_ctx.window || key >= GLFW_KEY_LAST) return 0;
 	int current = glfwGetKey(g_ctx.window, key), last = g_ctx.lastKeyState[key];
 	return (current == GLFW_PRESS && last == GLFW_RELEASE);
 }
-int qgGetMouse(int button) {
-	if (!g_ctx.window || button < 0 || button >= GLFW_MOUSE_BUTTON_LAST) return 0;
+uint8_t qgGetMouse(const unsigned int button) {
+	if (!g_ctx.window || button >= GLFW_MOUSE_BUTTON_LAST) return 0;
 	return glfwGetMouseButton(g_ctx.window, button) == GLFW_PRESS;
 }
-int qgOnMouse(int button) {
-	if (!g_ctx.window || button < 0 || button >= GLFW_MOUSE_BUTTON_LAST) return 0;
+uint8_t qgOnMouse(const unsigned int button) {
+	if (!g_ctx.window || button >= GLFW_MOUSE_BUTTON_LAST) return 0;
 	int current = glfwGetMouseButton(g_ctx.window, button), last = g_ctx.lastMouseState[button];
 	return (current == GLFW_PRESS && last == GLFW_RELEASE);
 }
@@ -1196,13 +1195,13 @@ void qgGetMousePos(float* x, float* y) {
 	*x = lx - (double)qgGetWidth() / 2;
 	*y = -(ly - (double)qgGetHeight() / 2);
 }
-int qgGetWidth() {
+unsigned int qgGetWidth() {
 	if (!g_ctx.window) return 0;
 	int w, h;
 	glfwGetWindowSize(g_ctx.window, &w, &h);
 	return w;
 }
-int qgGetHeight() {
+unsigned int qgGetHeight() {
 	if (!g_ctx.window) return 0;
 	int w, h;
 	glfwGetWindowSize(g_ctx.window, &w, &h);

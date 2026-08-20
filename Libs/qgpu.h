@@ -16,42 +16,42 @@ typedef struct { float pos[3]; float color[4]; } QGPU_Vertex;
 #define QGPU_SHOW_INFO            2
 #define QGPU_SHOW_COLORS          3
 #define QGPU_SHOW_LOGS            4
-void qgSetColor(int color);
+void qgSetColor(const int color);
 void qgRestoreColor();
-void qgSetStyle(int style);
+void qgSetStyle(const int style);
 void qgPrint(const char* format, ...);
 void qgLog(const char* format, ...);
 void qgLogVertices();
 void qgWarn(const char* format, ...);
 void qgError(const char* format, ...);
-void qgSetShow(int shower, int state);
+void qgSetShow(const int shower, const int state);
 // !===== QGPU ===========================================================================================================================================================!
 // !===== Init
-void qgpuCreate(int width, int height, const char* title, void (*initFunc)(), void (*updateFunc)());
+void qgpuCreate(const unsigned int width, const unsigned int height, const char* title, void (*initFunc)(), void (*updateFunc)());
 // !===== Window
 float qgGetFPS();
 // !===== Drawing ========================================================================================================================================================!
-void qgSetBackground(float r, float g, float b);
+void qgSetBackground(const float r, const float g, const float b);
 // !===== Rotation
-void qgSetRotationPivot(float x, float y, float z);
-void qgSetRotation(float rx, float ry, float rz);
+void qgSetRotationPivot(const float x, const float y, const float z);
+void qgSetRotation(const float rx, const float ry, const float rz);
 void qgResetRotation();
 // !===== Vertices & Indices
 #define QGPU_RENDER_TYPE_NO_LIGHT 0
 #define QGPU_RENDER_TYPE_LIGHT 1
-void qgSetRenderType(int type);
-uint32_t qgAddVertex(float x, float y, float layer, float r, float g, float b, float a);
-void qgAddIndex(uint32_t index);
-void qgAddGeometry(QGPU_Vertex* verts, uint32_t vCount, uint32_t* indices, uint32_t iCount);
+void qgSetRenderType(const int type);
+uint32_t qgAddVertex(float x, float y, float z, const float r, const float g, const float b, const float a);
+void qgAddIndex(const uint32_t index);
+void qgAddGeometry(const QGPU_Vertex* verts, const uint32_t vCount, const uint32_t* indices, const uint32_t iCount);
 // !===== Lights
-void qgAddLight(float x, float y, float z, float range, float intense);
+void qgAddLight(const float x, const float y, const float z, const float range, const float intense);
 // !===== Ready 2D
-void qgAddTriangle(float p1x, float p1y, float p1z, float p2x, float p2y, float p2z, float p3x, float p3y, float p3z, float r, float g, float b, float a);
-void qgAddRect(float px, float py, float pz, float sx, float sy, float r, float g, float b, float a);
-void qgAddCircle(float px, float py, float layer, int segments, float radius, float r, float g, float b, float a);
+void qgAddTriangle(const float p1x, const float p1y, const float p1z, const float p2x, const float p2y, const float p2z, const float p3x, const float p3y, const float p3z, const float r, const float g, const float b, const float a);
+void qgAddRect(const float px, const float py, const float pz, const float sx, const float sy, const float r, const float g, const float b, const float a);
+void qgAddCircle(const float px, const float py, const float pz, const unsigned int segments, const float radius, const float r, const float g, const float b, const float a);
 // !===== Ready 3D
-void qgAddBox(float px, float py, float pz, float sx, float sy, float sz, float r, float g, float b, float a);
-void qgAddSphere(float px, float py, float pz, float radius, int rings, int sectors, float r, float g, float b, float a);
+void qgAddBox(const float px, const float py, const float pz, const float sx, const float sy, const float sz, const float r, const float g, const float b, const float a);
+void qgAddSphere(const float px, const float py, const float pz, const float radius, const unsigned int rings, const unsigned int sectors, const float r, const float g, const float b, const float a);
 // !===== Text ===========================================================================================================================================================!
 #define QGPU_FONT_STYLE_REGULAR 0
 #define QGPU_FONT_STYLE_BOLD 1
@@ -59,18 +59,18 @@ void qgAddSphere(float px, float py, float pz, float radius, int rings, int sect
 #define QGPU_FONT_STYLE_BOLD_ITALIC 3
 void qgConvertFont(const char* pathQFR, const char* pathQF);
 void qgLoadFont(const char* path);
-void qgSetFontData(float fontSize, int style, float r, float g, float b, float a);
-void qgAddChar(float px, float py, float pz, uint16_t c);
-void qgAddText(float px, float py, float pz, const char* text);
+void qgSetFontData(const float fontSize, const int style, const float r, const float g, const float b, const float a);
+void qgAddChar(const float px, const float py, const float pz, const uint16_t c);
+void qgAddText(const float px, const float py, const float pz, const char* text);
 // !===== Input ==========================================================================================================================================================!
-int qgGetKey(int key);
-int qgOnKey(int key);
-int qgGetMouse(int button);
-int qgOnMouse(int button);
+uint8_t qgGetKey(const unsigned int key);
+uint8_t qgOnKey(const unsigned int key);
+uint8_t qgGetMouse(const unsigned int button);
+uint8_t qgOnMouse(const unsigned int button);
 void qgGetMousePos(float* x, float* y);
 // !===== Screen =========================================================================================================================================================!
-int qgGetWidth();
-int qgGetHeight();
+unsigned int qgGetWidth();
+unsigned int qgGetHeight();
 // !===== Keys ===========================================================================================================================================================!
 #define LMB             0
 #define RMB             1

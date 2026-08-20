@@ -95,7 +95,7 @@ static void (*userInit)() = NULL, (*userUpdate)() = NULL;
 #if IS_EDITOR
 static state isLight = false;
 static Color c1, c2;
-static int window = 0;
+static uint8_t window = 0;
 #endif
 static Vector3 getPos(const Vector3 pos, const qeAlignMode align) {
 	Vector3 v = pos;
@@ -134,6 +134,12 @@ static void qeInit() {
 static state isCaps = false, inputOn = false;
 static char qinput[MAX_INPUT + 1];
 static uint inputLen = 0, userMax = MAX_INPUT;
+#if IS_EDITOR
+static void drawCodeBlock(const char* title, const Vector3 position, const Color color) {
+	drawRect(position, V3_Zero, V2(200, 60), Center, color);
+	drawText(title, Vector3_Sub(position, V3(95, -25)), V3_Zero, 1.6f, Center, Color_White);
+}
+#endif
 static void qeUpdate() {
 // = = = = = INPUT = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 	if (onKeyDown(KEY_CAPSLOCK)) isCaps = !isCaps;
@@ -152,14 +158,19 @@ static void qeUpdate() {
 // = = = = = EDITOR = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 #if IS_EDITOR
 	uint w = getWidth(), h = getHeight();
-	drawRect(V3(0, -15), Vector3_Zero, V2(w, 30), Top, c2);
-
+	// Up bar
+	drawRect(V3(0, -15), V3_Zero, V2(w, 30), Top, c2);
+	// Buttons
 	for (int i = 0; i < 5; i++) {
-		if (drawButton(V3(102 + 204 * i, -15), Vector3_Zero, V2(200, 26), Top_Left, window == i ? Clr(50) : c1, Clr(40), Clr(30))) { window = i; }
-		drawText("test.qeb", V3(5 + 204 * i, -5), Vector3_Zero, 1.5f, Top_Left, Color_White);
+		if (drawButton(V3(102 + 204 * i, -15), V3_Zero, V2(200, 26), Top_Left, window == i ? Clr(50) : c1, Clr(40), Clr(30))) { window = i; }
+		drawText("test.qeb", V3(5 + 204 * i, -5), V3_Zero, 1.5f, Top_Left, Color_White);
 	}
+	// Left panel
+	drawRect(V3(150, -15), V3_Zero, V2(300, h - 30), Left, c1);
+	// Main
+	// blocks (test)
+	drawCodeBlock("Test block", V3_Zero, Clr(160, 20, 20));
 
-	drawRect(V3(150, -15), Vector3_Zero, V2(300, h - 30), Left, c1);
 #else
 	if (userUpdate) userUpdate();
 #endif
@@ -245,6 +256,7 @@ void playAudio(const uint audioID, const uint8_t volume, const float speed) { qs
 void clearInput() { qinput[0] = '\0'; inputLen = 0; }
 void enableInput() { inputOn = true; }
 void disableInput() { inputOn = false; }
+state getInputState() { return inputOn; }
 void setMaxInput(uint max) { if (max > MAX_INPUT) { userMax = MAX_INPUT; return; } userMax = max; }
 void getInput(char* buffor, const uint length) { qCopy(buffor, length, qinput); }
 state getKeyState(const uint keyCode) {
