@@ -95,7 +95,7 @@ static void (*userInit)() = NULL, (*userUpdate)() = NULL;
 #if IS_EDITOR
 static state isLight = false;
 static Color c1, c2;
-static uint8_t window = 0;
+static uint8 window = 0;
 #endif
 static Vector3 getPos(const Vector3 pos, const qeAlignMode align) {
 	Vector3 v = pos;
@@ -135,9 +135,33 @@ static state isCaps = false, inputOn = false;
 static char qinput[MAX_INPUT + 1];
 static uint inputLen = 0, userMax = MAX_INPUT;
 #if IS_EDITOR
-static void drawCodeBlock(const char* title, const Vector3 position, const Color color) {
-	drawRect(position, V3_Zero, V2(200, 60), Center, color);
-	drawText(title, Vector3_Sub(position, V3(95, -25)), V3_Zero, 1.6f, Center, Color_White);
+static void drawCodeBlock(const char* title, const Vector2 position, const Color color) {
+	Vector3 pos = V3(-position.x, position.y);
+	drawRect(pos, V3_Zero, V2(200, 60), Bottom_Right, color);
+	drawText(title, Vector3_Sub(pos, V3(95, -25)), V3_Zero, 1.6f, Bottom_Right, Color_White);
+}
+static float connectF(const float x, const float p) {
+	if (x <= 0.0f) return 0.0f;
+	if (x >= 1.0f) return 1.0f;
+	const float k = (x - 1.0f);
+	return x * (1.0f + k * (p - 1.0f) + 0.5f * k * k * (p - 1.0f) * (p - 2.0f));
+}
+static void drawCodeConnect(const Vector2 p1, const Vector2 p2, const Color c1, const Color c2) {
+	const uint8 steps = (uint8)(qDist(p1, p2) / 20.0f);
+	if (steps < 2) return;
+	float dy = qAbs(p1.y - p2.y);
+	if (dy > 300.0f) dy = 300.0f;
+	float centerDensity = qMap(dy, 0, 300, 1, 0.6f);
+	for (uint8 i = 0; i <= steps; i++) {
+		const float t = (float)i / (float)steps;
+		float t_stepped;
+		if (t < 0.5f) t_stepped = 0.5f * connectF(2.0f * t, centerDensity); else t_stepped = 1.0f - 0.5f * connectF(2.0f * (1.0f - t), centerDensity);
+		const float smoothY = (t_stepped < 0.5f) ? 0.5f * connectF(2.0f * t_stepped, 3) : 1.0f - 0.5f * connectF(2.0f * (1.0f - t_stepped), 3),
+		px = p1.x + (p2.x - p1.x) * t_stepped,
+		py = p1.y + (p2.y - p1.y) * smoothY;
+		const Vector3 c = qLerp(V3(c2.r, c2.g, c2.b), V3(c1.r, c1.g, c1.b), (float)(steps - i) / (float)steps);
+		drawRect(V3(-px, py), V3_Zero, V2(5, 5), Bottom_Right, Clr((byte)c.x, (byte)c.y, (byte)c.z));
+	}
 }
 #endif
 static void qeUpdate() {
@@ -158,6 +182,21 @@ static void qeUpdate() {
 // = = = = = EDITOR = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 #if IS_EDITOR
 	uint w = getWidth(), h = getHeight();
+	// Main
+	// blocks (test)
+	const Vector2 p1 = V2(800, 600);
+	static Vector2 p2 = V2(300, 200);
+
+	drawCodeBlock("Test block #1", p1, Clr(160, 20, 20));
+
+	if (getKeyState(KEY_W)) p2.y++;
+	if (getKeyState(KEY_S)) p2.y--;
+	if (getKeyState(KEY_A)) p2.x++;
+	if (getKeyState(KEY_D)) p2.x--;
+
+	drawCodeBlock("Test block #2", p2, Clr(20, 160, 20));
+	drawCodeConnect(V2(p1.x - 100, p1.y), V2(p2.x + 100, p2.y), Clr(160, 20, 20), Clr(20, 160, 20));
+
 	// Up bar
 	drawRect(V3(0, -15), V3_Zero, V2(w, 30), Top, c2);
 	// Buttons
@@ -167,9 +206,6 @@ static void qeUpdate() {
 	}
 	// Left panel
 	drawRect(V3(150, -15), V3_Zero, V2(300, h - 30), Left, c1);
-	// Main
-	// blocks (test)
-	drawCodeBlock("Test block", V3_Zero, Clr(160, 20, 20));
 
 #else
 	if (userUpdate) userUpdate();
@@ -251,7 +287,7 @@ void drawSphere(const Vector3 position, const Vector3 rotation, const uint rings
 // = = = = = AUDIO = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 void convertAudio(const char* qsr_path, const char* qs_path) { qsConvert(qsr_path, qs_path); }
 uint loadAudio(const char* path) { return qsOpen(path); }
-void playAudio(const uint audioID, const uint8_t volume, const float speed) { qsPlay(audioID, volume, speed); }
+void playAudio(const uint audioID, const uint8 volume, const float speed) { qsPlay(audioID, volume, speed); }
 // = = = = = INPUT = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 void clearInput() { qinput[0] = '\0'; inputLen = 0; }
 void enableInput() { inputOn = true; }
@@ -264,7 +300,6 @@ state getKeyState(const uint keyCode) {
 	return qgGetKey(keyCode);
 }
 state onKeyDown(const uint keyCode) { return qgOnKey(keyCode); }
-
 typedef struct { char normal, shifted; } KeyMap;
 static const KeyMap keymap[] = {
 	{ '0', ')' }, { '1', '!' }, { '2', '@' }, { '3', '#' }, { '4', '$' }, { '5', '%' }, { '6', '^' },
@@ -272,7 +307,6 @@ static const KeyMap keymap[] = {
 	{ '/', '?' }, { ';', ':' }, { '=', '+' }, { '[', '{'  }, { '\\', '|'}, { ']', '}' }, { '`', '~' }
 };
 static const uint mapSize = sizeof(keymap) / sizeof(KeyMap);
-
 char getPressedKey() {
 	if (onKeyDown(KEY_SPACE)) return ' ';
 	if (onKeyDown(KEY_BACKSPACE)) return '\b';
@@ -284,10 +318,8 @@ char getPressedKey() {
 	for (uint i = 0; i < mapSize; i++) if (onKeyDown(keymap[i].normal)) return shift ? keymap[i].shifted : keymap[i].normal;
 	return 0;
 }
-
 state getMouseButton(const uint mouseKey) { return qgGetMouse(mouseKey); }
 state onMouseDown(const uint mouseKey) { return qgOnMouse(mouseKey); }
-
 Vector2 getCursorPosition() {
 	float x, y;
 	qgGetMousePos(&x, &y);

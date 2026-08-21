@@ -1,23 +1,29 @@
 #ifndef QENGINE_MAIN_H
 #define QENGINE_MAIN_H
 
-#include <stdint.h>
 #include <stddef.h>
 #include "../Data/PROJECT.h"
 
 #define QENGINE_VERSION_MAJOR 0
 #define QENGINE_VERSION_MINOR 4
-#define QENGINE_VERSION_PATCH 4
+#define QENGINE_VERSION_PATCH 5
 
 typedef enum { World, UI } qeDrawingMode;
 typedef enum { Top_Left, Top, Top_Right, Left, Center, Right, Bottom_Left, Bottom, Bottom_Right } qeAlignMode;
 // = = = = = TYPES = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-typedef unsigned long ulong;
-typedef unsigned int uint;
-typedef unsigned short ushort;
-typedef uint8_t byte;
+typedef long int64;
+typedef unsigned long uint64;
+typedef int int32;
+typedef unsigned int uint32;
+typedef short int16;
+typedef unsigned short uint16;
+typedef char int8;
+typedef unsigned char uint8;
+
+typedef uint32 uint;
+typedef uint8 byte;
 // = = = = = state = = = = = = = = = = = = = = = = = = = =
-typedef uint8_t state;
+typedef uint8 state;
 #define false 0
 #define true 1
 // = = = = = STRUCTURES = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
@@ -198,8 +204,8 @@ void drawSphere(const Vector3 position, const Vector3 rotation, const uint rings
 
 #ifdef QEngine_Audio
 void convertAudio(const char* qsr_path, const char* qs_path);
-int loadAudio(const char* path);
-void playAudio(const int audioID, const uint8_t volume, const float speed);
+uint loadAudio(const char* path);
+void playAudio(const uint audioID, const uint8 volume, const float speed);
 #endif
 
 #ifdef QEngine_Input

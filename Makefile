@@ -33,7 +33,7 @@ GAME_OBJS     = $(GAME_C_OBJS) $(GAME_ASM_OBJS)
 vpath %.c Assets Libs
 vpath %.asm Assets Libs
 
-EDITOR = $(BUILD_ENGINE)/QEngine_Editor
+EDITOR = $(BUILD_ENGINE)/QEngine_Block_Code_Editor
 APP    = $(BUILD_PROJECT)/$(APP_NAME)
 
 all: prepare editor
