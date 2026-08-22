@@ -134,6 +134,7 @@ static void qeInit() {
 static state isCaps = false, inputOn = false;
 static char qinput[MAX_INPUT + 1];
 static uint inputLen = 0, userMax = MAX_INPUT;
+static Vector2 prevMP = V2_Zero, deltaMP = V2_Zero;
 #if IS_EDITOR
 static Vector2 viewPos = V2_Zero;
 static const Vector2 blockSize = V2(200, 50);
@@ -174,7 +175,7 @@ static void drawCodeConnect(Vector2 p1, Vector2 p2, const Color c1, const Color 
 static void qeUpdate() {
 // = = = = = INPUT = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 	if (onKeyDown(KEY_CAPSLOCK)) isCaps = !isCaps;
-	char c = getPressedKey();
+	const char c = getPressedKey();
 	if (c && inputOn) {
 		if (c == '\b' && inputLen > 0) {
 			inputLen--;
@@ -186,26 +187,20 @@ static void qeUpdate() {
 			inputLen++;
 		}
 	}
+	Vector2 mp = getCursorPosition();
+	deltaMP = Vector2_Sub(mp, prevMP);
+	prevMP = mp;
 // = = = = = EDITOR = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 #if IS_EDITOR
 	uint w = getWidth(), h = getHeight();
 	// Main
 	// blocks (test)
-	const Vector2 p1 = V2(800, 600);
-	static Vector2 p2 = V2(300, 200);
+	static const Vector2 p1 = V2(800, 600), p2 = V2(400, 500);
 
 	drawCodeConnect(p1, p2, Clr(160, 20, 20), Clr(20, 160, 20));
 	drawCodeBlock("Test block #1", p1, Clr(160, 20, 20));
-	static const float spd = 2;
-	if (getKeyState(KEY_W)) p2.y += spd;
-	if (getKeyState(KEY_S)) p2.y -= spd;
-	if (getKeyState(KEY_A)) p2.x += spd;
-	if (getKeyState(KEY_D)) p2.x -= spd;
 
-	if (getKeyState(KEY_UP)) viewPos.y += spd;
-	if (getKeyState(KEY_DOWN)) viewPos.y -= spd;
-	if (getKeyState(KEY_LEFT)) viewPos.x -= spd;
-	if (getKeyState(KEY_RIGHT)) viewPos.x += spd;
+	if (getMouseButton(RMB)) { viewPos = Vector2_Add(viewPos, deltaMP); }
 
 	drawCodeBlock("Test block #2", p2, Clr(20, 160, 20));
 
@@ -213,7 +208,7 @@ static void qeUpdate() {
 	drawRect(V3(0, -15), V3_Zero, V2(w, 30), Top, c2);
 	// Buttons
 	for (int i = 0; i < 5; i++) {
-		if (drawButton(V3(102 + 204 * i, -15), V3_Zero, V2(200, 26), Top_Left, window == i ? Clr(50) : c1, Clr(40), Clr(30))) { window = i; }
+		if (drawButton(V3(102 + 204 * i, -15), V3_Zero, V2(200, 26), Top_Left, window == i ? Clr(50) : c1, Clr(40), Clr(30))) window = i;
 		drawText("test.qeb", V3(5 + 204 * i, -5), V3_Zero, 1.5f, Top_Left, Color_White);
 	}
 	// Left panel
