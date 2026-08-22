@@ -135,10 +135,12 @@ static state isCaps = false, inputOn = false;
 static char qinput[MAX_INPUT + 1];
 static uint inputLen = 0, userMax = MAX_INPUT;
 #if IS_EDITOR
+static Vector2 viewPos = V2_Zero;
+static const Vector2 blockSize = V2(200, 50);
 static void drawCodeBlock(const char* title, const Vector2 position, const Color color) {
-	Vector3 pos = V3(-position.x, position.y);
-	drawRect(pos, V3_Zero, V2(200, 60), Bottom_Right, color);
-	drawText(title, Vector3_Sub(pos, V3(95, -25)), V3_Zero, 1.6f, Bottom_Right, Color_White);
+	Vector3 pos = Vector3_Add(V3(-position.x, position.y), V3(viewPos.x, viewPos.y));
+	drawRect(pos, V3_Zero, blockSize, Bottom_Right, color);
+	drawText(title, Vector3_Sub(pos, V3(blockSize.x / 2.0f - 5, -blockSize.y / 2.0f + 5)), V3_Zero, 1.6f, Bottom_Right, Color_White);
 }
 static float connectF(const float x, const float p) {
 	if (x <= 0.0f) return 0.0f;
@@ -146,12 +148,17 @@ static float connectF(const float x, const float p) {
 	const float k = (x - 1.0f);
 	return x * (1.0f + k * (p - 1.0f) + 0.5f * k * k * (p - 1.0f) * (p - 2.0f));
 }
-static void drawCodeConnect(const Vector2 p1, const Vector2 p2, const Color c1, const Color c2) {
-	const uint8 steps = (uint8)(qDist(p1, p2) / 20.0f);
+static void drawCodeConnect(Vector2 p1, Vector2 p2, const Color c1, const Color c2) {
+	p1.x -= 100 + viewPos.x;
+	p1.y += viewPos.y;
+	p2.x += 100 - viewPos.x;
+	p2.y += viewPos.y;
+	const uint8 steps = qClamp_i((uint8)(qDist(p1, p2) / 16.0f), 0, UINT8_MAX);
 	if (steps < 2) return;
 	float dy = qAbs(p1.y - p2.y);
 	if (dy > 300.0f) dy = 300.0f;
 	float centerDensity = qMap(dy, 0, 300, 1, 0.6f);
+	Vector3 vc1 = V3(c1.r, c1.g, c1.b), vc2 = V3(c2.r, c2.g, c2.b);
 	for (uint8 i = 0; i <= steps; i++) {
 		const float t = (float)i / (float)steps;
 		float t_stepped;
@@ -159,7 +166,7 @@ static void drawCodeConnect(const Vector2 p1, const Vector2 p2, const Color c1, 
 		const float smoothY = (t_stepped < 0.5f) ? 0.5f * connectF(2.0f * t_stepped, 3) : 1.0f - 0.5f * connectF(2.0f * (1.0f - t_stepped), 3),
 		px = p1.x + (p2.x - p1.x) * t_stepped,
 		py = p1.y + (p2.y - p1.y) * smoothY;
-		const Vector3 c = qLerp(V3(c2.r, c2.g, c2.b), V3(c1.r, c1.g, c1.b), (float)(steps - i) / (float)steps);
+		const Vector3 c = qLerp(vc2, vc1, (float)(steps - i) / (float)steps);
 		drawRect(V3(-px, py), V3_Zero, V2(5, 5), Bottom_Right, Clr((byte)c.x, (byte)c.y, (byte)c.z));
 	}
 }
@@ -187,15 +194,20 @@ static void qeUpdate() {
 	const Vector2 p1 = V2(800, 600);
 	static Vector2 p2 = V2(300, 200);
 
+	drawCodeConnect(p1, p2, Clr(160, 20, 20), Clr(20, 160, 20));
 	drawCodeBlock("Test block #1", p1, Clr(160, 20, 20));
+	static const float spd = 2;
+	if (getKeyState(KEY_W)) p2.y += spd;
+	if (getKeyState(KEY_S)) p2.y -= spd;
+	if (getKeyState(KEY_A)) p2.x += spd;
+	if (getKeyState(KEY_D)) p2.x -= spd;
 
-	if (getKeyState(KEY_W)) p2.y++;
-	if (getKeyState(KEY_S)) p2.y--;
-	if (getKeyState(KEY_A)) p2.x++;
-	if (getKeyState(KEY_D)) p2.x--;
+	if (getKeyState(KEY_UP)) viewPos.y += spd;
+	if (getKeyState(KEY_DOWN)) viewPos.y -= spd;
+	if (getKeyState(KEY_LEFT)) viewPos.x -= spd;
+	if (getKeyState(KEY_RIGHT)) viewPos.x += spd;
 
 	drawCodeBlock("Test block #2", p2, Clr(20, 160, 20));
-	drawCodeConnect(V2(p1.x - 100, p1.y), V2(p2.x + 100, p2.y), Clr(160, 20, 20), Clr(20, 160, 20));
 
 	// Up bar
 	drawRect(V3(0, -15), V3_Zero, V2(w, 30), Top, c2);
@@ -206,16 +218,16 @@ static void qeUpdate() {
 	}
 	// Left panel
 	drawRect(V3(150, -15), V3_Zero, V2(300, h - 30), Left, c1);
-
 #else
 	if (userUpdate) userUpdate();
 #endif
+	qgLogVertices();
 }
 int initEngineProject(void (*initFunc)(), void (*updateFunc)()) {
 	if (!qsInit()) return 1;
 	qgSetBackground(0, 0, 0);
 	char title[MAX_NAME_LENGTH];
-	if (IS_EDITOR) snprintf(title, sizeof(title), "QEngine %i.%i.%i <|> %s %s", QENGINE_VERSION_MAJOR, QENGINE_VERSION_MINOR, QENGINE_VERSION_PATCH, QEP_NAME, QEP_VERSION);
+	if (IS_EDITOR) snprintf(title, sizeof(title), "QEngine %i.%i.%i Block Code Editor | %s %s", QENGINE_VERSION_MAJOR, QENGINE_VERSION_MINOR, QENGINE_VERSION_PATCH, QEP_NAME, QEP_VERSION);
 	else snprintf(title, sizeof(title), "%s %s", QEP_NAME, QEP_VERSION);
 	if (!IS_EDITOR) {
 		userInit = initFunc;
@@ -241,6 +253,8 @@ void setCameraPos(const Vector3 position) { _camera.position = position; }
 void setCameraRot(const Vector3 rotation) { _camera.position = rotation; }
 void setCameraScale(const Vector3 scale) { _camera.position = scale; }
 // = = = = = GRAPHIC = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+void addLight(const Vector3 position, const float range, const float intense) { qgAddLight(position.x, position.y, position.z, range, intense); }
+
 static float byteTo01(const byte v) { return v / 255.0f; }
 static void setRot(const Vector3 position, const Vector3 rotation) {
 	qgSetRotationPivot(position.x, position.y, position.z);

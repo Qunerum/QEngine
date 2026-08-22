@@ -3,7 +3,7 @@
 #include <stdint.h>
 
 // !===== CONFIGURATION ==================================================================================================================================================!
-#define MAX_VERTICES 65536 // (2^16) Max vertices in one frame
+#define MAX_VERTICES 655360 // (2^16 * 10) Max vertices in one frame
 #define MAX_LIGHTS   1024  // (2^10) Max lights in one frame
 #define VSYNC 1
 #define MAX_SPHERE_RINGS 32
