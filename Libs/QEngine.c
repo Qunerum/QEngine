@@ -1,3 +1,12 @@
+#define QGPU_SHAPES
+#define uint quint
+#define Vector2 QV2
+#define Vector3 QV3
+#include "qgpu.h"
+#undef uint
+#undef Vector2
+#undef Vector3
+
 #define QEngine_Input
 #define QEngine_Math
 #define QEngine_Memory
@@ -5,7 +14,6 @@
 #define QEngine_Text
 #include "QEngine.h"
 
-#include "qgpu.h"
 #include "qsound.h"
 #include "../Data/PROJECT.h"
 
@@ -24,7 +32,7 @@ char* qReadFileText(const char* filename) {
 	FILE* file = fopen(filename, "rb");
 	if (!file) return NULL;
 	fseek(file, 0, SEEK_END);
-	long size = ftell(file);
+	const long size = ftell(file);
 	fseek(file, 0, SEEK_SET);
 	char* buffer = (char*)qMalloc(size + 1);
 	if (!buffer) {
@@ -40,7 +48,7 @@ state qWriteFileText(const char* filename, const char* text) {
 	if (!filename || !text) return false;
 	FILE* file = fopen(filename, "w");
 	if (!file) return false;
-	int result = fputs(text, file);
+	const int result = fputs(text, file);
 	fclose(file);
 	return result != EOF;
 }
@@ -86,20 +94,21 @@ void print(const char* format, ...) {
 state formatText(char* to, const uint length, const char* format, ...) {
 	va_list args;
 	va_start(args, format);
-	state written = vsnprintf(to, length, format, args);
+	const state written = vsnprintf(to, length, format, args);
 	va_end(args);
 	return written;
 }
-static Scene actualScene;
 
 #if IS_EDITOR
 static state isLight = false;
 static Color c1, c2;
 static uint8 window = 0;
+#else
+static Scene actualScene;
 #endif
-static Vector3 getPos(const Vector3 pos, const qeAlignMode align) {
-	Vector3 v = pos;
-	float w = qgGetWidth() / 2.0f, h = qgGetHeight() / 2.0f;
+static Vector2 getPos(const Vector2 pos, const qeAlignMode align) {
+	Vector2 v = pos;
+	const float w = qgGetWidth() / 2.0f, h = qgGetHeight() / 2.0f;
 	switch (align) {
 		case Top_Left: v.y += h; v.x -= w; return v;
 		case Top: v.y += h; return v;
@@ -113,17 +122,14 @@ static Vector3 getPos(const Vector3 pos, const qeAlignMode align) {
 	}
 	return v;
 }
-static state mob(const Vector3 pos, const Vector2 size, const qeAlignMode align) {
-	Vector2 m = getCursorPosition();
-	Vector3 p = getPos(pos, align);
-	float a = p.x - size.x / 2.0f, b = p.x + size.x / 2.0f, c = p.y - size.y / 2.0f, d = p.y + size.y / 2.0f;
+static state mob(const Vector2 pos, const Vector2 size, const qeAlignMode align) {
+	const Vector2 m = getCursorPosition(), p = getPos(pos, align);
+	const float a = p.x - size.x / 2.0f, b = p.x + size.x / 2.0f, c = p.y - size.y / 2.0f, d = p.y + size.y / 2.0f;
 	return a <= m.x && m.x <= b && c <= m.y && m.y <= d;
 }
-
 static void qeInit() {
 	print("Application was made in QEngine v%i.%i.%i\n", QENGINE_VERSION_MAJOR, QENGINE_VERSION_MINOR, QENGINE_VERSION_PATCH);
 #if IS_EDITOR
-	setDrawingMode(UI);
 	c1 = isLight ? Clr(100) : Clr(60);
 	c2 = isLight ? Clr(120) : Clr(80);
 	qgSetBackground(0.1f, 0.1f, 0.1f);
@@ -139,9 +145,9 @@ static Vector2 prevMP = V2_Zero, deltaMP = V2_Zero;
 static Vector2 viewPos = V2_Zero;
 static const Vector2 blockSize = V2(200, 50);
 static void drawCodeBlock(const char* title, const Vector2 position, const Color color) {
-	Vector3 pos = Vector3_Add(V3(-position.x, position.y), V3(viewPos.x, viewPos.y));
-	drawRect(pos, V3_Zero, blockSize, Bottom_Right, color);
-	drawText(title, Vector3_Sub(pos, V3(blockSize.x / 2.0f - 5, -blockSize.y / 2.0f + 5)), V3_Zero, 1.6f, Bottom_Right, Color_White);
+	const Vector2 pos = Vector2_Add(V2(-position.x, position.y), V2(viewPos.x, viewPos.y));
+	drawRect(pos, blockSize, Bottom_Right, color);
+	drawText(title, Vector2_Sub(pos, V2(blockSize.x / 2.0f - 5, -blockSize.y / 2.0f + 5)), 16, Bottom_Right, Color_White);
 }
 static float connectF(const float x, const float p) {
 	if (x <= 0.0f) return 0.0f;
@@ -158,8 +164,8 @@ static void drawCodeConnect(Vector2 p1, Vector2 p2, const Color c1, const Color 
 	if (steps < 2) return;
 	float dy = qAbs(p1.y - p2.y);
 	if (dy > 300.0f) dy = 300.0f;
-	float centerDensity = qMap(dy, 0, 300, 1, 0.6f);
-	Vector3 vc1 = V3(c1.r, c1.g, c1.b), vc2 = V3(c2.r, c2.g, c2.b);
+	const float centerDensity = qMap(dy, 0, 300, 1, 0.6f);
+	const Vector3 vc1 = V3(c1.r, c1.g, c1.b), vc2 = V3(c2.r, c2.g, c2.b);
 	for (uint8 i = 0; i <= steps; i++) {
 		const float t = (float)i / (float)steps;
 		float t_stepped;
@@ -168,7 +174,7 @@ static void drawCodeConnect(Vector2 p1, Vector2 p2, const Color c1, const Color 
 		px = p1.x + (p2.x - p1.x) * t_stepped,
 		py = p1.y + (p2.y - p1.y) * smoothY;
 		const Vector3 c = qLerp(vc2, vc1, (float)(steps - i) / (float)steps);
-		drawRect(V3(-px, py), V3_Zero, V2(5, 5), Bottom_Right, Clr((byte)c.x, (byte)c.y, (byte)c.z));
+		drawRect(V2(-px, py), V2(5, 5), Bottom_Right, Clr((byte)c.x, (byte)c.y, (byte)c.z));
 	}
 }
 #endif
@@ -187,15 +193,15 @@ static void qeUpdate() {
 			inputLen++;
 		}
 	}
-	Vector2 mp = getCursorPosition();
+	const Vector2 mp = getCursorPosition();
 	deltaMP = Vector2_Sub(mp, prevMP);
 	prevMP = mp;
 // = = = = = EDITOR = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 #if IS_EDITOR
-	uint w = getWidth(), h = getHeight();
+	const uint w = getWidth(), h = getHeight();
 	// Main
 	// blocks (test)
-	static const Vector2 p1 = V2(800, 600), p2 = V2(400, 500);
+	const Vector2 p1 = V2(800, 600), p2 = V2(400, 500);
 
 	drawCodeConnect(p1, p2, Clr(160, 20, 20), Clr(20, 160, 20));
 	drawCodeBlock("Test block #1", p1, Clr(160, 20, 20));
@@ -205,18 +211,17 @@ static void qeUpdate() {
 	drawCodeBlock("Test block #2", p2, Clr(20, 160, 20));
 
 	// Up bar
-	drawRect(V3(0, -15), V3_Zero, V2(w, 30), Top, c2);
+	drawRect(V2(0, -15), V2(w, 30), Top, c2);
 	// Buttons
-	for (int i = 0; i < 5; i++) {
-		if (drawButton(V3(102 + 204 * i, -15), V3_Zero, V2(200, 26), Top_Left, window == i ? Clr(50) : c1, Clr(40), Clr(30))) window = i;
-		drawText("test.qeb", V3(5 + 204 * i, -5), V3_Zero, 1.5f, Top_Left, Color_White);
+	for (uint8 i = 0; i < 5; i++) {
+		if (drawButton(V2(102 + 204 * i, -15), V2(200, 26), Top_Left, window == i ? Clr(50) : c1, Clr(40), Clr(30))) window = i;
+		drawText("test.qeb", V2(5 + 204 * i, -5), 15, Top_Left, Color_White);
 	}
 	// Left panel
-	drawRect(V3(150, -15), V3_Zero, V2(300, h - 30), Left, c1);
+	drawRect(V2(150, -15), V2(300, h - 30), Left, c1);
 #else
 	if (actualScene.update) actualScene.update();
 #endif
-	qgLogVertices();
 }
 int initEngineProject(Scene scene) {
 	if (!qsInit()) return 1;
@@ -224,8 +229,10 @@ int initEngineProject(Scene scene) {
 	char title[MAX_NAME_LENGTH];
 #if IS_EDITOR
 	snprintf(title, sizeof(title), "QEngine %i.%i.%i Block Code Editor | %s %s", QENGINE_VERSION_MAJOR, QENGINE_VERSION_MINOR, QENGINE_VERSION_PATCH, QEP_NAME, QEP_VERSION);
+	(void)scene;
 #else
 	snprintf(title, sizeof(title), "%s %s", QEP_NAME, QEP_VERSION);
+	actualScene = scene;
 #endif
 	qgpuCreate(QEP_START_WIDTH, QEP_START_HEIGHT, title, qeInit, qeUpdate);
 	qsClose();
@@ -233,12 +240,6 @@ int initEngineProject(Scene scene) {
 }
 // = = = = = CAMERA = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 static Camera _camera;
-void setDrawingMode(const qeDrawingMode mode) {
-	switch (mode) {
-		case World: qgSetRenderType(QGPU_RENDER_TYPE_LIGHT); break;
-		case UI: qgSetRenderType(QGPU_RENDER_TYPE_NO_LIGHT); break;
-	}
-}
 uint getWidth() { return qgGetWidth(); }
 uint getHeight() { return qgGetHeight(); }
 Camera getCamera() { return _camera; }
@@ -247,7 +248,7 @@ void setCameraPos(const Vector3 position) { _camera.position = position; }
 void setCameraRot(const Vector3 rotation) { _camera.position = rotation; }
 void setCameraScale(const Vector3 scale) { _camera.position = scale; }
 // = = = = = GRAPHIC = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-void addLight(const Vector3 position, const float range, const float intense) { qgAddLight(position.x, position.y, position.z, range, intense); }
+void addLight(const Vector3 position, const float range, const float power) { qgAddLight(*(QV3*)&position, range, power); }
 
 static float byteTo01(const byte v) { return v / 255.0f; }
 static void setRot(const Vector3 position, const Vector3 rotation) {
@@ -256,52 +257,52 @@ static void setRot(const Vector3 position, const Vector3 rotation) {
 }
 
 void drawTriangle(const Vector3 posA, const Vector3 posB, const Vector3 posC, const Color color) {
-	qgAddTriangle(posA.x, posA.y, posA.z, posB.x, posB.y, posB.z, posC.x, posC.y, posC.z, byteTo01(color.r), byteTo01(color.g), byteTo01(color.b), byteTo01(color.a));
+	qgAddTriangle(*(QV3*)&posA, *(QV3*)&posB, *(QV3*)&posC, byteTo01(color.r), byteTo01(color.g), byteTo01(color.b), byteTo01(color.a)); }
+void drawRect(const Vector2 position, const Vector2 size, const qeAlignMode align, const Color color) {
+	const Vector2 p = getPos(position, align);
+	qgAddRect(*(QV2*)&p, *(QV2*)&size, byteTo01(color.r), byteTo01(color.g), byteTo01(color.b), byteTo01(color.a));
 }
-void drawRect(const Vector3 position, const Vector3 rotation, const Vector2 size, const qeAlignMode align, const Color color) {
-	setRot(position, rotation);
-	Vector3 p = getPos(position, align);
-	qgAddRect(p.x, p.y, p.z, size.x, size.y, byteTo01(color.r), byteTo01(color.g), byteTo01(color.b), byteTo01(color.a));
+void drawCircle(const Vector2 position, const uint segments, const float radius, const qeAlignMode align, const Color color) {
+	const Vector2 p = getPos(position, align);
+	qgAddCircle(*(QV2*)&p, segments, radius, byteTo01(color.r), byteTo01(color.g), byteTo01(color.b), byteTo01(color.a));
 }
-void drawCircle(const Vector3 position, const Vector3 rotation, const uint segments, const float radius, const qeAlignMode align, const Color color) {
-	setRot(position, rotation);
-	Vector3 p = getPos(position, align);
-	qgAddCircle(p.x, p.y, p.z, segments, radius, byteTo01(color.r), byteTo01(color.g), byteTo01(color.b), byteTo01(color.a));
-}
-void drawText(const char* text, const Vector3 position, const Vector3 rotation, const float fontSize, const qeAlignMode align, const Color color) {
-	setRot(position, rotation);
-	Vector3 p = getPos(position, align);
+void drawText(const char* text, const Vector2 position, const float fontSize, const qeAlignMode align, const Color color) {
+	const Vector2 p = getPos(position, align);
 	qgSetFontData(fontSize, QGPU_FONT_STYLE_REGULAR, byteTo01(color.r), byteTo01(color.g), byteTo01(color.b), byteTo01(color.a));
-	qgAddText(p.x, p.y, p.z, text);
+	qgAddText(*(QV2*)&p, text);
 }
 
-state drawButton(const Vector3 position, const Vector3 rotation, const Vector2 size, const qeAlignMode align, const Color clrBase, const Color clrHover, const Color clrPress) {
-	setRot(position, rotation);
-	Vector3 p = getPos(position, align);
-	state hover = mob(position, size, align);
-	Color c = hover ? getMouseButton(LMB) ? clrPress : clrHover : clrBase;
-	qgAddRect(p.x, p.y, p.z, size.x, size.y, byteTo01(c.r), byteTo01(c.g), byteTo01(c.b), byteTo01(c.a));
+state drawButton(const Vector2 position, const Vector2 size, const qeAlignMode align, const Color clrBase, const Color clrHover, const Color clrPress) {
+	const Vector2 p = getPos(position, align);
+	const state hover = mob(position, size, align);
+	const Color c = hover ? getMouseButton(LMB) ? clrPress : clrHover : clrBase;
+	qgAddRect(*(QV2*)&p, *(QV2*)&size, byteTo01(c.r), byteTo01(c.g), byteTo01(c.b), byteTo01(c.a));
 	return hover && onMouseDown(LMB);
 }
 
 void drawBox(const Vector3 position, const Vector3 rotation, const Vector3 size, const Color color) {
 	setRot(position, rotation);
-	qgAddBox(position.x, position.y, position.z, size.x, size.y, size.z, byteTo01(color.r), byteTo01(color.g), byteTo01(color.b), byteTo01(color.a));
-}
-void drawSphere(const Vector3 position, const Vector3 rotation, const uint rings, const uint sectors, const float radius, const Color color) {
-	setRot(position, rotation);
-	qgAddSphere(position.x, position.y, position.z, radius, rings, sectors, byteTo01(color.r), byteTo01(color.g), byteTo01(color.b), byteTo01(color.a));
+	qgAddBox(*(QV3*)&position, *(QV3*)&size, byteTo01(color.r), byteTo01(color.g), byteTo01(color.b), byteTo01(color.a));
 }
 // = = = = = AUDIO = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 void convertAudio(const char* qsr_path, const char* qs_path) { qsConvert(qsr_path, qs_path); }
 uint loadAudio(const char* path) { return qsOpen(path); }
 void playAudio(const uint audioID, const uint8 volume, const float speed) { qsPlay(audioID, volume, speed); }
 // = = = = = INPUT = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-void clearInput() { qinput[0] = '\0'; inputLen = 0; }
+void clearInput() {
+	qinput[0] = '\0';
+	inputLen = 0;
+}
 void enableInput() { inputOn = true; }
 void disableInput() { inputOn = false; }
 state getInputState() { return inputOn; }
-void setMaxInput(uint max) { if (max > MAX_INPUT) { userMax = MAX_INPUT; return; } userMax = max; }
+void setMaxInput(uint max) {
+	if (max > MAX_INPUT) {
+		userMax = MAX_INPUT;
+		return;
+	}
+	userMax = max;
+}
 void getInput(char* buffor, const uint length) { qCopy(buffor, length, qinput); }
 state getKeyState(const uint keyCode) {
 	if (keyCode == KEY_CAPSLOCK) return isCaps;
@@ -319,7 +320,7 @@ char getPressedKey() {
 	if (onKeyDown(KEY_SPACE)) return ' ';
 	if (onKeyDown(KEY_BACKSPACE)) return '\b';
 	if (onKeyDown(KEY_ENTER)) return '\n';
-	state caps = getKeyState(KEY_CAPSLOCK) != 0,
+	const state caps = getKeyState(KEY_CAPSLOCK) != 0,
 	shift = getKeyState(KEY_LSHIFT) != 0,
 	isUpper = caps ^ shift;
 	for (uint key = KEY_A; key <= KEY_Z; key++) if (onKeyDown(key)) return isUpper ? key : (key + 32);

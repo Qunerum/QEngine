@@ -1,5 +1,5 @@
 // #define QEngine_Audio
-#define QEngine_Input
+// #define QEngine_Input
 // #define QEngine_Math
 // #define QEngine_Memory
 // #define QEngine_IO
@@ -8,21 +8,10 @@
 
 void init() { }
 void update() {
-	Vector3 lp = V3(75, 20, 75);
-	addLight(lp, 200, 1);
-	drawSphere(lp, V3_Zero, 5, 5, 10, Color_Yellow);
-
-	lp = V3(-75, -20, 75);
-	addLight(lp, 300, 1);
-	drawSphere(lp, V3_Zero, 5, 5, 10, Color_Yellow);
-
-	static Vector3 rot = V3_Zero;
-	const float spd = 0.8f;
-	rot.x += spd;
-	rot.y += spd;
-	rot.z += spd;
-	// drawBox(V3_Zero, rot, V3(100, 100, 100), Color_White);
-	drawSphere(V3_Zero, rot, 32, 32, 75, Color_White);
+	addLight(V3(2, 1, 2), 50, 1);
+	static float r = 0;
+	r += 0.5f;
+	drawBox(V3_Zero, V3(30, r, 0), V3(1, 0.5f, 1), Color_Gray);
 }
-Scene mainScene = {init, update};
+const Scene mainScene = {init, update};
 int main() { return initEngineProject(mainScene); }

@@ -1,31 +1,31 @@
 #ifndef QGPU_H
 #define QGPU_H
 #include <stdint.h>
-
 // !===== CONFIGURATION ==================================================================================================================================================!
-#define MAX_VERTICES 65536 // (2^16) Max vertices in one frame
-#define MAX_LIGHTS   1024  // (2^10) Max lights in one frame
-#define VSYNC 1
-#define MAX_SPHERE_RINGS 32
-#define MAX_SPHERE_SECTORS 32
+#define MAX_VERTICES     65536 // (2^16) Max vertices in one frame
+#define MAX_LIGHTS       1024  // (2^10) Max lights in one frame
+#define MAX_UI_VERTICES  8192  // Max 2D/UI vertices in one frame
+#define VSYNC            1
+#define SHADOW_MAP_SIZE  4096  // resolution of the (single) shadow depth map
 // !===== Structs ========================================================================================================================================================!
-typedef struct { float pos[3]; float color[4]; } QGPU_Vertex;
 typedef unsigned int uint;
+typedef struct { float x, y; } Vector2;
+typedef struct { float x, y, z; } Vector3;
 // !===== Console ========================================================================================================================================================!
 #define QGPU_SHOW_BANNER          0
 #define QGPU_SHOW_MADE_WITH_QGPU  1
 #define QGPU_SHOW_INFO            2
 #define QGPU_SHOW_COLORS          3
 #define QGPU_SHOW_LOGS            4
-void qgSetColor(const int color);
+void qgSetColor(const uint8_t color);
 void qgRestoreColor();
-void qgSetStyle(const int style);
+void qgSetStyle(const uint8_t style);
 void qgPrint(const char* format, ...);
 void qgLog(const char* format, ...);
 void qgLogVertices();
 void qgWarn(const char* format, ...);
 void qgError(const char* format, ...);
-void qgSetShow(const int shower, const int state);
+void qgSetShow(const uint8_t shower, const uint8_t state);
 // !===== QGPU ===========================================================================================================================================================!
 #define QGPU_SETTINGS_AMBIENT_OCCLUSION 0
 #define QGPU_SETTINGS_MSAA_LEVEL        1
@@ -37,26 +37,16 @@ void qgpuCreate(const uint width, const uint height, const char* title, void (*i
 float qgGetFPS();
 // !===== Drawing ========================================================================================================================================================!
 void qgSetBackground(const float r, const float g, const float b);
-// !===== Rotation
-void qgSetRotationPivot(const float x, const float y, const float z);
-void qgSetRotation(const float rx, const float ry, const float rz);
-void qgResetRotation();
-// !===== Vertices & Indices
-#define QGPU_RENDER_TYPE_NO_LIGHT 0
-#define QGPU_RENDER_TYPE_LIGHT 1
-void qgSetRenderType(const int type);
-uint32_t qgAddVertex(float x, float y, float z, const float r, const float g, const float b, const float a);
-void qgAddIndex(const uint32_t index);
-void qgAddGeometry(const QGPU_Vertex* verts, const uint32_t vCount, const uint32_t* indices, const uint32_t iCount);
-// !===== Lights
-void qgAddLight(const float x, const float y, const float z, const float range, const float intense);
-// !===== Ready 2D
-void qgAddTriangle(const float p1x, const float p1y, const float p1z, const float p2x, const float p2y, const float p2z, const float p3x, const float p3y, const float p3z, const float r, const float g, const float b, const float a);
-void qgAddRect(const float px, const float py, const float pz, const float sx, const float sy, const float r, const float g, const float b, const float a);
-void qgAddCircle(const float px, const float py, const float pz, const uint segments, const float radius, const float r, const float g, const float b, const float a);
-// !===== Ready 3D
-void qgAddBox(const float px, const float py, const float pz, const float sx, const float sy, const float sz, const float r, const float g, const float b, const float a);
-void qgAddSphere(const float px, const float py, const float pz, const float radius, const uint rings, const uint sectors, const float r, const float g, const float b, const float a);
+void qgAddTriangle(const Vector3 p1, const Vector3 p2, const Vector3 p3, const float r, const float g, const float b, const float a);
+void qgAddTriangle2D(const Vector2 p1, const Vector2 p2, const Vector2 p3, const float r, const float g, const float b, const float a);
+void qgSetLayerUI(const uint layer);
+#ifdef QGPU_SHAPES
+void qgAddRect(const Vector2 position, const Vector2 size, const float r, const float g, const float b, const float a);
+void qgAddCircle(const Vector2 position, const float radius, const uint segments, const float r, const float g, const float b, const float a);
+
+void qgAddPlane(const Vector3 position, const Vector2 size, const float r, const float g, const float b, const float a);
+void qgAddBox(const Vector3 position, const Vector3 size, const float r, const float g, const float b, const float a);
+#endif
 // !===== Text ===========================================================================================================================================================!
 #define QGPU_FONT_STYLE_REGULAR 0
 #define QGPU_FONT_STYLE_BOLD 1
@@ -65,8 +55,19 @@ void qgAddSphere(const float px, const float py, const float pz, const float rad
 void qgConvertFont(const char* pathQFR, const char* pathQF);
 void qgLoadFont(const char* path);
 void qgSetFontData(const float fontSize, const int style, const float r, const float g, const float b, const float a);
-void qgAddChar(const float px, const float py, const float pz, const uint16_t c);
-void qgAddText(const float px, const float py, const float pz, const char* text);
+void qgAddChar(const Vector2 pos, const uint16_t c);
+void qgAddText(const Vector2 pos, const char* text);
+// !===== Camera =========================================================================================================================================================!
+void qgSetCamera(const Vector3 position, const Vector3 target, const float fovDegrees);
+void qgSetCameraUp(const Vector3 up);
+void qgSetCameraClip(const float nearZ, const float farZ);
+Vector3 qgGetCameraPosition();
+
+void qgSetRotationPivot(const float x, const float y, const float z);
+void qgSetRotation(const float rx, const float ry, const float rz); // degrees
+void qgResetRotation();
+// !===== Lights =========================================================================================================================================================!
+void qgAddLight(const Vector3 position, const float range, const float power);
 // !===== Input ==========================================================================================================================================================!
 uint8_t qgGetKey(const uint key);
 uint8_t qgOnKey(const uint key);
@@ -117,7 +118,6 @@ uint qgGetHeight();
 #define QKEY_UP         265
 
 #ifdef QGPU_COLORS
-
 void qgPrintc(int color, const char* format, ...);
 // !===== QPrint ==================================================!
 // ANSI escape code using 8-bit color
@@ -153,6 +153,6 @@ void qgPrintc(int color, const char* format, ...);
 #define DARK_BLUE     19
 #define DARK_MAGENTA  128
 #define DARK_CYAN     68
-
 #endif
+
 #endif

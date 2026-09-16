@@ -1,6 +1,7 @@
 #ifndef QENGINE_MAIN_H
 #define QENGINE_MAIN_H
 
+#include <stdint.h>
 #include <stddef.h>
 #include "../Data/PROJECT.h"
 
@@ -11,18 +12,14 @@
 typedef enum { World, UI } qeDrawingMode;
 typedef enum { Top_Left, Top, Top_Right, Left, Center, Right, Bottom_Left, Bottom, Bottom_Right } qeAlignMode;
 // = = = = = TYPES = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-typedef long int64;
-typedef unsigned long uint64;
-#define UINT64_MAX 0xFFFFFFFFFFFFFFFF
-typedef int int32;
-typedef unsigned int uint32;
-#define UINT32_MAX 0xFFFFFFFF
-typedef short int16;
-typedef unsigned short uint16;
-#define UINT16_MAX 0xFFFF
-typedef char int8;
-typedef unsigned char uint8;
-#define UINT8_MAX 0xFF
+typedef int64_t int64;
+typedef uint64_t uint64;
+typedef int32_t int32;
+typedef uint32_t uint32;
+typedef int16_t int16;
+typedef uint16_t uint16;
+typedef int8_t int8;
+typedef uint8_t uint8;
 
 typedef uint32 uint;
 typedef uint8 byte;
@@ -190,8 +187,6 @@ state formatText(char* to, const uint length, const char* format, ...);
 
 int initEngineProject(Scene mainScene);
 
-void setDrawingMode(const qeDrawingMode mode);
-
 uint getWidth();
 uint getHeight();
 
@@ -204,14 +199,13 @@ void setCameraScale(const Vector3 scale);
 void addLight(const Vector3 position, const float range, const float intense);
 
 void drawTriangle(const Vector3 posA, const Vector3 posB, const Vector3 posC, const Color color);
-void drawRect(const Vector3 position, const Vector3 rotation, const Vector2 size, const qeAlignMode align, const Color color);
-void drawCircle(const Vector3 position, const Vector3 rotation, const uint segments, const float radius, const qeAlignMode align, const Color color);
-void drawText(const char* text, const Vector3 position, const Vector3 rotation, const float fontSize, const qeAlignMode align, const Color color);
+void drawRect(const Vector2 position, const Vector2 size, const qeAlignMode align, const Color color);
+void drawCircle(const Vector2 position, const uint segments, const float radius, const qeAlignMode align, const Color color);
+void drawText(const char* text, const Vector2 position, const float fontSize, const qeAlignMode align, const Color color);
 
-state drawButton(const Vector3 position, const Vector3 rotation, const Vector2 size, const qeAlignMode align, const Color clrBase, const Color clrHover, const Color clrPress);
+state drawButton(const Vector2 position, const Vector2 size, const qeAlignMode align, const Color clrBase, const Color clrHover, const Color clrPress);
 
 void drawBox(const Vector3 position, const Vector3 rotation, const Vector3 size, const Color color);
-void drawSphere(const Vector3 position, const Vector3 rotation, const uint rings, const uint sectors, const float radius, const Color color);
 
 #ifdef QEngine_Audio
 void convertAudio(const char* qsr_path, const char* qs_path);
