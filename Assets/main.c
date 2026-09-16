@@ -6,10 +6,8 @@
 // #define QEngine_Text
 #include "../Libs/QEngine.h"
 
-void init() {
-}
+void init() { }
 void update() {
-
 	Vector3 lp = V3(75, 20, 75);
 	addLight(lp, 200, 1);
 	drawSphere(lp, V3_Zero, 5, 5, 10, Color_Yellow);
@@ -26,5 +24,5 @@ void update() {
 	// drawBox(V3_Zero, rot, V3(100, 100, 100), Color_White);
 	drawSphere(V3_Zero, rot, 32, 32, 75, Color_White);
 }
-
-int main() { return initEngineProject(init, update); }
+Scene mainScene = {init, update};
+int main() { return initEngineProject(mainScene); }

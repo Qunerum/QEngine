@@ -90,7 +90,7 @@ state formatText(char* to, const uint length, const char* format, ...) {
 	va_end(args);
 	return written;
 }
-static void (*userInit)() = NULL, (*userUpdate)() = NULL;
+static Scene actualScene;
 
 #if IS_EDITOR
 static state isLight = false;
@@ -128,7 +128,7 @@ static void qeInit() {
 	c2 = isLight ? Clr(120) : Clr(80);
 	qgSetBackground(0.1f, 0.1f, 0.1f);
 #else
-	if (userInit) userInit();
+	if (actualScene.init) actualScene.init();
 #endif
 }
 static state isCaps = false, inputOn = false;
@@ -214,20 +214,19 @@ static void qeUpdate() {
 	// Left panel
 	drawRect(V3(150, -15), V3_Zero, V2(300, h - 30), Left, c1);
 #else
-	if (userUpdate) userUpdate();
+	if (actualScene.update) actualScene.update();
 #endif
 	qgLogVertices();
 }
-int initEngineProject(void (*initFunc)(), void (*updateFunc)()) {
+int initEngineProject(Scene scene) {
 	if (!qsInit()) return 1;
 	qgSetBackground(0, 0, 0);
 	char title[MAX_NAME_LENGTH];
-	if (IS_EDITOR) snprintf(title, sizeof(title), "QEngine %i.%i.%i Block Code Editor | %s %s", QENGINE_VERSION_MAJOR, QENGINE_VERSION_MINOR, QENGINE_VERSION_PATCH, QEP_NAME, QEP_VERSION);
-	else snprintf(title, sizeof(title), "%s %s", QEP_NAME, QEP_VERSION);
-	if (!IS_EDITOR) {
-		userInit = initFunc;
-		userUpdate = updateFunc;
-	}
+#if IS_EDITOR
+	snprintf(title, sizeof(title), "QEngine %i.%i.%i Block Code Editor | %s %s", QENGINE_VERSION_MAJOR, QENGINE_VERSION_MINOR, QENGINE_VERSION_PATCH, QEP_NAME, QEP_VERSION);
+#else
+	snprintf(title, sizeof(title), "%s %s", QEP_NAME, QEP_VERSION);
+#endif
 	qgpuCreate(QEP_START_WIDTH, QEP_START_HEIGHT, title, qeInit, qeUpdate);
 	qsClose();
 	return 0;

@@ -1,17 +1,19 @@
-#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdarg.h>
+
 #include <vulkan/vulkan_core.h>
+
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
+
 #define QGPU_COLORS
 #include "qgpu.h"
 
 #define QGPU_VERSION_MAJOR 1
 #define QGPU_VERSION_MINOR 2
-#define QGPU_VERSION_PATCH 7
+#define QGPU_VERSION_PATCH 10
 
 // ========================================================================================================================================================================
 // ===== QGPU =============================================================================================================================================================
@@ -48,11 +50,18 @@ typedef struct {
 	float pivotX, pivotY, pivotZ, rotX, rotY, rotZ;
 	int hasRotation;
 } InternalContext;
+typedef struct {
+	uint8_t ambientOcclusion, msaaLevel, shadows;
+} GraphicsSettings;
 static InternalContext g_ctx;
+static GraphicsSettings g_settings = { .ambientOcclusion = 1, .msaaLevel = 4, .shadows = 1 };
 static double lastTime = 0;
 static float backgroundR, backgroundG, backgroundB, lights[MAX_LIGHTS * 5], currentFPS;
-static int lightCount, frameCount;
+static uint lightCount, frameCount;
 static uint32_t* sphereVertexIndices;
+static VkImage colorImageMSAA;
+static VkDeviceMemory colorImageMSAAMemory;
+static VkImageView colorImageViewMSAA;
 #define qFontX 8
 #define qFontY 11
 #define qFontMax 6
@@ -61,7 +70,7 @@ static qgChar newChars[65536] = {0};
 // ========================================================================================================================================================================
 // ===== TOOLS ============================================================================================================================================================
 // ========================================================================================================================================================================
-static int len(const char* t) { int x = 0; while (t[x] != '\0') x++; return x; }
+static uint len(const char* t) { int x = 0; while (t[x] != '\0') x++; return x; }
 static float PI = 3.14159265358979323846f;
 static int qclamp(const int v, const int min, const int max) { return v < min ? min : v > max ? max : v; }
 static float qclampf(const float v, const float min, const float max) { return v < min ? min : v > max ? max : v; }
@@ -82,7 +91,6 @@ static unsigned long long factorial(const int n) {
 	for (int i = 1; i <= n; i++) result *= i;
 	return result;
 }
-float toRad(const float degrees) { return degrees * (PI / 180.0f); }
 static float qSin(const float rad) {
 	float sum = 0.0f;
 	for (int i = 0; i < 10; i++) {
@@ -109,16 +117,23 @@ static void transformPoint(float* x, float* y, float* z) {
 	*z = z3 + g_ctx.pivotZ;
 }
 static float getLight(const float x, const float y, const float z) {
-	float totalLight = 0.1f;
-	for (int i = 0; i < lightCount; i++) {
+	float totalLight = g_settings.ambientOcclusion ? 0.05f : 0.2f;
+	for (uint i = 0; i < lightCount; i++) {
 		float lx = lights[i*5], ly = lights[i*5+1], lz = lights[i*5+2], rng = lights[i*5+3], pow = lights[i*5+4];
 		if (rng == 0 || pow == 0) continue;
 		float dis = qsqrt(qpow(lx - x, 2) + qpow(ly - y, 2) + qpow(lz - z, 2));
 		if (dis > rng) continue;
 		float attenuation = 1.0f - (dis / rng);
+		if (g_settings.shadows) {
+			float shadowFactor = 1.0f - (dis / rng) * 0.3f;
+			if (shadowFactor < 0.0f) shadowFactor = 0.0f;
+			attenuation *= shadowFactor;
+		}
+
 		totalLight += pow * attenuation;
 	}
-	return totalLight;
+
+	return qclampf(totalLight, 0.0f, 2.0f);
 }
 // ========================================================================================================================================================================
 // ===== VISUAL ===========================================================================================================================================================
@@ -229,47 +244,8 @@ static uint32_t findMemoryType(const uint32_t typeFilter, const VkMemoryProperty
 		if ((typeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties) return i;
 	return 0;
 }
-void createDepthResources(const unsigned int width, const unsigned int height) {
-	VkImageCreateInfo imageInfo = {
-		.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-		.imageType = VK_IMAGE_TYPE_2D,
-		.extent.width = width,
-		.extent.height = height,
-		.extent.depth = 1,
-		.mipLevels = 1,
-		.arrayLayers = 1,
-		.format = VK_FORMAT_D32_SFLOAT,
-		.tiling = VK_IMAGE_TILING_OPTIMAL,
-		.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-		.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-		.samples = VK_SAMPLE_COUNT_1_BIT,
-		.sharingMode = VK_SHARING_MODE_EXCLUSIVE
-	};
-	if (vkCreateImage(g_ctx.device, &imageInfo, NULL, &g_ctx.depthImage) != VK_SUCCESS) { }
-	VkMemoryRequirements memRequirements;
-	vkGetImageMemoryRequirements(g_ctx.device, g_ctx.depthImage, &memRequirements);
-	VkMemoryAllocateInfo allocInfo = {
-		.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-		.allocationSize = memRequirements.size,
-		.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
-	};
-	if (vkAllocateMemory(g_ctx.device, &allocInfo, NULL, &g_ctx.depthImageMemory) != VK_SUCCESS) { }
-	vkBindImageMemory(g_ctx.device, g_ctx.depthImage, g_ctx.depthImageMemory, 0);
-	VkImageViewCreateInfo viewInfo = {
-		.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-		.image = g_ctx.depthImage,
-		.viewType = VK_IMAGE_VIEW_TYPE_2D,
-		.format = VK_FORMAT_D32_SFLOAT,
-		.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT,
-		.subresourceRange.baseMipLevel = 0,
-		.subresourceRange.levelCount = 1,
-		.subresourceRange.baseArrayLayer = 0,
-		.subresourceRange.layerCount = 1
-	};
-	if (vkCreateImageView(g_ctx.device, &viewInfo, NULL, &g_ctx.depthImageView) != VK_SUCCESS) { }
-}
 static void createBuffer(const VkDeviceSize size, const VkBufferUsageFlags usage, const VkMemoryPropertyFlags properties, VkBuffer* buffer, VkDeviceMemory* bufferMemory) {
-	VkBufferCreateInfo bufferInfo = {
+	const VkBufferCreateInfo bufferInfo = {
 		.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
 		.size = size,
 		.usage = usage,
@@ -278,7 +254,7 @@ static void createBuffer(const VkDeviceSize size, const VkBufferUsageFlags usage
 	vkCreateBuffer(g_ctx.device, &bufferInfo, NULL, buffer);
 	VkMemoryRequirements memReqs;
 	vkGetBufferMemoryRequirements(g_ctx.device, *buffer, &memReqs);
-	VkMemoryAllocateInfo allocInfo = {
+	const VkMemoryAllocateInfo allocInfo = {
 		.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
 		.allocationSize = memReqs.size,
 		.memoryTypeIndex = findMemoryType(memReqs.memoryTypeBits, properties)
@@ -295,62 +271,103 @@ void render() {
 		vkCmdDrawIndexed(g_ctx.currentCmd, g_ctx.currentIOffset, 1, 0, 0, 0);
 	}
 }
-// ========================================================================================================================================================================
-// ===== INIT =============================================================================================================================================================
-// ========================================================================================================================================================================
-static int inInit = 0;
-void qgpuCreate(const unsigned int width, const unsigned int height, const char* title, void (*initFunc)(), void (*updateFunc)()) {
-	if (!glfwInit()) return;
-	sphereVertexIndices = malloc(sizeof(uint32_t) * (MAX_SPHERE_RINGS + 1) * (MAX_SPHERE_SECTORS + 1));
-	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-	g_ctx.window = glfwCreateWindow(width, height, title, NULL, NULL);
-	glfwSwapInterval(0);
-	uint32_t glfwExtensionCount = 0;
-	const char** glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
-	VkInstanceCreateInfo instanceInfo = { .
-		sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
-		.enabledExtensionCount = glfwExtensionCount,
-		.ppEnabledExtensionNames = glfwExtensions
+static void createMSAAColorAndDepthResources(const uint width, const uint height, VkSampleCountFlagBits msaaSamples) {
+	if (msaaSamples == 0) msaaSamples = VK_SAMPLE_COUNT_1_BIT;
+	const VkImageCreateInfo colorImageInfo = {
+		.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+		.imageType = VK_IMAGE_TYPE_2D,
+		.extent.width = width,
+		.extent.height = height,
+		.extent.depth = 1,
+		.mipLevels = 1,
+		.arrayLayers = 1,
+		.format = VK_FORMAT_B8G8R8A8_UNORM,
+		.tiling = VK_IMAGE_TILING_OPTIMAL,
+		.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+		.usage = VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+		.samples = msaaSamples,
+		.sharingMode = VK_SHARING_MODE_EXCLUSIVE
 	};
-	vkCreateInstance(&instanceInfo, NULL, &g_ctx.instance);
-	glfwCreateWindowSurface(g_ctx.instance, g_ctx.window, NULL, &g_ctx.surface);
-	uint32_t deviceCount = 0;
-	vkEnumeratePhysicalDevices(g_ctx.instance, &deviceCount, NULL);
-	VkPhysicalDevice* devices = malloc(sizeof(VkPhysicalDevice) * deviceCount);
-	vkEnumeratePhysicalDevices(g_ctx.instance, &deviceCount, devices); g_ctx.physicalDevice = devices[0];
-	free(devices);
-	float queuePriority = 1.0f;
-	uint32_t queueFamilyCount = 0;
-	vkGetPhysicalDeviceQueueFamilyProperties(g_ctx.physicalDevice, &queueFamilyCount, NULL);
-	VkQueueFamilyProperties* queueFamilies = malloc(sizeof(VkQueueFamilyProperties) * queueFamilyCount);
-	vkGetPhysicalDeviceQueueFamilyProperties(g_ctx.physicalDevice, &queueFamilyCount, queueFamilies);
-	uint32_t graphicsQueueFamilyIndex = UINT32_MAX;
-	for (uint32_t i = 0; i < queueFamilyCount; i++) {
-		if (queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
-			graphicsQueueFamilyIndex = i;
-			break;
-		}
+	vkCreateImage(g_ctx.device, &colorImageInfo, NULL, &colorImageMSAA);
+	VkMemoryRequirements colorMemReqs;
+	vkGetImageMemoryRequirements(g_ctx.device, colorImageMSAA, &colorMemReqs);
+	const VkMemoryAllocateInfo colorAllocInfo = {
+		.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+		.allocationSize = colorMemReqs.size,
+		.memoryTypeIndex = findMemoryType(colorMemReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
+	};
+	vkAllocateMemory(g_ctx.device, &colorAllocInfo, NULL, &colorImageMSAAMemory);
+	vkBindImageMemory(g_ctx.device, colorImageMSAA, colorImageMSAAMemory, 0);
+	const VkImageViewCreateInfo colorViewInfo = {
+		.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+		.image = colorImageMSAA,
+		.viewType = VK_IMAGE_VIEW_TYPE_2D,
+		.format = VK_FORMAT_B8G8R8A8_UNORM,
+		.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 }
+	};
+	vkCreateImageView(g_ctx.device, &colorViewInfo, NULL, &colorImageViewMSAA);
+	const VkImageCreateInfo depthImageInfo = {
+		.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+		.imageType = VK_IMAGE_TYPE_2D,
+		.extent.width = width,
+		.extent.height = height,
+		.extent.depth = 1,
+		.mipLevels = 1,
+		.arrayLayers = 1,
+		.format = VK_FORMAT_D32_SFLOAT,
+		.tiling = VK_IMAGE_TILING_OPTIMAL,
+		.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+		.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+		.samples = msaaSamples,
+		.sharingMode = VK_SHARING_MODE_EXCLUSIVE
+	};
+	vkCreateImage(g_ctx.device, &depthImageInfo, NULL, &g_ctx.depthImage);
+	VkMemoryRequirements depthMemReqs;
+	vkGetImageMemoryRequirements(g_ctx.device, g_ctx.depthImage, &depthMemReqs);
+	const VkMemoryAllocateInfo depthAllocInfo = {
+		.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+		.allocationSize = depthMemReqs.size,
+		.memoryTypeIndex = findMemoryType(depthMemReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
+	};
+	vkAllocateMemory(g_ctx.device, &depthAllocInfo, NULL, &g_ctx.depthImageMemory);
+	vkBindImageMemory(g_ctx.device, g_ctx.depthImage, g_ctx.depthImageMemory, 0);
+	const VkImageViewCreateInfo depthViewInfo = {
+		.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+		.image = g_ctx.depthImage,
+		.viewType = VK_IMAGE_VIEW_TYPE_2D,
+		.format = VK_FORMAT_D32_SFLOAT,
+		.subresourceRange = { VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, 0, 1 }
+	};
+	vkCreateImageView(g_ctx.device, &depthViewInfo, NULL, &g_ctx.depthImageView);
+}
+static void cleanupMSAAAndDepthResources() {
+	vkDestroyImageView(g_ctx.device, colorImageViewMSAA, NULL);
+	vkDestroyImage(g_ctx.device, colorImageMSAA, NULL);
+	vkFreeMemory(g_ctx.device, colorImageMSAAMemory, NULL);
+	vkDestroyImageView(g_ctx.device, g_ctx.depthImageView, NULL);
+	vkDestroyImage(g_ctx.device, g_ctx.depthImage, NULL);
+	vkFreeMemory(g_ctx.device, g_ctx.depthImageMemory, NULL);
+}
+static void recreateSwapchain() {
+	int width = 0, height = 0;
+	glfwGetFramebufferSize(g_ctx.window, &width, &height);
+	while (width == 0 || height == 0) {
+		glfwGetFramebufferSize(g_ctx.window, &width, &height);
+		glfwWaitEvents();
 	}
-	free(queueFamilies);
-	VkDeviceQueueCreateInfo queueCreateInfo = {
-		.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-		.queueFamilyIndex = graphicsQueueFamilyIndex,
-		.queueCount = 1,
-		.pQueuePriorities = &queuePriority
-	};
-	const char* deviceExtensions[] = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
-	VkDeviceCreateInfo deviceCreateInfo = {
-		.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
-		.queueCreateInfoCount = 1,
-		.pQueueCreateInfos = &queueCreateInfo,
-		.enabledExtensionCount = 1,
-		.ppEnabledExtensionNames = deviceExtensions
-	};
-	vkCreateDevice(g_ctx.physicalDevice, &deviceCreateInfo, NULL, &g_ctx.device);
-	vkGetDeviceQueue(g_ctx.device, 0, 0, &g_ctx.graphicsQueue);
+	vkDeviceWaitIdle(g_ctx.device);
+	cleanupMSAAAndDepthResources();
+	for (uint32_t i = 0; i < g_ctx.imageCount; i++) {
+		vkDestroyFramebuffer(g_ctx.device, g_ctx.swapchainFramebuffers[i], NULL);
+		vkDestroyImageView(g_ctx.device, g_ctx.swapchainImageViews[i], NULL);
+	}
+	free(g_ctx.swapchainFramebuffers);
+	free(g_ctx.swapchainImageViews);
+	free(g_ctx.swapchainImages);
+	vkDestroySwapchainKHR(g_ctx.device, g_ctx.swapchain, NULL);
 	int fbW, fbH;
 	glfwGetFramebufferSize(g_ctx.window, &fbW, &fbH);
-	VkSwapchainCreateInfoKHR swapchainInfo = {
+	const VkSwapchainCreateInfoKHR swapchainInfo = {
 		.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
 		.surface = g_ctx.surface,
 		.minImageCount = 2,
@@ -369,7 +386,7 @@ void qgpuCreate(const unsigned int width, const unsigned int height, const char*
 	vkGetSwapchainImagesKHR(g_ctx.device, g_ctx.swapchain, &g_ctx.imageCount, g_ctx.swapchainImages);
 	g_ctx.swapchainImageViews = malloc(sizeof(VkImageView) * g_ctx.imageCount);
 	for (uint32_t i = 0; i < g_ctx.imageCount; i++) {
-		VkImageViewCreateInfo viewInfo = {
+		const VkImageViewCreateInfo viewInfo = {
 			.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
 			.image = g_ctx.swapchainImages[i],
 			.viewType = VK_IMAGE_VIEW_TYPE_2D,
@@ -378,24 +395,232 @@ void qgpuCreate(const unsigned int width, const unsigned int height, const char*
 		};
 		vkCreateImageView(g_ctx.device, &viewInfo, NULL, &g_ctx.swapchainImageViews[i]);
 	}
-	createDepthResources(fbW, fbH);
-	VkAttachmentDescription colorAttachment = {
+	createMSAAColorAndDepthResources(fbW, fbH, (VkSampleCountFlagBits)g_settings.msaaLevel);
+	g_ctx.swapchainFramebuffers = malloc(sizeof(VkFramebuffer) * g_ctx.imageCount);
+	for (uint32_t i = 0; i < g_ctx.imageCount; i++) {
+		const VkImageView attachments[3] = { colorImageViewMSAA, g_ctx.depthImageView, g_ctx.swapchainImageViews[i] };
+		const VkFramebufferCreateInfo fbInfo = {
+			.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
+			.renderPass = g_ctx.renderPass,
+			.attachmentCount = 3,
+			.pAttachments = attachments,
+			.width = (uint32_t)fbW,
+			.height = (uint32_t)fbH,
+			.layers = 1
+		};
+		vkCreateFramebuffer(g_ctx.device, &fbInfo, NULL, &g_ctx.swapchainFramebuffers[i]);
+	}
+}
+static void rebuildGraphicsPipeline() {
+	vkDeviceWaitIdle(g_ctx.device);
+	vkDestroyPipeline(g_ctx.device, g_ctx.graphicsPipeline, NULL);
+	vkDestroyPipelineLayout(g_ctx.device, g_ctx.pipelineLayout, NULL);
+	cleanupMSAAAndDepthResources();
+	for (uint32_t i = 0; i < g_ctx.imageCount; i++) {
+		vkDestroyFramebuffer(g_ctx.device, g_ctx.swapchainFramebuffers[i], NULL);
+		vkDestroyImageView(g_ctx.device, g_ctx.swapchainImageViews[i], NULL);
+	}
+	free(g_ctx.swapchainFramebuffers);
+	free(g_ctx.swapchainImageViews);
+	free(g_ctx.swapchainImages);
+	vkDestroySwapchainKHR(g_ctx.device, g_ctx.swapchain, NULL);
+	int fbW, fbH;
+	glfwGetFramebufferSize(g_ctx.window, &fbW, &fbH);
+	while (fbW == 0 || fbH == 0) {
+		glfwGetFramebufferSize(g_ctx.window, &fbW, &fbH);
+		glfwWaitEvents();
+	}
+	const VkSwapchainCreateInfoKHR swapchainInfo = {
+		.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
+		.surface = g_ctx.surface,
+		.minImageCount = 2,
+		.imageFormat = VK_FORMAT_B8G8R8A8_UNORM,
+		.imageColorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
+		.imageExtent = {(uint32_t)fbW, (uint32_t)fbH},
+		.imageArrayLayers = 1,
+		.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+		.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR,
+		.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
+		.presentMode = VK_PRESENT_MODE_FIFO_KHR
+	};
+	vkCreateSwapchainKHR(g_ctx.device, &swapchainInfo, NULL, &g_ctx.swapchain);
+	vkGetSwapchainImagesKHR(g_ctx.device, g_ctx.swapchain, &g_ctx.imageCount, NULL);
+	g_ctx.swapchainImages = malloc(sizeof(VkImage) * g_ctx.imageCount);
+	vkGetSwapchainImagesKHR(g_ctx.device, g_ctx.swapchain, &g_ctx.imageCount, g_ctx.swapchainImages);
+	g_ctx.swapchainImageViews = malloc(sizeof(VkImageView) * g_ctx.imageCount);
+	for (uint32_t i = 0; i < g_ctx.imageCount; i++) {
+		const VkImageViewCreateInfo viewInfo = {
+			.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+			.image = g_ctx.swapchainImages[i],
+			.viewType = VK_IMAGE_VIEW_TYPE_2D,
+			.format = VK_FORMAT_B8G8R8A8_UNORM,
+			.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1}
+		};
+		vkCreateImageView(g_ctx.device, &viewInfo, NULL, &g_ctx.swapchainImageViews[i]);
+	}
+	createMSAAColorAndDepthResources(fbW, fbH, (VkSampleCountFlagBits)g_settings.msaaLevel);
+	g_ctx.swapchainFramebuffers = malloc(sizeof(VkFramebuffer) * g_ctx.imageCount);
+	for (uint32_t i = 0; i < g_ctx.imageCount; i++) {
+		const VkImageView attachments[3] = { colorImageViewMSAA, g_ctx.depthImageView, g_ctx.swapchainImageViews[i] };
+		const VkFramebufferCreateInfo fbInfo = {
+			.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
+			.renderPass = g_ctx.renderPass,
+			.attachmentCount = 3,
+			.pAttachments = attachments,
+			.width = (uint32_t)fbW,
+			.height = (uint32_t)fbH,
+			.layers = 1
+		};
+		vkCreateFramebuffer(g_ctx.device, &fbInfo, NULL, &g_ctx.swapchainFramebuffers[i]);
+	}
+}
+static uint8_t inInit = 0;
+void qgSetGraphicsSetting(uint8_t setting, uint8_t value) {
+	switch (setting) {
+		case QGPU_SETTINGS_AMBIENT_OCCLUSION: g_settings.ambientOcclusion = value; break;
+		case QGPU_SETTINGS_MSAA_LEVEL:
+			if (inInit && g_settings.msaaLevel != value && (value == 1 || value == 2 || value == 4 || value == 8)) {
+				g_settings.msaaLevel = value;
+				rebuildGraphicsPipeline();
+			}
+			break;
+		case QGPU_SETTINGS_SHADOWS: g_settings.shadows = value; break;
+	}
+}
+// ========================================================================================================================================================================
+// ===== INIT =============================================================================================================================================================
+// ========================================================================================================================================================================
+void qgpuCreate(const uint width, const uint height, const char* title, void (*initFunc)(), void (*updateFunc)()) {
+	if (!glfwInit()) return;
+	sphereVertexIndices = malloc(sizeof(uint32_t) * (MAX_SPHERE_RINGS + 1) * (MAX_SPHERE_SECTORS + 1));
+	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+	g_ctx.window = glfwCreateWindow(width, height, title, NULL, NULL);
+	glfwSwapInterval(0);
+	uint32_t glfwExtensionCount = 0;
+	const char** glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
+	const VkInstanceCreateInfo instanceInfo = {
+		.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
+		.enabledExtensionCount = glfwExtensionCount,
+		.ppEnabledExtensionNames = glfwExtensions
+	};
+	vkCreateInstance(&instanceInfo, NULL, &g_ctx.instance);
+	glfwCreateWindowSurface(g_ctx.instance, g_ctx.window, NULL, &g_ctx.surface);
+	uint32_t deviceCount = 0;
+	vkEnumeratePhysicalDevices(g_ctx.instance, &deviceCount, NULL);
+	VkPhysicalDevice* devices = malloc(sizeof(VkPhysicalDevice) * deviceCount);
+	vkEnumeratePhysicalDevices(g_ctx.instance, &deviceCount, devices); g_ctx.physicalDevice = devices[0];
+	free(devices);
+	const float queuePriority = 1.0f;
+	uint32_t queueFamilyCount = 0;
+	vkGetPhysicalDeviceQueueFamilyProperties(g_ctx.physicalDevice, &queueFamilyCount, NULL);
+	VkQueueFamilyProperties* queueFamilies = malloc(sizeof(VkQueueFamilyProperties) * queueFamilyCount);
+	vkGetPhysicalDeviceQueueFamilyProperties(g_ctx.physicalDevice, &queueFamilyCount, queueFamilies);
+	uint32_t graphicsQueueFamilyIndex = UINT32_MAX;
+	for (uint32_t i = 0; i < queueFamilyCount; i++) {
+		if (queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
+			graphicsQueueFamilyIndex = i;
+			break;
+		}
+	}
+	free(queueFamilies);
+	const VkDeviceQueueCreateInfo queueCreateInfo = {
+		.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+		.queueFamilyIndex = graphicsQueueFamilyIndex,
+		.queueCount = 1,
+		.pQueuePriorities = &queuePriority
+	};
+	const char* deviceExtensions[] = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
+	const VkDeviceCreateInfo deviceCreateInfo = {
+		.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
+		.queueCreateInfoCount = 1,
+		.pQueueCreateInfos = &queueCreateInfo,
+		.enabledExtensionCount = 1,
+		.ppEnabledExtensionNames = deviceExtensions
+	};
+	vkCreateDevice(g_ctx.physicalDevice, &deviceCreateInfo, NULL, &g_ctx.device);
+	vkGetDeviceQueue(g_ctx.device, 0, 0, &g_ctx.graphicsQueue);
+	int fbW, fbH;
+	glfwGetFramebufferSize(g_ctx.window, &fbW, &fbH);
+	const VkSwapchainCreateInfoKHR swapchainInfo = {
+		.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
+		.surface = g_ctx.surface,
+		.minImageCount = 2,
+		.imageFormat = VK_FORMAT_B8G8R8A8_UNORM,
+		.imageColorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
+		.imageExtent = {(uint32_t)fbW, (uint32_t)fbH},
+		.imageArrayLayers = 1,
+		.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+		.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR,
+		.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
+		.presentMode = VK_PRESENT_MODE_FIFO_KHR
+	};
+	qgSetStyle(BOLD);
+	if (_showBanner) printBanner();
+	if (_madeWith) printMadeWith();
+	if (_showInfo) printInfo();
+	if (_showColors) printColors();
+	qgSetStyle(REGULAR);
+	printf("\n");
+	inInit = 1;
+	if (initFunc) initFunc();
+	inInit = 0;
+	vkCreateSwapchainKHR(g_ctx.device, &swapchainInfo, NULL, &g_ctx.swapchain);
+	vkGetSwapchainImagesKHR(g_ctx.device, g_ctx.swapchain, &g_ctx.imageCount, NULL);
+	g_ctx.swapchainImages = malloc(sizeof(VkImage) * g_ctx.imageCount);
+	vkGetSwapchainImagesKHR(g_ctx.device, g_ctx.swapchain, &g_ctx.imageCount, g_ctx.swapchainImages);
+	g_ctx.swapchainImageViews = malloc(sizeof(VkImageView) * g_ctx.imageCount);
+	for (uint32_t i = 0; i < g_ctx.imageCount; i++) {
+		const VkImageViewCreateInfo viewInfo = {
+			.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+			.image = g_ctx.swapchainImages[i],
+			.viewType = VK_IMAGE_VIEW_TYPE_2D,
+			.format = VK_FORMAT_B8G8R8A8_UNORM,
+			.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1}
+		};
+		vkCreateImageView(g_ctx.device, &viewInfo, NULL, &g_ctx.swapchainImageViews[i]);
+	}
+	createMSAAColorAndDepthResources(fbW, fbH, (VkSampleCountFlagBits)g_settings.msaaLevel);
+	g_ctx.swapchainFramebuffers = malloc(sizeof(VkFramebuffer) * g_ctx.imageCount);
+	for (uint32_t i = 0; i < g_ctx.imageCount; i++) {
+		const VkImageView attachments[3] = { colorImageViewMSAA, g_ctx.depthImageView, g_ctx.swapchainImageViews[i] };
+		const VkFramebufferCreateInfo fbInfo = {
+			.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
+			.renderPass = g_ctx.renderPass,
+			.attachmentCount = 3,
+			.pAttachments = attachments,
+			.width = (uint32_t)fbW,
+			.height = (uint32_t)fbH,
+			.layers = 1
+		};
+		vkCreateFramebuffer(g_ctx.device, &fbInfo, NULL, &g_ctx.swapchainFramebuffers[i]);
+	}
+	const VkAttachmentDescription colorAttachment = {
+		.format = VK_FORMAT_B8G8R8A8_UNORM,
+		.samples = (VkSampleCountFlagBits)g_settings.msaaLevel,
+		.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+		.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+		.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+		.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+		.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+		.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+	};
+	const VkAttachmentReference colorAttachmentRef = {
+		.attachment = 0,
+		.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+	};
+	const VkAttachmentDescription colorAttachmentResolve = {
 		.format = VK_FORMAT_B8G8R8A8_UNORM,
 		.samples = VK_SAMPLE_COUNT_1_BIT,
-		.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+		.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
 		.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
 		.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
 		.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
 		.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
 		.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
 	};
-	VkAttachmentReference colorAttachmentRef = {
-		.attachment = 0,
-		.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
-	};
-	VkAttachmentDescription depthAttachment = {
+	const VkAttachmentDescription depthAttachment = {
 		.format = VK_FORMAT_D32_SFLOAT,
-		.samples = VK_SAMPLE_COUNT_1_BIT,
+		.samples = (VkSampleCountFlagBits)g_settings.msaaLevel,
 		.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
 		.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
 		.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
@@ -403,18 +628,22 @@ void qgpuCreate(const unsigned int width, const unsigned int height, const char*
 		.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
 		.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
 	};
-
-	VkAttachmentReference depthAttachmentRef = {
+	const VkAttachmentReference depthAttachmentRef = {
 		.attachment = 1,
 		.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
 	};
-	VkSubpassDescription subpass = {
+	const VkAttachmentReference colorAttachmentResolveRef = {
+		.attachment = 2,
+		.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+	};
+	const VkSubpassDescription subpass = {
 		.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
 		.colorAttachmentCount = 1,
 		.pColorAttachments = &colorAttachmentRef,
+		.pResolveAttachments = &colorAttachmentResolveRef,
 		.pDepthStencilAttachment = &depthAttachmentRef
 	};
-	VkSubpassDependency dependency = {
+	const VkSubpassDependency dependency = {
 		.srcSubpass = VK_SUBPASS_EXTERNAL,
 		.dstSubpass = 0,
 		.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
@@ -422,10 +651,10 @@ void qgpuCreate(const unsigned int width, const unsigned int height, const char*
 		.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
 		.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT
 	};
-	VkAttachmentDescription attachments[2] = { colorAttachment, depthAttachment };
-	VkRenderPassCreateInfo renderPassInfo = {
+	const VkAttachmentDescription attachments[3] = { colorAttachment, depthAttachment, colorAttachmentResolve };
+	const VkRenderPassCreateInfo renderPassInfo = {
 		.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
-		.attachmentCount = 2,
+		.attachmentCount = 3,
 		.pAttachments = attachments,
 		.subpassCount = 1,
 		.pSubpasses = &subpass,
@@ -433,12 +662,12 @@ void qgpuCreate(const unsigned int width, const unsigned int height, const char*
 		.pDependencies = &dependency
 	};
 	vkCreateRenderPass(g_ctx.device, &renderPassInfo, NULL, &g_ctx.renderPass);
-	VkPushConstantRange pushConstantRange = {
+	const VkPushConstantRange pushConstantRange = {
 		.stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
 		.offset = 0,
 		.size = 16
 	};
-	VkPipelineLayoutCreateInfo pipelineLayoutInfo = {
+	const VkPipelineLayoutCreateInfo pipelineLayoutInfo = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
 		.setLayoutCount = 0,
 		.pSetLayouts = NULL,
@@ -477,7 +706,7 @@ void qgpuCreate(const unsigned int width, const unsigned int height, const char*
 		0x00000036,0x0004003d,0x00000006,0x00000038,0x00000022,0x00070050,0x0000002d,0x00000039,0x00000035,0x00000037,0x00000038,0x0000001e,0x00050041,0x0000003a,0x0000003b,0x00000032,
 		0x00000013,0x0003003e,0x0000003b,0x00000039,0x0004003d,0x0000002d,0x0000003f,0x0000003e,0x0003003e,0x0000003c,0x0000003f,0x000100fd,0x00010038
 	};
-	VkShaderModuleCreateInfo vertInfo = {
+	const VkShaderModuleCreateInfo vertInfo = {
 		.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
 		.codeSize = sizeof(vert_code),
 		.pCode = vert_code
@@ -494,14 +723,14 @@ void qgpuCreate(const unsigned int width, const unsigned int height, const char*
 		0x00000001,0x00050036,0x00000002,0x00000004,0x00000000,0x00000003,0x000200f8,0x00000005,0x0004003d,0x00000007,0x0000000c,0x0000000b,0x0003003e,0x00000009,0x0000000c,0x000100fd,
 		0x00010038
 	};
-	VkShaderModuleCreateInfo fragInfo = {
+	const VkShaderModuleCreateInfo fragInfo = {
 		.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
 		.codeSize = sizeof(frag_code),
 		.pCode = frag_code
 	};
 	VkShaderModule fragModule = VK_NULL_HANDLE;
 	vkCreateShaderModule(g_ctx.device, &fragInfo, NULL, &fragModule);
-	VkPipelineShaderStageCreateInfo shaderStages[2] = {
+	const VkPipelineShaderStageCreateInfo shaderStages[2] = {
 		{
 			.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
 			.stage = VK_SHADER_STAGE_VERTEX_BIT,
@@ -515,12 +744,12 @@ void qgpuCreate(const unsigned int width, const unsigned int height, const char*
 			.pName = "main"
 		}
 	};
-	VkVertexInputBindingDescription bindingDesc = {
+	const VkVertexInputBindingDescription bindingDesc = {
 		.binding = 0,
 		.stride = sizeof(QGPU_Vertex),
 		.inputRate = VK_VERTEX_INPUT_RATE_VERTEX
 	};
-	VkVertexInputAttributeDescription attribDescs[2] = {
+	const VkVertexInputAttributeDescription attribDescs[2] = {
 		{
 			.binding = 0,
 			.location = 0,
@@ -534,33 +763,35 @@ void qgpuCreate(const unsigned int width, const unsigned int height, const char*
 			.offset = offsetof(QGPU_Vertex, color)
 		}
 	};
-	VkPipelineVertexInputStateCreateInfo vertexInputInfo = {
+	const VkPipelineVertexInputStateCreateInfo vertexInputInfo = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
 		.vertexBindingDescriptionCount = 1,
 		.pVertexBindingDescriptions = &bindingDesc,
 		.vertexAttributeDescriptionCount = 2,
 		.pVertexAttributeDescriptions = attribDescs
 	};
-	VkPipelineInputAssemblyStateCreateInfo inputAssembly = {
+	const VkPipelineInputAssemblyStateCreateInfo inputAssembly = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
 		.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST
 	};
-	VkPipelineViewportStateCreateInfo viewportState = {
+	const VkPipelineViewportStateCreateInfo viewportState = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
 		.viewportCount = 1,
 		.scissorCount = 1
 	};
-	VkPipelineRasterizationStateCreateInfo rasterizer = {
+	const VkPipelineRasterizationStateCreateInfo rasterizer = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
 		.lineWidth = 1.0f,
 		.cullMode = VK_CULL_MODE_BACK_BIT,
 		.frontFace = VK_FRONT_FACE_CLOCKWISE
 	};
-	VkPipelineMultisampleStateCreateInfo multisampling = {
+	const VkPipelineMultisampleStateCreateInfo multisampling = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
-		.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT
+		.rasterizationSamples = (VkSampleCountFlagBits)g_settings.msaaLevel,
+		.sampleShadingEnable = g_settings.msaaLevel > 1 ? VK_TRUE : VK_FALSE,
+		.minSampleShading = 0.2f
 	};
-	VkPipelineDepthStencilStateCreateInfo depthStencil = {
+	const VkPipelineDepthStencilStateCreateInfo depthStencil = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
 		.depthTestEnable = VK_TRUE,
 		.depthWriteEnable = VK_TRUE,
@@ -568,7 +799,7 @@ void qgpuCreate(const unsigned int width, const unsigned int height, const char*
 		.depthBoundsTestEnable = VK_FALSE,
 		.stencilTestEnable = VK_FALSE
 	};
-	VkPipelineColorBlendAttachmentState colorBlendAttachment = {
+	const VkPipelineColorBlendAttachmentState colorBlendAttachment = {
 		.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
 		.blendEnable = VK_TRUE,
 		.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
@@ -578,18 +809,18 @@ void qgpuCreate(const unsigned int width, const unsigned int height, const char*
 		.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
 		.alphaBlendOp = VK_BLEND_OP_ADD
 	};
-	VkPipelineColorBlendStateCreateInfo colorBlending = {
+	const VkPipelineColorBlendStateCreateInfo colorBlending = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
 		.attachmentCount = 1,
 		.pAttachments = &colorBlendAttachment
 	};
-	VkDynamicState dynamicStates[] = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
-	VkPipelineDynamicStateCreateInfo dynamicState = {
+	const VkDynamicState dynamicStates[] = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
+	const VkPipelineDynamicStateCreateInfo dynamicState = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
 		.dynamicStateCount = 2,
 		.pDynamicStates = dynamicStates
 	};
-	VkGraphicsPipelineCreateInfo pipelineInfo = {
+	const VkGraphicsPipelineCreateInfo pipelineInfo = {
 		.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
 		.stageCount = 2,
 		.pStages = shaderStages,
@@ -610,11 +841,11 @@ void qgpuCreate(const unsigned int width, const unsigned int height, const char*
 	vkDestroyShaderModule(g_ctx.device, vertModule, NULL);
 	g_ctx.swapchainFramebuffers = malloc(sizeof(VkFramebuffer) * g_ctx.imageCount);
 	for (uint32_t i = 0; i < g_ctx.imageCount; i++) {
-		VkImageView attachments[2] = { g_ctx.swapchainImageViews[i], g_ctx.depthImageView };
-		VkFramebufferCreateInfo fbInfo = {
+		const VkImageView attachments[3] = { colorImageViewMSAA, g_ctx.depthImageView, g_ctx.swapchainImageViews[i] };
+		const VkFramebufferCreateInfo fbInfo = {
 			.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
 			.renderPass = g_ctx.renderPass,
-			.attachmentCount = 2,
+			.attachmentCount = 3,
 			.pAttachments = attachments,
 			.width = (uint32_t)fbW,
 			.height = (uint32_t)fbH,
@@ -622,13 +853,13 @@ void qgpuCreate(const unsigned int width, const unsigned int height, const char*
 		};
 		vkCreateFramebuffer(g_ctx.device, &fbInfo, NULL, &g_ctx.swapchainFramebuffers[i]);
 	}
-	VkCommandPoolCreateInfo poolInfo = {
+	const VkCommandPoolCreateInfo poolInfo = {
 		.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
 		.queueFamilyIndex = graphicsQueueFamilyIndex,
 		.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT
 	};
 	vkCreateCommandPool(g_ctx.device, &poolInfo, NULL, &g_ctx.commandPool);
-	VkCommandBufferAllocateInfo allocInfo = {
+	const VkCommandBufferAllocateInfo allocInfo = {
 		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
 		.commandPool = g_ctx.commandPool,
 		.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
@@ -638,44 +869,37 @@ void qgpuCreate(const unsigned int width, const unsigned int height, const char*
 	createBuffer(sizeof(QGPU_Vertex) * MAX_VERTICES, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &g_ctx.vertexBuffer, &g_ctx.vertexBufferMemory);
 	createBuffer(sizeof(uint32_t) * MAX_VERTICES * 3, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &g_ctx.indexBuffer, &g_ctx.indexBufferMemory);
 	vkMapMemory(g_ctx.device, g_ctx.vertexBufferMemory, 0, sizeof(QGPU_Vertex) * MAX_VERTICES, 0, &g_ctx.mappedVertexBuffer);
-	vkMapMemory(g_ctx.device, g_ctx.indexBufferMemory, 0, sizeof(uint32_t) * (uint32_t)(MAX_VERTICES * 1.5f), 0, &g_ctx.mappedIndexBuffer);
-	VkSemaphoreCreateInfo semaphoreInfo = { .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO };
+	vkMapMemory(g_ctx.device, g_ctx.indexBufferMemory, 0, sizeof(uint32_t) * MAX_VERTICES * 3, 0, &g_ctx.mappedIndexBuffer);
+	const VkSemaphoreCreateInfo semaphoreInfo = { .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO };
 	vkCreateSemaphore(g_ctx.device, &semaphoreInfo, NULL, &g_ctx.imageAvailableSemaphore);
 	vkCreateSemaphore(g_ctx.device, &semaphoreInfo, NULL, &g_ctx.renderFinishedSemaphore);
 	memset(g_ctx.lastKeyState, 0, sizeof(g_ctx.lastKeyState));
 	memset(g_ctx.lastMouseState, 0, sizeof(g_ctx.lastMouseState));
-	qgSetStyle(BOLD);
-	if (_showBanner) printBanner();
-	if (_madeWith) printMadeWith();
-	if (_showInfo) printInfo();
-	if (_showColors) printColors();
-	qgSetStyle(REGULAR);
-	printf("\n");
-	inInit = 1;
-	if (initFunc) initFunc();
-	inInit = 0;
 	while (!glfwWindowShouldClose(g_ctx.window)) {
-		for (int i = 0; i < GLFW_KEY_LAST; i++) g_ctx.lastKeyState[i] = glfwGetKey(g_ctx.window, i);
-		for (int i = 0; i < GLFW_MOUSE_BUTTON_LAST; i++) g_ctx.lastMouseState[i] = glfwGetMouseButton(g_ctx.window, i);
+		for (uint16_t i = 0; i < GLFW_KEY_LAST; i++) g_ctx.lastKeyState[i] = glfwGetKey(g_ctx.window, i);
+		for (uint8_t i = 0; i < GLFW_MOUSE_BUTTON_LAST; i++) g_ctx.lastMouseState[i] = glfwGetMouseButton(g_ctx.window, i);
 		glfwPollEvents();
 		uint32_t imageIndex;
-		VkResult result = vkAcquireNextImageKHR(g_ctx.device, g_ctx.swapchain, UINT64_MAX, g_ctx.imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
-		if (result == VK_ERROR_OUT_OF_DATE_KHR) { continue; } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) { continue; }
+		const VkResult result = vkAcquireNextImageKHR(g_ctx.device, g_ctx.swapchain, UINT64_MAX, g_ctx.imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
+		if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+			recreateSwapchain();
+			continue;
+		} else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) qgError("Failed to acquire swap chain image!\n");
 		g_ctx.currentVOffset = 0;
 		g_ctx.currentIOffset = 0;
 		lightCount = 0;
 		qgResetRotation();
 		vkResetCommandBuffer(g_ctx.currentCmd, 0);
-		VkCommandBufferBeginInfo beginInfo = {
+		const VkCommandBufferBeginInfo beginInfo = {
 			.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
 			.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
 		};
 		vkBeginCommandBuffer(g_ctx.currentCmd, &beginInfo);
-		VkClearValue clearValues[2] = {
+		const VkClearValue clearValues[2] = {
 			{{{backgroundR, backgroundG, backgroundB, 1.0f}}},
 			{.depthStencil = {0, 0}}
 		};
-		VkRenderPassBeginInfo renderPassInfo = {
+		const VkRenderPassBeginInfo renderPassInfo = {
 			.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
 			.renderPass = g_ctx.renderPass,
 			.framebuffer = g_ctx.swapchainFramebuffers[imageIndex],
@@ -685,19 +909,21 @@ void qgpuCreate(const unsigned int width, const unsigned int height, const char*
 		};
 		vkCmdBeginRenderPass(g_ctx.currentCmd, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 		vkCmdBindPipeline(g_ctx.currentCmd, VK_PIPELINE_BIND_POINT_GRAPHICS, g_ctx.graphicsPipeline);
-		VkViewport viewport = {0.0f, 0.0f, (float)width, (float)height, 0.0f, 1.0f};
-		VkRect2D scissor = {{0, 0}, {(uint32_t)width, (uint32_t)height}};
+		int curW, curH;
+		glfwGetFramebufferSize(g_ctx.window, &curW, &curH);
+		const VkViewport viewport = {0.0f, 0.0f, (float)curW, (float)curH, 0.0f, 1.0f};
+		const VkRect2D scissor = {{0, 0}, {(uint32_t)curW, (uint32_t)curH}};
 		vkCmdSetViewport(g_ctx.currentCmd, 0, 1, &viewport);
 		vkCmdSetScissor(g_ctx.currentCmd, 0, 1, &scissor);
-		VkDeviceSize offsets[] = {0};
+		const VkDeviceSize offsets[] = {0};
 		vkCmdBindVertexBuffers(g_ctx.currentCmd, 0, 1, &g_ctx.vertexBuffer, offsets);
 		vkCmdBindIndexBuffer(g_ctx.currentCmd, g_ctx.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 		if (updateFunc) updateFunc();
 		render();
 		vkCmdEndRenderPass(g_ctx.currentCmd);
 		vkEndCommandBuffer(g_ctx.currentCmd);
-		VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
-		VkSubmitInfo submitInfo = {
+		const VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+		const VkSubmitInfo submitInfo = {
 			.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
 			.waitSemaphoreCount = 1,
 			.pWaitSemaphores = &g_ctx.imageAvailableSemaphore,
@@ -708,7 +934,7 @@ void qgpuCreate(const unsigned int width, const unsigned int height, const char*
 			.pSignalSemaphores = &g_ctx.renderFinishedSemaphore
 		};
 		if (vkQueueSubmit(g_ctx.graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS) printf("Quene submit error!\n");
-		VkPresentInfoKHR presentInfo = {
+		const VkPresentInfoKHR presentInfo = {
 			.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
 			.waitSemaphoreCount = 1,
 			.pWaitSemaphores = &g_ctx.renderFinishedSemaphore,
@@ -718,7 +944,7 @@ void qgpuCreate(const unsigned int width, const unsigned int height, const char*
 		};
 		vkQueuePresentKHR(g_ctx.graphicsQueue, &presentInfo);
 		vkDeviceWaitIdle(g_ctx.device);
-		double currentTime = glfwGetTime();
+		const double currentTime = glfwGetTime();
 		frameCount++;
 		if (currentTime - lastTime >= 0.5) {
 			currentFPS = (float)frameCount / (float)(currentTime - lastTime);
@@ -800,7 +1026,7 @@ uint32_t qgAddVertex(float x, float y, float z, const float r, const float g, co
 	if (g_ctx.currentVOffset >= MAX_VERTICES) { qgWarn("Cannot add new vertex\n"); return -1; }
 	transformPoint(&x, &y, &z);
 	QGPU_Vertex* vDst = (QGPU_Vertex*)g_ctx.mappedVertexBuffer + g_ctx.currentVOffset;
-	float m = qLightOn ? getLight(x, y, z) : 1;
+	const float m = qLightOn ? getLight(x, y, z) : 1;
 	vDst->pos[0] = x;
 	vDst->pos[1] = -y;
 	vDst->pos[2] = z;
@@ -818,15 +1044,15 @@ void qgAddIndex(const uint32_t index) {
 	g_ctx.currentIOffset++;
 }
 void qgAddGeometry(const QGPU_Vertex* verts, const uint32_t vCount, const uint32_t* indices, const uint32_t iCount) {
-	if (vCount <= 0 || iCount <= 0) { qgWarn("The number of vertices or indices is less than or equal to 0\n"); return; }
-	uint32_t baseVertexOffset = g_ctx.currentVOffset;
+	if (vCount == 0 || iCount == 0) { qgWarn("The number of vertices or indices is 0\n"); return; }
+	const uint32_t baseVertexOffset = g_ctx.currentVOffset;
 	for (uint32_t i = 0; i < vCount; i++) qgAddVertex(verts[i].pos[0], verts[i].pos[1], verts[i].pos[2], verts[i].color[0], verts[i].color[1], verts[i].color[2], verts[i].color[3]);
 	for (uint32_t i = 0; i < iCount; i++) qgAddIndex(indices[i] + baseVertexOffset);
 }
 // ===== LIGHTS ===========================================================================================================================================================
 void qgAddLight(const float x, const float y, const float z, const float range, const float intense) {
 	if (lightCount >= MAX_LIGHTS) { qgWarn("Cannot add new light\n"); return; }
-	int l = lightCount * 5;
+	const int l = lightCount * 5;
 	lights[ l ] = x;
 	lights[l+1] = y;
 	lights[l+2] = z;
@@ -841,23 +1067,23 @@ void qgAddTriangle(const float p1x, const float p1y, const float p1z, const floa
 	qgAddIndex(qgAddVertex(p3x, p3y, p3z, r, g, b, a));
 }
 void qgAddRect(const float px, const float py, const float pz, const float sx, const float sy, const float r, const float g, const float b, const float a) {
-	float x = sx / 2, y = sy / 2, v[4] = {
+	const float x = sx / 2, y = sy / 2, v[4] = {
 		px - x, px + x,
 		py - y, py + y
 	};
 	qgAddTriangle(v[0], v[3], pz, v[1], v[3], pz, v[1], v[2], pz, r, g, b, a);
 	qgAddTriangle(v[0], v[3], pz, v[1], v[2], pz, v[0], v[2], pz, r, g, b, a);
 }
-void qgAddCircle(const float px, const float py, const float pz, const unsigned int segments, const float radius, const float r, const float g, const float b, const float a) {
+void qgAddCircle(const float px, const float py, const float pz, const uint segments, const float radius, const float r, const float g, const float b, const float a) {
 	if (segments < 3) return;
-	float angleStep = (2.0f * PI) / segments;
+	const float angleStep = (2.0f * PI) / segments;
 	uint32_t center = qgAddVertex(px, py, pz, r, g, b, a),
 	first = qgAddVertex(px + radius, py, pz, r, g, b, a),
 	last = first;
-	for (unsigned int i = 1; i < segments; i++) {
-		float currentAngle = angleStep * i, cx = qCos(currentAngle) * radius, cy = qSin(currentAngle) * radius;
+	for (uint i = 1; i < segments; i++) {
+		const float currentAngle = angleStep * i, cx = qCos(currentAngle) * radius, cy = qSin(currentAngle) * radius;
 		qgAddIndex(center);
-		uint32_t v = qgAddVertex(px + cx, py + cy, pz, r, g, b, a);
+		const uint32_t v = qgAddVertex(px + cx, py + cy, pz, r, g, b, a);
 		qgAddIndex(v);
 		qgAddIndex(last);
 		last = v;
@@ -868,7 +1094,7 @@ void qgAddCircle(const float px, const float py, const float pz, const unsigned 
 }
 // ===== READY 3D ==========================================================================================================================================================
 void qgAddBox(const float px, const float py, const float pz, const float sx, const float sy, const float sz, const float r, const float g, const float b, const float a) {
-	float x = sx / 2, y = sy / 2, z = sz / 2, v[24] = {
+	const float x = sx / 2, y = sy / 2, z = sz / 2, v[24] = {
 		px-x, py+y, pz+z,
 		px+x, py+y, pz+z,
 		px+x, py-y, pz+z,
@@ -891,16 +1117,16 @@ void qgAddBox(const float px, const float py, const float pz, const float sx, co
 	qgAddTriangle(v[9], v[10], v[11], v[6], v[7], v[8], v[18], v[19], v[20], r, g, b, a);
 	qgAddTriangle(v[9], v[10], v[11], v[18], v[19], v[20], v[21], v[22], v[23], r, g, b, a);
 }
-void qgAddSphere(const float px, const float py, const float pz, const float radius, const unsigned int rings, const unsigned int sectors, const float r, const float g, const float b, const float a) {
+void qgAddSphere(const float px, const float py, const float pz, const float radius, const uint rings, const uint sectors, const float r, const float g, const float b, const float a) {
 	if (rings < 2 || sectors < 3) return;
 	if (!sphereVertexIndices) return;
-	for (unsigned int i = 0; i <= rings; ++i) {
-		float v = (float)i / (float)rings,
+	for (uint i = 0; i <= rings; ++i) {
+		const float v = (float)i / (float)rings,
 		phi = v * PI,
 		yCost = qCos(phi),
 		ySint = qSin(phi);
-		for (unsigned int j = 0; j <= sectors; ++j) {
-			float u = (float)j / (float)sectors,
+		for (uint j = 0; j <= sectors; ++j) {
+			const float u = (float)j / (float)sectors,
 			theta = u * (2.0f * PI),
 			x = px + radius * ySint * qCos(theta),
 			y = py + radius * yCost,
@@ -908,9 +1134,9 @@ void qgAddSphere(const float px, const float py, const float pz, const float rad
 			sphereVertexIndices[i * (sectors + 1) + j] = qgAddVertex(x, y, z, r, g, b, a);
 		}
 	}
-	for (unsigned int i = 0; i < rings; ++i) {
-		for (unsigned int j = 0; j < sectors; ++j) {
-			uint32_t first = i * (sectors + 1) + j,
+	for (uint i = 0; i < rings; ++i) {
+		for (uint j = 0; j < sectors; ++j) {
+			const uint32_t first = i * (sectors + 1) + j,
 			second = first + sectors + 1;
 			qgAddIndex(sphereVertexIndices[first]);
 			qgAddIndex(sphereVertexIndices[second]);
@@ -967,12 +1193,12 @@ void qgConvertFont(const char* pathQFR, const char* pathQF) {
 		if (line[81] == '\n') line[81] = '\0';
 		if (line[0] == '/') continue;
 		const char code[5] = {line[0], line[1], line[2], line[3], '\0'};
-		uint16_t c = (uint16_t)strtol(code, NULL, 16);
+		const uint16_t c = (uint16_t)strtol(code, NULL, 16);
 		fwrite(&c, sizeof(uint16_t), 1, qf);
 		int8_t l[qFontY][qFontMax];
-		for (int i = 0; i < qFontY; i++) {
-			for (int j = 0; j < qFontMax; j++) {
-				uint8_t x = cti(line[5+(7*i)+j]);
+		for (uint i = 0; i < qFontY; i++) {
+			for (uint j = 0; j < qFontMax; j++) {
+				const uint8_t x = cti(line[5+(7*i)+j]);
 				if (x == 0 && j != 0) l[i][j - 1] = -l[i][j - 1];
 				l[i][j] = x;
 			}
@@ -987,7 +1213,7 @@ void qgConvertFont(const char* pathQFR, const char* pathQF) {
 }
 void qgLoadFont(const char* path) {
 	if (!inInit) { qgWarn("Couldn't load font in Update function! Please load it in Init function.\n"); return; }
-	int l = len(path) - 1;
+	const int l = len(path) - 1;
 	if (l < 3) return;
 	if (path[l - 2] != '.' || path[l - 1] != 'q' || path[l] != 'f') qgError("The file does not have the .qf extension!\n");
 	FILE *qf = fopen(path, "rb");
@@ -1117,15 +1343,15 @@ static const qgChar qFont[128] = {
 void qgAddChar(const float px, const float py, const float pz, const uint16_t c) {
 	qgChar qc = newChars[c];
 	if (c < 128) qc = qFont[c];
-	for (unsigned int ly = 0; ly < qFontY; ly++) {
-		int x = 0;
-		for (unsigned int lx = 0; lx < qFontMax; lx++) {
+	for (uint ly = 0; ly < qFontY; ly++) {
+		uint x = 0;
+		for (uint lx = 0; lx < qFontMax; lx++) {
 			int8_t v = qc.data[ly][lx];
 			if (v == 0) break;
 			uint8_t isEnd = v < 0;
 			if (isEnd) v = -v;
 			if (v > 10) {
-				unsigned int width_units = v - 10;
+				uint width_units = v - 10;
 				float center_offset = x + (width_units * 0.5f),
 				nx = px + (center_offset * qFontSize),
 				ny = py - (ly * qFontSize);
@@ -1136,9 +1362,9 @@ void qgAddChar(const float px, const float py, const float pz, const uint16_t c)
 		}
 	}
 }
-uint8_t ih(const char c) { return (c >= '0' && c <= '9') || (c >= 'A' && c <= 'F'); }
+static uint8_t ih(const char c) { return (c >= '0' && c <= '9') || (c >= 'A' && c <= 'F'); }
 void qgAddText(const float px, const float py, const float pz, const char* text) {
-	int x = 0, y = 0, i = 0, l = len(text);
+	uint x = 0, y = 0, i = 0, l = len(text);
 	while (text[i] != '\0') {
 		if (text[i] == '\n') {
 			x = 0;
@@ -1158,7 +1384,7 @@ void qgAddText(const float px, const float py, const float pz, const char* text)
 		}
 		uint16_t c = (unsigned char)text[i];
 		if (l - i > 6 && text[i] == 'q' && text[i+1] == ';' && ih(text[i+2])  && ih(text[i+3])  && ih(text[i+4])  && ih(text[i+5]) && text[i+6] == ';') {
-			char code[5] = {text[i+2], text[i+3], text[i+4], text[i+5], '\0'};
+			const char code[5] = {text[i+2], text[i+3], text[i+4], text[i+5], '\0'};
 			c = (uint16_t)strtol(code, NULL, 16);
 			i += 6;
 		}
@@ -1170,20 +1396,20 @@ void qgAddText(const float px, const float py, const float pz, const char* text)
 // ========================================================================================================================================================================
 // ===== INPUT ============================================================================================================================================================
 // ========================================================================================================================================================================
-uint8_t qgGetKey(const unsigned int key) {
+uint8_t qgGetKey(const uint key) {
 	if (!g_ctx.window || key >= GLFW_KEY_LAST) return 0;
 	return glfwGetKey(g_ctx.window, key) == GLFW_PRESS;
 }
-uint8_t qgOnKey(const unsigned int key) {
+uint8_t qgOnKey(const uint key) {
 	if (!g_ctx.window || key >= GLFW_KEY_LAST) return 0;
 	int current = glfwGetKey(g_ctx.window, key), last = g_ctx.lastKeyState[key];
 	return (current == GLFW_PRESS && last == GLFW_RELEASE);
 }
-uint8_t qgGetMouse(const unsigned int button) {
+uint8_t qgGetMouse(const uint button) {
 	if (!g_ctx.window || button >= GLFW_MOUSE_BUTTON_LAST) return 0;
 	return glfwGetMouseButton(g_ctx.window, button) == GLFW_PRESS;
 }
-uint8_t qgOnMouse(const unsigned int button) {
+uint8_t qgOnMouse(const uint button) {
 	if (!g_ctx.window || button >= GLFW_MOUSE_BUTTON_LAST) return 0;
 	int current = glfwGetMouseButton(g_ctx.window, button), last = g_ctx.lastMouseState[button];
 	return (current == GLFW_PRESS && last == GLFW_RELEASE);
@@ -1195,13 +1421,13 @@ void qgGetMousePos(float* x, float* y) {
 	*x = lx - (double)qgGetWidth() / 2;
 	*y = -(ly - (double)qgGetHeight() / 2);
 }
-unsigned int qgGetWidth() {
+uint qgGetWidth() {
 	if (!g_ctx.window) return 0;
 	int w, h;
 	glfwGetWindowSize(g_ctx.window, &w, &h);
 	return w;
 }
-unsigned int qgGetHeight() {
+uint qgGetHeight() {
 	if (!g_ctx.window) return 0;
 	int w, h;
 	glfwGetWindowSize(g_ctx.window, &w, &h);

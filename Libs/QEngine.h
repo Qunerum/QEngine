@@ -6,7 +6,7 @@
 
 #define QENGINE_VERSION_MAJOR 0
 #define QENGINE_VERSION_MINOR 4
-#define QENGINE_VERSION_PATCH 7
+#define QENGINE_VERSION_PATCH 8
 
 typedef enum { World, UI } qeDrawingMode;
 typedef enum { Top_Left, Top, Top_Right, Left, Center, Right, Bottom_Left, Bottom, Bottom_Right } qeAlignMode;
@@ -138,6 +138,11 @@ typedef struct {
 	Transform transform;
 	state isActive;
 } QObject;
+// = = = = = Scene = = = = = = = = = = = = = = = = = = = =
+typedef struct {
+	void (*init)();
+	void (*update)();
+} Scene;
 // = = = = = COLOR = = = = = = = = = = = = = = = = = = = =
 typedef struct { byte r, g, b, a; } Color;
 #define _GET_COLOR_MACRO(_1, _2, _3, _4, NAME, ...) NAME
@@ -183,7 +188,7 @@ typedef struct { byte r, g, b, a; } Color;
 void print(const char* format, ...);
 state formatText(char* to, const uint length, const char* format, ...);
 
-int initEngineProject(void (*initFunc)(), void (*updateFunc)());
+int initEngineProject(Scene mainScene);
 
 void setDrawingMode(const qeDrawingMode mode);
 
