@@ -249,26 +249,27 @@ void setCameraRot(const Vector3 rotation) { _camera.position = rotation; }
 void setCameraScale(const Vector3 scale) { _camera.position = scale; }
 // = = = = = GRAPHIC = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 void addLight(const Vector3 position, const float range, const float power) { qgAddLight(*(QV3*)&position, range, power); }
+void setLayer(const int layer) { qgSetLayerUI(layer); }
 
-static float byteTo01(const byte v) { return v / 255.0f; }
+static float b01(const byte v) { return v / 255.0f; }
 static void setRot(const Vector3 position, const Vector3 rotation) {
 	qgSetRotationPivot(position.x, position.y, position.z);
 	qgSetRotation(rotation.x, rotation.y, rotation.z);
 }
 
 void drawTriangle(const Vector3 posA, const Vector3 posB, const Vector3 posC, const Color color) {
-	qgAddTriangle(*(QV3*)&posA, *(QV3*)&posB, *(QV3*)&posC, byteTo01(color.r), byteTo01(color.g), byteTo01(color.b), byteTo01(color.a)); }
+	qgAddTriangle(*(QV3*)&posA, *(QV3*)&posB, *(QV3*)&posC, b01(color.r), b01(color.g), b01(color.b), b01(color.a)); }
 void drawRect(const Vector2 position, const Vector2 size, const qeAlignMode align, const Color color) {
 	const Vector2 p = getPos(position, align);
-	qgAddRect(*(QV2*)&p, *(QV2*)&size, byteTo01(color.r), byteTo01(color.g), byteTo01(color.b), byteTo01(color.a));
+	qgAddRect(*(QV2*)&p, *(QV2*)&size, b01(color.r), b01(color.g), b01(color.b), b01(color.a));
 }
 void drawCircle(const Vector2 position, const uint segments, const float radius, const qeAlignMode align, const Color color) {
 	const Vector2 p = getPos(position, align);
-	qgAddCircle(*(QV2*)&p, segments, radius, byteTo01(color.r), byteTo01(color.g), byteTo01(color.b), byteTo01(color.a));
+	qgAddCircle(*(QV2*)&p, segments, radius, b01(color.r), b01(color.g), b01(color.b), b01(color.a));
 }
 void drawText(const char* text, const Vector2 position, const float fontSize, const qeAlignMode align, const Color color) {
 	const Vector2 p = getPos(position, align);
-	qgSetFontData(fontSize, QGPU_FONT_STYLE_REGULAR, byteTo01(color.r), byteTo01(color.g), byteTo01(color.b), byteTo01(color.a));
+	qgSetFontData(fontSize, QGPU_FONT_STYLE_REGULAR, b01(color.r), b01(color.g), b01(color.b), b01(color.a));
 	qgAddText(*(QV2*)&p, text);
 }
 
@@ -276,13 +277,13 @@ state drawButton(const Vector2 position, const Vector2 size, const qeAlignMode a
 	const Vector2 p = getPos(position, align);
 	const state hover = mob(position, size, align);
 	const Color c = hover ? getMouseButton(LMB) ? clrPress : clrHover : clrBase;
-	qgAddRect(*(QV2*)&p, *(QV2*)&size, byteTo01(c.r), byteTo01(c.g), byteTo01(c.b), byteTo01(c.a));
+	qgAddRect(*(QV2*)&p, *(QV2*)&size, b01(c.r), b01(c.g), b01(c.b), b01(c.a));
 	return hover && onMouseDown(LMB);
 }
 
 void drawBox(const Vector3 position, const Vector3 rotation, const Vector3 size, const Color color) {
 	setRot(position, rotation);
-	qgAddBox(*(QV3*)&position, *(QV3*)&size, byteTo01(color.r), byteTo01(color.g), byteTo01(color.b), byteTo01(color.a));
+	qgAddBox(*(QV3*)&position, *(QV3*)&size, b01(color.r), b01(color.g), b01(color.b), b01(color.a));
 }
 // = = = = = AUDIO = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 void convertAudio(const char* qsr_path, const char* qs_path) { qsConvert(qsr_path, qs_path); }

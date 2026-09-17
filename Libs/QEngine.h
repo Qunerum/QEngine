@@ -7,7 +7,7 @@
 
 #define QENGINE_VERSION_MAJOR 0
 #define QENGINE_VERSION_MINOR 4
-#define QENGINE_VERSION_PATCH 8
+#define QENGINE_VERSION_PATCH 9
 
 typedef enum { World, UI } qeDrawingMode;
 typedef enum { Top_Left, Top, Top_Right, Left, Center, Right, Bottom_Left, Bottom, Bottom_Right } qeAlignMode;
@@ -321,7 +321,7 @@ static inline Vector3 qMap_v3(const Vector3 v, const Vector3 oldMin, const Vecto
 }
 #define qMap(Value, oldMin, oldMax, newMin, newMax) _Generic((Value), float:qMap_f, Vector2:qMap_v2, Vector3:qMap_v3 )(Value, oldMin, oldMax, newMin, newMax)
 // = = = = = ABS (ABSOLUTE) = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-static inline int qAbs_i(const int v) { return v < 0 ? -v : v; }
+static inline uint qAbs_i(const int v) { return v < 0 ? -v : v; }
 static inline float qAbs_f(const float v) { return v < 0.0f ? -v : v; }
 static inline Vector2 qAbs_v2(const Vector2 v) {
 	return (Vector2){
@@ -347,7 +347,7 @@ static inline Vector3Int qAbs_v3i(const Vector3Int v) {
 }
 #define qAbs(V) _Generic((V), int:qAbs_i, float:qAbs_f, Vector2:qAbs_v2, Vector2Int:qAbs_v2i, Vector3:qAbs_v3, Vector3Int:qAbs_v3i )(V)
 // = = = = = SIGN = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-static inline int qSign_i(const int v) { return (v > 0) - (v < 0); }
+static inline int8 qSign_i(const int v) { return (v > 0) - (v < 0); }
 static inline float qSign_f(const float v) { return (float)((v > 0.0f) - (v < 0.0f)); }
 static inline Vector2 qSign_v2(const Vector2 v) {
 	return (Vector2){
@@ -423,7 +423,7 @@ static inline float qMax_f(const float a, const float b) { return a > b ? a : b;
 #define qMax(A, B) _Generic((A), int:qMax_i, float:qMax_f)(A, B)
 // = = = = = AABB (2D) = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 static inline state qAABB2D(const Vector2 posA, const Vector2 sizeA, const Vector2 posB, const Vector2 sizeB) {
-	float minAx = posA.x - sizeA.x * 0.5f, maxAx = posA.x + sizeA.x * 0.5f,
+	const float minAx = posA.x - sizeA.x * 0.5f, maxAx = posA.x + sizeA.x * 0.5f,
 	minAy = posA.y - sizeA.y * 0.5f, maxAy = posA.y + sizeA.y * 0.5f,
 	minBx = posB.x - sizeB.x * 0.5f, maxBx = posB.x + sizeB.x * 0.5f,
 	minBy = posB.y - sizeB.y * 0.5f, maxBy = posB.y + sizeB.y * 0.5f;
