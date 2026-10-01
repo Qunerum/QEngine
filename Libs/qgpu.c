@@ -12,8 +12,8 @@
 #include "qgpu.h"
 
 #define QGPU_VERSION_MAJOR 2
-#define QGPU_VERSION_MINOR 3
-#define QGPU_VERSION_PATCH 1
+#define QGPU_VERSION_MINOR 4
+#define QGPU_VERSION_PATCH 0
 
 // ========================================================================================================================================================================
 // ===== QGPU =============================================================================================================================================================
@@ -95,17 +95,12 @@ typedef struct { float pos[2]; float color[4]; } QGPU_Vertex2D;
 static InternalContext g_ctx;
 static GraphicsSettings g_settings = { .ambientOcclusion = 1, .msaaLevel = 4, .shadows = 1 };
 static double lastTime = 0;
-static float backgroundR, backgroundG, backgroundB, currentFPS;
-static uint frameCount;
-static uint8_t inInit = 0;
-static uint8_t framebufferResized = 0;
+static ColorRGB backgroundClr;
+static uint8_t inInit = 0, framebufferResized = 0;
 static void onFramebufferResize(GLFWwindow* window, int w, int h) { (void)window; (void)w; (void)h; framebufferResized = 1; }
-
 static Vector3 camPos = {0.0f, 0.0f, 3.0f}, camTarget = {0.0f, 0.0f, 0.0f}, camUp = {0.0f, 1.0f, 0.0f};
-static float camFovDeg = 60.0f, camNear = 0.05f, camFar = 1000.0f;
-
-static float lights[MAX_LIGHTS * 5];
-static uint lightCount;
+static float camFovDeg = 60.0f, camNear = 0.05f, camFar = 1000.0f, currentFPS = 0, lights[MAX_LIGHTS * 5];
+static uint frameCount, lightCount;
 
 #define MAX_UI_TRIANGLES (MAX_UI_VERTICES / 3)
 typedef struct { float p[3][2]; float color[4]; uint32_t layer; uint32_t order; } UITriangle2D;
@@ -130,8 +125,8 @@ static float PI = 3.14159265358979323846f;
 static int qclamp(const int v, const int min, const int max) { return v < min ? min : v > max ? max : v; }
 static float qclampf(const float v, const float min, const float max) { return v < min ? min : v > max ? max : v; }
 static float qpow(const float v, const float exp) {
-	if (exp == 0) return 1;
-	float r = 1;
+	if (exp == 0) return 1.0f;
+	float r = 1.0f;
 	for (int i = 0; i < exp; i++) r *= v;
 	return r;
 }
@@ -142,7 +137,7 @@ static float qsqrt(const float number) {
 	return x;
 }
 static unsigned long long factorial(const int n) {
-	unsigned long long result = 1;
+	unsigned long long result = 1.0f;
 	for (int i = 1; i <= n; i++) result *= i;
 	return result;
 }
@@ -264,7 +259,7 @@ void qgLog(const char* format, ...) {
 }
 void qgLogVertices() {
 	if (!_showLogs) return;
-	const float p = ((float)g_ctx.currentVOffset / MAX_VERTICES) * 100;
+	const float p = ((float)g_ctx.currentVOffset / MAX_VERTICES) * 100.0f;
 	if (p > 95) qgPrintc(LIGHT_RED, "%i/%i (%.0f%%)\n", g_ctx.currentVOffset, MAX_VERTICES, p);
 	else if (p > 75) qgPrintc(RED, "%i/%i (%.0f%%)\n", g_ctx.currentVOffset, MAX_VERTICES, p);
 	else if (p > 50) qgPrintc(ORANGE, "%i/%i (%.0f%%)\n", g_ctx.currentVOffset, MAX_VERTICES, p);
@@ -872,7 +867,7 @@ static void createUIPipeline() {
 	vkDestroyShaderModule(g_ctx.device, fragModule, NULL);
 	vkDestroyShaderModule(g_ctx.device, vertModule, NULL);
 }
-void qgSetGraphicsSetting(uint8_t setting, uint8_t value) {
+void qgSetGraphicsSetting(const uint8_t setting, const uint8_t value) {
 	switch (setting) {
 		case QGPU_SETTINGS_AMBIENT_OCCLUSION: g_settings.ambientOcclusion = value; break;
 		case QGPU_SETTINGS_MSAA_LEVEL:
@@ -895,8 +890,8 @@ Vector3 qgGetCameraPosition() { return camPos; }
 // ========================================================================================================================================================================
 // ===== INIT =============================================================================================================================================================
 // ========================================================================================================================================================================
-void qgpuCreate(const uint width, const uint height, const char* title, void (*initFunc)(), void (*updateFunc)()) {
-	if (!glfwInit()) return;
+int qgpuCreate(const uint width, const uint height, const char* title, void (*initFunc)(), void (*updateFunc)()) {
+	if (!glfwInit()) return 1;
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 	g_ctx.window = glfwCreateWindow(width, height, title, NULL, NULL);
 	glfwSetFramebufferSizeCallback(g_ctx.window, onFramebufferResize);
@@ -1076,7 +1071,7 @@ void qgpuCreate(const uint width, const uint height, const char* title, void (*i
 			vkCmdEndRenderPass(g_ctx.currentCmd);
 		}
 
-		const VkClearValue clearValues[2] = { {{{backgroundR, backgroundG, backgroundB, 1.0f}}}, {.depthStencil = {1.0f, 0}} };
+		const VkClearValue clearValues[2] = { {{{backgroundClr.r, backgroundClr.g, backgroundClr.b, 1.0f}}}, {.depthStencil = {1.0f, 0}} };
 		const VkRenderPassBeginInfo renderPassInfo = {
 			.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO, .renderPass = g_ctx.renderPass, .framebuffer = g_ctx.swapchainFramebuffers[imageIndex],
 			.renderArea = {{0, 0}, {(uint32_t)curW, (uint32_t)curH}}, .clearValueCount = 2, .pClearValues = clearValues
@@ -1169,18 +1164,23 @@ void qgpuCreate(const uint width, const uint height, const char* title, void (*i
 	vkDestroyInstance(g_ctx.instance, NULL);
 	glfwDestroyWindow(g_ctx.window);
 	glfwTerminate();
+	return 0;
 }
 float qgGetFPS() { return currentFPS; }
 // ========================================================================================================================================================================
 // ===== DRAWING ==========================================================================================================================================================
 // ========================================================================================================================================================================
-void qgSetBackground(const float r, const float g, const float b) { backgroundR = r; backgroundG = g; backgroundB = b; }
-void qgSetRotationPivot(const float x, const float y, const float z) { g_ctx.pivotX = x; g_ctx.pivotY = y; g_ctx.pivotZ = z; }
+void qgSetBackground(const ColorRGB clr) { backgroundClr = clr; }
+void qgSetRotationPivot(const Vector3 p) {
+	g_ctx.pivotX = p.x;
+	g_ctx.pivotY = p.y;
+	g_ctx.pivotZ = p.z;
+}
 static float rndToNrm(const float v) { return v - ((int)(v / 360.0f) * 360.0f); }
-void qgSetRotation(const float rx, const float ry, const float rz) {
-	g_ctx.rotX = rndToNrm(rx);
-	g_ctx.rotY = rndToNrm(ry);
-	g_ctx.rotZ = rndToNrm(rz);
+void qgSetRotation(const Vector3 r) {
+	g_ctx.rotX = rndToNrm(r.x);
+	g_ctx.rotY = rndToNrm(r.y);
+	g_ctx.rotZ = rndToNrm(r.z);
 	g_ctx.hasRotation = 1;
 }
 void qgResetRotation() {
@@ -1188,7 +1188,7 @@ void qgResetRotation() {
 	g_ctx.rotX = g_ctx.rotY = g_ctx.rotZ = 0.0f;
 	g_ctx.hasRotation = 0;
 }
-void qgAddTriangle(const Vector3 p1, const Vector3 p2, const Vector3 p3, const float r, const float g, const float b, const float a) {
+void qgAddTriangle(const Vector3 p1, const Vector3 p2, const Vector3 p3, const ColorRGBA clr) {
 	if (g_ctx.currentVOffset + 3 > MAX_VERTICES) { qgWarn("qgAddTriangle: MAX_VERTICES reached, triangle skipped\n"); return; }
 	Vector3 wp[3] = { p1, p2, p3 };
 	for (uint8_t i = 0; i < 3; i++) transformPoint(&wp[i].x, &wp[i].y, &wp[i].z);
@@ -1201,10 +1201,10 @@ void qgAddTriangle(const Vector3 p1, const Vector3 p2, const Vector3 p3, const f
 		vb[base + i].pos[0] = wp[i].x;
 		vb[base + i].pos[1] = wp[i].y;
 		vb[base + i].pos[2] = wp[i].z;
-		vb[base + i].color[0] = qclampf(r * light, 0.0f, 1.0f);
-		vb[base + i].color[1] = qclampf(g * light, 0.0f, 1.0f);
-		vb[base + i].color[2] = qclampf(b * light, 0.0f, 1.0f);
-		vb[base + i].color[3] = qclampf(a, 0.0f, 1.0f);
+		vb[base + i].color[0] = qclampf(clr.r * light, 0.0f, 1.0f);
+		vb[base + i].color[1] = qclampf(clr.g * light, 0.0f, 1.0f);
+		vb[base + i].color[2] = qclampf(clr.b * light, 0.0f, 1.0f);
+		vb[base + i].color[3] = qclampf(clr.a, 0.0f, 1.0f);
 	}
 	ib[g_ctx.currentIOffset + 0] = base + 0;
 	ib[g_ctx.currentIOffset + 1] = base + 1;
@@ -1212,54 +1212,54 @@ void qgAddTriangle(const Vector3 p1, const Vector3 p2, const Vector3 p3, const f
 	g_ctx.currentIOffset += 3;
 	g_ctx.currentVOffset += 3;
 }
-void qgAddTriangle2D(const Vector2 p1, const Vector2 p2, const Vector2 p3, const float r, const float g, const float b, const float a) {
+void qgAddTriangle2D(const Vector2 p1, const Vector2 p2, const Vector2 p3, const ColorRGBA clr) {
 	if (uiTriangleCount >= MAX_UI_TRIANGLES) { qgWarn("qgAddTriangle2D: MAX_UI_VERTICES reached, triangle skipped\n"); return; }
 	UITriangle2D* t = &uiTriangles[uiTriangleCount];
 	t->p[0][0] = p1.x; t->p[0][1] = p1.y;
 	t->p[1][0] = p2.x; t->p[1][1] = p2.y;
 	t->p[2][0] = p3.x; t->p[2][1] = p3.y;
-	t->color[0] = qclampf(r, 0.0f, 1.0f);
-	t->color[1] = qclampf(g, 0.0f, 1.0f);
-	t->color[2] = qclampf(b, 0.0f, 1.0f);
-	t->color[3] = qclampf(a, 0.0f, 1.0f);
+	t->color[0] = qclampf(clr.r, 0.0f, 1.0f);
+	t->color[1] = qclampf(clr.g, 0.0f, 1.0f);
+	t->color[2] = qclampf(clr.b, 0.0f, 1.0f);
+	t->color[3] = qclampf(clr.a, 0.0f, 1.0f);
 	t->layer = currentUILayer;
 	t->order = uiTriangleCount;
 	uiTriangleCount++;
 }
 void qgSetLayerUI(const uint layer) { currentUILayer = layer; }
-void qgAddRect(const Vector2 p, const Vector2 size, const float r, const float g, const float b, const float a) {
+void qgAddRect(const Vector2 p, const Vector2 size, const ColorRGBA clr) {
 	const float x = size.x / 2.0f, y = size.y / 2.0f;
 	const Vector2
 	mp = {p.x - x, p.y + y},
 	pp = {p.x + x, p.y + y},
 	pm = {p.x + x, p.y - y},
 	mm = {p.x - x, p.y - y};
-	qgAddTriangle2D(mp, pp, pm, r, g, b, a);
-	qgAddTriangle2D(mp, pm, mm, r, g, b, a);
+	qgAddTriangle2D(mp, pp, pm, clr);
+	qgAddTriangle2D(mp, pm, mm, clr);
 }
-void qgAddCircle(const Vector2 p, const float radius, const uint segments, const float r, const float g, const float b, const float a) {
+void qgAddCircle(const Vector2 p, const float radius, const uint segments, const ColorRGBA clr) {
 	if (radius <= 0 || segments < 3) return;
 	Vector2 last = {p.x, p.y + radius};
 	const float seg = 360.0f / segments;
 	for (uint i = 1; i <= segments; i++) {
 		const float rad = (seg * i) * (PI / 180.0f);
 		const Vector2 n = (Vector2){p.x + qSin(rad) * radius, p.y + qCos(rad) * radius};
-		qgAddTriangle2D(p, n, last, r,g,b,a);
+		qgAddTriangle2D(p, n, last, clr);
 		last = n;
 	}
 }
 
-void qgAddPlane(const Vector3 p, const Vector2 size, const float r, const float g, const float b, const float a) {
+void qgAddPlane(const Vector3 p, const Vector2 size, const ColorRGBA clr) {
 	const float x = size.x / 2.0f, z = size.y / 2.0f;
 	const Vector3
 		mm = {p.x - x, p.y, p.z - z},
 		mp = {p.x - x, p.y, p.z + z},
 		pm = {p.x + x, p.y, p.z - z},
 		pp = {p.x + x, p.y, p.z + z};
-	qgAddTriangle(mm, pm, pp, r,g,b,a);
-	qgAddTriangle(mm, pp, mp, r,g,b,a);
+	qgAddTriangle(mm, pm, pp, clr);
+	qgAddTriangle(mm, pp, mp, clr);
 }
-void qgAddBox(const Vector3 p, const Vector3 size, const float r, const float g, const float b, const float a) {
+void qgAddBox(const Vector3 p, const Vector3 size, const ColorRGBA clr) {
 	const float x = size.x / 2.0f, y = size.y / 2.0f, z = size.z / 2.0f;
 	const Vector3
 		mmm = {p.x - x, p.y - y, p.z - z},
@@ -1270,18 +1270,18 @@ void qgAddBox(const Vector3 p, const Vector3 size, const float r, const float g,
 		pmp = {p.x + x, p.y - y, p.z + z},
 		ppm = {p.x + x, p.y + y, p.z - z},
 		ppp = {p.x + x, p.y + y, p.z + z};
-	qgAddTriangle(mmm, pmm, ppm, r,g,b,a);
-	qgAddTriangle(mmm, ppm, mpm, r,g,b,a);
-	qgAddTriangle(pmm, pmp, ppp, r,g,b,a);
-	qgAddTriangle(pmm, ppp, ppm, r,g,b,a);
-	qgAddTriangle(pmp, mmp, mpp, r,g,b,a);
-	qgAddTriangle(pmp, mpp, ppp, r,g,b,a);
-	qgAddTriangle(mmp, mmm, mpm, r,g,b,a);
-	qgAddTriangle(mmp, mpm, mpp, r,g,b,a);
-	qgAddTriangle(mpm, ppm, ppp, r,g,b,a);
-	qgAddTriangle(mpm, ppp, mpp, r,g,b,a);
-	qgAddTriangle(mmp, pmp, pmm, r,g,b,a);
-	qgAddTriangle(mmp, pmm, mmm, r,g,b,a);
+	qgAddTriangle(mmm, pmm, ppm, clr);
+	qgAddTriangle(mmm, ppm, mpm, clr);
+	qgAddTriangle(pmm, pmp, ppp, clr);
+	qgAddTriangle(pmm, ppp, ppm, clr);
+	qgAddTriangle(pmp, mmp, mpp, clr);
+	qgAddTriangle(pmp, mpp, ppp, clr);
+	qgAddTriangle(mmp, mmm, mpm, clr);
+	qgAddTriangle(mmp, mpm, mpp, clr);
+	qgAddTriangle(mpm, ppm, ppp, clr);
+	qgAddTriangle(mpm, ppp, mpp, clr);
+	qgAddTriangle(mmp, pmp, pmm, clr);
+	qgAddTriangle(mmp, pmm, mmm, clr);
 }
 // ===== Lights
 void qgAddLight(const Vector3 position, const float range, const float power) {
@@ -1296,7 +1296,8 @@ void qgAddLight(const Vector3 position, const float range, const float power) {
 // ========================================================================================================================================================================
 // ===== TEXT =============================================================================================================================================================
 // ========================================================================================================================================================================
-static float qFontSize = 1.6f, qFontR = 1, qFontG = 1, qFontB = 1, qFontA = 1;
+static float qFontSize = 1.6f;
+static ColorRGBA qFontClr = CLR_RGBA(1, 1, 1, 1);
 static uint8_t qFontStyle = QGPU_FONT_STYLE_REGULAR;
 static uint8_t cti(const char c) {
 	if (c >= '0' && c <= '9') return c - 48;
@@ -1358,13 +1359,10 @@ void qgLoadFont(const char* path) {
 	qgLog("Added a %i new chars!\n", len);
 	fclose(qf);
 }
-void qgSetFontData(const float fontSize, const int style, const float r, const float g, const float b, const float a) {
+void qgSetFontData(const float fontSize, const uint8_t style, const ColorRGBA clr) {
 	qFontSize = fontSize / 10.0f;
 	qFontStyle = style;
-	qFontR = r;
-	qFontG = g;
-	qFontB = b;
-	qFontA = a;
+	qFontClr = clr;
 }
 static const int8_t qFont[128][qFontY][qFontMax] = {
 	// ===== ! " # $ % & ' ( ) * + , - . / ====================================================================================================================================
@@ -1483,7 +1481,7 @@ void qgAddChar(const Vector2 pos, const uint16_t c) {
 				float center_offset = x + (width_units * 0.5f),
 				nx = pos.x + (center_offset * qFontSize),
 				ny = pos.y - (ly * qFontSize);
-				qgAddRect((Vector2){nx, ny}, (Vector2){width_units * qFontSize, qFontSize}, qFontR, qFontG, qFontB, qFontA);
+				qgAddRect((Vector2){nx, ny}, (Vector2){width_units * qFontSize, qFontSize}, qFontClr);
 				x += width_units;
 			} else x += v;
 			if (isEnd) break;

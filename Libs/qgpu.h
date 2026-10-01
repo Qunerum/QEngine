@@ -11,41 +11,50 @@
 typedef unsigned int uint;
 typedef struct { float x, y; } Vector2;
 typedef struct { float x, y, z; } Vector3;
+typedef struct { float r, g, b; } ColorRGB;
+typedef struct { float r, g, b, a; } ColorRGBA;
+#define CLR_RGB(r, g, b) (ColorRGB){(r<.0f?.0f:r>1.0f?1.0f:r), (g<.0f?.0f:g>1.0f?1.0f:g), (b<.0f?.0f:b>1.0f?1.0f:b)}
+#define CLR_RGBA(r, g, b, a) (ColorRGBA){(r<.0f?.0f:r>1.0f?1.0f:r), (g<.0f?.0f:g>1.0f?1.0f:g), (b<.0f?.0f:b>1.0f?1.0f:b), (a<.0f?.0f:a>1.0f?1.0f:a)}
 // !===== Console ========================================================================================================================================================!
-#define QGPU_SHOW_BANNER          0
-#define QGPU_SHOW_MADE_WITH_QGPU  1
-#define QGPU_SHOW_INFO            2
-#define QGPU_SHOW_COLORS          3
-#define QGPU_SHOW_LOGS            4
 void qgSetColor(const uint8_t color);
 void qgRestoreColor();
+#define QGPU_STYLE_REGULAR 0
+#define QGPU_STYLE_BOLD 1
+#define QGPU_STYLE_ITALIC 3
+#define QGPU_STYLE_UNDERLINE 4
+#define QGPU_STYLE_STRIKETHROUGH 9
 void qgSetStyle(const uint8_t style);
 void qgPrint(const char* format, ...);
 void qgLog(const char* format, ...);
 void qgLogVertices();
 void qgWarn(const char* format, ...);
 void qgError(const char* format, ...);
+#define QGPU_SHOW_BANNER          0
+#define QGPU_SHOW_MADE_WITH_QGPU  1
+#define QGPU_SHOW_INFO            2
+#define QGPU_SHOW_COLORS          3
+#define QGPU_SHOW_LOGS            4
 void qgSetShow(const uint8_t shower, const uint8_t state);
 // !===== QGPU ===========================================================================================================================================================!
 #define QGPU_SETTINGS_AMBIENT_OCCLUSION 0
 #define QGPU_SETTINGS_MSAA_LEVEL        1
 #define QGPU_SETTINGS_SHADOWS           2
-void qgSetGraphicsSetting(uint8_t setting, uint8_t value);
+void qgSetGraphicsSetting(const uint8_t setting, const uint8_t value);
 // !===== Init
-void qgpuCreate(const uint width, const uint height, const char* title, void (*initFunc)(), void (*updateFunc)());
+int qgpuCreate(const uint width, const uint height, const char* title, void (*initFunc)(), void (*updateFunc)());
 // !===== Window
 float qgGetFPS();
 // !===== Drawing ========================================================================================================================================================!
-void qgSetBackground(const float r, const float g, const float b);
-void qgAddTriangle(const Vector3 p1, const Vector3 p2, const Vector3 p3, const float r, const float g, const float b, const float a);
-void qgAddTriangle2D(const Vector2 p1, const Vector2 p2, const Vector2 p3, const float r, const float g, const float b, const float a);
+void qgSetBackground(const ColorRGB color);
+void qgAddTriangle(const Vector3 p1, const Vector3 p2, const Vector3 p3, const ColorRGBA color);
+void qgAddTriangle2D(const Vector2 p1, const Vector2 p2, const Vector2 p3, const ColorRGBA color);
 void qgSetLayerUI(const uint layer);
 #ifdef QGPU_SHAPES
-void qgAddRect(const Vector2 position, const Vector2 size, const float r, const float g, const float b, const float a);
-void qgAddCircle(const Vector2 position, const float radius, const uint segments, const float r, const float g, const float b, const float a);
+void qgAddRect(const Vector2 position, const Vector2 size, const ColorRGBA color);
+void qgAddCircle(const Vector2 position, const float radius, const uint segments, const ColorRGBA color);
 
-void qgAddPlane(const Vector3 position, const Vector2 size, const float r, const float g, const float b, const float a);
-void qgAddBox(const Vector3 position, const Vector3 size, const float r, const float g, const float b, const float a);
+void qgAddPlane(const Vector3 position, const Vector2 size, const ColorRGBA color);
+void qgAddBox(const Vector3 position, const Vector3 size, const ColorRGBA color);
 #endif
 // !===== Text ===========================================================================================================================================================!
 #define QGPU_FONT_STYLE_REGULAR 0
@@ -54,17 +63,17 @@ void qgAddBox(const Vector3 position, const Vector3 size, const float r, const f
 #define QGPU_FONT_STYLE_BOLD_ITALIC 3
 void qgConvertFont(const char* pathQFR, const char* pathQF);
 void qgLoadFont(const char* path);
-void qgSetFontData(const float fontSize, const int style, const float r, const float g, const float b, const float a);
-void qgAddChar(const Vector2 pos, const uint16_t c);
-void qgAddText(const Vector2 pos, const char* text);
+void qgSetFontData(const float fontSize, const uint8_t style, const ColorRGBA color);
+void qgAddChar(const Vector2 position, const uint16_t c);
+void qgAddText(const Vector2 position, const char* text);
 // !===== Camera =========================================================================================================================================================!
 void qgSetCamera(const Vector3 position, const Vector3 target, const float fovDegrees);
 void qgSetCameraUp(const Vector3 up);
 void qgSetCameraClip(const float nearZ, const float farZ);
 Vector3 qgGetCameraPosition();
 
-void qgSetRotationPivot(const float x, const float y, const float z);
-void qgSetRotation(const float rx, const float ry, const float rz); // degrees
+void qgSetRotationPivot(const Vector3 pivot);
+void qgSetRotation(const Vector3 rotation); // degrees
 void qgResetRotation();
 // !===== Lights =========================================================================================================================================================!
 void qgAddLight(const Vector3 position, const float range, const float power);

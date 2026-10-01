@@ -132,7 +132,7 @@ static void qeInit() {
 #if IS_EDITOR
 	c1 = isLight ? Clr(100) : Clr(60);
 	c2 = isLight ? Clr(120) : Clr(80);
-	qgSetBackground(0.1f, 0.1f, 0.1f);
+	qgSetBackground(CLR_RGB(.1f, .1f, .1f));
 #else
 	if (actualScene.init) actualScene.init();
 #endif
@@ -169,7 +169,8 @@ static void drawCodeConnect(Vector2 p1, Vector2 p2, const Color c1, const Color 
 	for (uint8 i = 0; i <= steps; i++) {
 		const float t = (float)i / (float)steps;
 		float t_stepped;
-		if (t < 0.5f) t_stepped = 0.5f * connectF(2.0f * t, centerDensity); else t_stepped = 1.0f - 0.5f * connectF(2.0f * (1.0f - t), centerDensity);
+		if (t < 0.5f) t_stepped = 0.5f * connectF(2.0f * t, centerDensity);
+		else t_stepped = 1.0f - 0.5f * connectF(2.0f * (1.0f - t), centerDensity);
 		const float smoothY = (t_stepped < 0.5f) ? 0.5f * connectF(2.0f * t_stepped, 3) : 1.0f - 0.5f * connectF(2.0f * (1.0f - t_stepped), 3),
 		px = p1.x + (p2.x - p1.x) * t_stepped,
 		py = p1.y + (p2.y - p1.y) * smoothY;
@@ -225,7 +226,7 @@ static void qeUpdate() {
 }
 int initEngineProject(Scene scene) {
 	if (!qsInit()) return 1;
-	qgSetBackground(0, 0, 0);
+	qgSetBackground(CLR_RGB(.0f, .0f, .0f));
 	char title[MAX_NAME_LENGTH];
 #if IS_EDITOR
 	snprintf(title, sizeof(title), "QEngine %i.%i.%i Block Code Editor | %s %s", QENGINE_VERSION_MAJOR, QENGINE_VERSION_MINOR, QENGINE_VERSION_PATCH, QEP_NAME, QEP_VERSION);
@@ -234,9 +235,16 @@ int initEngineProject(Scene scene) {
 	snprintf(title, sizeof(title), "%s %s", QEP_NAME, QEP_VERSION);
 	actualScene = scene;
 #endif
-	qgpuCreate(QEP_START_WIDTH, QEP_START_HEIGHT, title, qeInit, qeUpdate);
+	const int qgpu = qgpuCreate(QEP_START_WIDTH, QEP_START_HEIGHT, title, qeInit, qeUpdate);
 	qsClose();
-	return 0;
+	return qgpu;
+}
+void setScene(Scene scene) {
+	#if IS_EDITOR
+	(void)scene;
+	#else
+	actualScene = scene;
+	#endif
 }
 // = = = = = CAMERA = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 static Camera _camera;
@@ -253,23 +261,24 @@ void setLayer(const int layer) { qgSetLayerUI(layer); }
 
 static float b01(const byte v) { return v / 255.0f; }
 static void setRot(const Vector3 position, const Vector3 rotation) {
-	qgSetRotationPivot(position.x, position.y, position.z);
-	qgSetRotation(rotation.x, rotation.y, rotation.z);
+	qgSetRotationPivot(*(QV3*)&position);
+	qgSetRotation(*(QV3*)&rotation);
 }
+static ColorRGBA vte(const Color c) { return (ColorRGBA){b01(c.r), b01(c.g), b01(c.b), b01(c.a)}; }
 
 void drawTriangle(const Vector3 posA, const Vector3 posB, const Vector3 posC, const Color color) {
-	qgAddTriangle(*(QV3*)&posA, *(QV3*)&posB, *(QV3*)&posC, b01(color.r), b01(color.g), b01(color.b), b01(color.a)); }
+	qgAddTriangle(*(QV3*)&posA, *(QV3*)&posB, *(QV3*)&posC, vte(color)); }
 void drawRect(const Vector2 position, const Vector2 size, const qeAlignMode align, const Color color) {
 	const Vector2 p = getPos(position, align);
-	qgAddRect(*(QV2*)&p, *(QV2*)&size, b01(color.r), b01(color.g), b01(color.b), b01(color.a));
+	qgAddRect(*(QV2*)&p, *(QV2*)&size, vte(color));
 }
 void drawCircle(const Vector2 position, const uint segments, const float radius, const qeAlignMode align, const Color color) {
 	const Vector2 p = getPos(position, align);
-	qgAddCircle(*(QV2*)&p, segments, radius, b01(color.r), b01(color.g), b01(color.b), b01(color.a));
+	qgAddCircle(*(QV2*)&p, segments, radius, vte(color));
 }
 void drawText(const char* text, const Vector2 position, const float fontSize, const qeAlignMode align, const Color color) {
 	const Vector2 p = getPos(position, align);
-	qgSetFontData(fontSize, QGPU_FONT_STYLE_REGULAR, b01(color.r), b01(color.g), b01(color.b), b01(color.a));
+	qgSetFontData(fontSize, QGPU_FONT_STYLE_REGULAR, vte(color));
 	qgAddText(*(QV2*)&p, text);
 }
 
@@ -277,13 +286,13 @@ state drawButton(const Vector2 position, const Vector2 size, const qeAlignMode a
 	const Vector2 p = getPos(position, align);
 	const state hover = mob(position, size, align);
 	const Color c = hover ? getMouseButton(LMB) ? clrPress : clrHover : clrBase;
-	qgAddRect(*(QV2*)&p, *(QV2*)&size, b01(c.r), b01(c.g), b01(c.b), b01(c.a));
+	qgAddRect(*(QV2*)&p, *(QV2*)&size, vte(c));
 	return hover && onMouseDown(LMB);
 }
 
 void drawBox(const Vector3 position, const Vector3 rotation, const Vector3 size, const Color color) {
 	setRot(position, rotation);
-	qgAddBox(*(QV3*)&position, *(QV3*)&size, b01(color.r), b01(color.g), b01(color.b), b01(color.a));
+	qgAddBox(*(QV3*)&position, *(QV3*)&size, vte(color));
 }
 // = = = = = AUDIO = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 void convertAudio(const char* qsr_path, const char* qs_path) { qsConvert(qsr_path, qs_path); }
