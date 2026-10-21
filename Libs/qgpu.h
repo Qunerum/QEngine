@@ -1,10 +1,18 @@
+/*
+ * Copyright (c) 2026 Qunerum
+ *
+ * This file is part of QGPU.
+ * This software is licensed under the MIT License.
+ * See LICENSE file in the project root for full license information.
+ */
+
 #ifndef QGPU_H
 #define QGPU_H
 #include <stdint.h>
 // !===== CONFIGURATION ==================================================================================================================================================!
 #define MAX_VERTICES     65536 // (2^16) Max vertices in one frame
 #define MAX_LIGHTS       1024  // (2^10) Max lights in one frame
-#define MAX_UI_VERTICES  8192  // Max 2D/UI vertices in one frame
+#define MAX_UI_VERTICES  32768  // Max 2D/UI vertices in one frame
 #define VSYNC            1
 #define SHADOW_MAP_SIZE  4096  // resolution of the (single) shadow depth map
 // !===== Structs ========================================================================================================================================================!
@@ -57,14 +65,16 @@ void qgAddPlane(const Vector3 position, const Vector2 size, const ColorRGBA colo
 void qgAddBox(const Vector3 position, const Vector3 size, const ColorRGBA color);
 #endif
 // !===== Text ===========================================================================================================================================================!
-#define QGPU_FONT_STYLE_REGULAR 0
-#define QGPU_FONT_STYLE_BOLD 1
-#define QGPU_FONT_STYLE_ITALIC 2
-#define QGPU_FONT_STYLE_BOLD_ITALIC 3
-void qgConvertFont(const char* pathQFR, const char* pathQF);
+#define QGPU_FONT_STYLE_REGULAR       0b00000000
+#define QGPU_FONT_STYLE_BOLD          0b00000001
+#define QGPU_FONT_STYLE_ITALIC        0b00000010
+#define QGPU_FONT_STYLE_UNDERLINE     0b00000100
+#define QGPU_FONT_STYLE_STRIKETHROUGH 0b00001000
+#define QGPU_FONT_STYLE_UPPERCASE     0b00010000
+#define QGPU_FONT_STYLE_LOWERCASE     0b00100000
 void qgLoadFont(const char* path);
 void qgSetFontData(const float fontSize, const uint8_t style, const ColorRGBA color);
-void qgAddChar(const Vector2 position, const uint16_t c);
+void qgAddChar(const Vector2 position, const uint32_t c);
 void qgAddText(const Vector2 position, const char* text);
 // !===== Camera =========================================================================================================================================================!
 void qgSetCamera(const Vector3 position, const Vector3 target, const float fovDegrees);
@@ -76,6 +86,10 @@ void qgSetRotationPivot(const Vector3 pivot);
 void qgSetRotation(const Vector3 rotation); // degrees
 void qgResetRotation();
 // !===== Lights =========================================================================================================================================================!
+void qgAddPointLight(const Vector3 position, const float range, const float power);
+void qgAddSpotLight(const Vector3 position, const Vector3 direction, const float angleDegrees, const float range, const float power);
+void qgAddDirectionalLight(const Vector3 direction, const float power);
+// < = = = OBSOLETE (Replaced by: qgAddPointLight) = = = >
 void qgAddLight(const Vector3 position, const float range, const float power);
 // !===== Input ==========================================================================================================================================================!
 uint8_t qgGetKey(const uint key);

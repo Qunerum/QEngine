@@ -67,6 +67,7 @@ state qPathExists(const char* path) {
 	if (stat(path, &st) == 0) return true;
 	return false;
 }
+char buffer[8192];
 state qCopyFile(const char* srcPath, const char* dstPath) {
 	if (!srcPath || !dstPath) return false;
 	FILE* src = fopen(srcPath, "rb");
@@ -76,7 +77,6 @@ state qCopyFile(const char* srcPath, const char* dstPath) {
 		fclose(src);
 		return false;
 	}
-	char buffer[8192];
 	size_t bytesRead;
 	while ((bytesRead = fread(buffer, 1, sizeof(buffer), src)) > 0) fwrite(buffer, 1, bytesRead, dst);
 	fclose(src);
@@ -147,7 +147,7 @@ static const Vector2 blockSize = V2(200, 50);
 static void drawCodeBlock(const char* title, const Vector2 position, const Color color) {
 	const Vector2 pos = Vector2_Add(V2(-position.x, position.y), V2(viewPos.x, viewPos.y));
 	drawRect(pos, blockSize, Bottom_Right, color);
-	drawText(title, Vector2_Sub(pos, V2(blockSize.x / 2.0f - 5, -blockSize.y / 2.0f + 5)), 16, Bottom_Right, Color_White);
+	drawText(title, Vector2_Sub(pos, V2(blockSize.x * 0.5f - 5, -blockSize.y * 0.5f + 5)), 16, Bottom_Right, Color_White);
 }
 static float connectF(const float x, const float p) {
 	if (x <= 0.0f) return 0.0f;
@@ -229,7 +229,7 @@ int initEngineProject(Scene scene) {
 	qgSetBackground(CLR_RGB(.0f, .0f, .0f));
 	char title[MAX_NAME_LENGTH];
 #if IS_EDITOR
-	snprintf(title, sizeof(title), "QEngine %i.%i.%i Block Code Editor | %s %s", QENGINE_VERSION_MAJOR, QENGINE_VERSION_MINOR, QENGINE_VERSION_PATCH, QEP_NAME, QEP_VERSION);
+	snprintf(title, sizeof(title), "QEngine %i.%i.%i Editor | %s %s", QENGINE_VERSION_MAJOR, QENGINE_VERSION_MINOR, QENGINE_VERSION_PATCH, QEP_NAME, QEP_VERSION);
 	(void)scene;
 #else
 	snprintf(title, sizeof(title), "%s %s", QEP_NAME, QEP_VERSION);

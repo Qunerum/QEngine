@@ -1,3 +1,11 @@
+/*
+ * Copyright (c) 2026 Qunerum
+ *
+ * This file is part of QGPU.
+ * This software is licensed under the MIT License.
+ * See LICENSE file in the project root for full license information.
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -12,9 +20,355 @@
 #include "qgpu.h"
 
 #define QGPU_VERSION_MAJOR 2
-#define QGPU_VERSION_MINOR 4
+#define QGPU_VERSION_MINOR 6
 #define QGPU_VERSION_PATCH 0
+// ========================================================================================================================================================================
+// ===== QFONT.h ==========================================================================================================================================================
+// ========================================================================================================================================================================
+#define QFONT_REGULAR       0b00000000
+#define QFONT_BOLD          0b00000001
+#define QFONT_ITALIC        0b00000010
+#define QFONT_UNDERLINE     0b00000100
+#define QFONT_STRIKETHROUGH 0b00001000
+#define QFONT_UPPERCASE     0b00010000
+#define QFONT_LOWERCASE     0b00100000
 
+#define QFONT_Y_UP 0
+#define QFONT_Y_DOWN 1
+
+typedef struct { uint8_t sizeX, sizeY; } qfCharData;
+// ========================================================================================================================================================================
+// ===== QFONT.c ==========================================================================================================================================================
+// ========================================================================================================================================================================
+#define NKO "\033[1;38;5;240m[\033[1;38;5;"
+#define NKC "\033[1;38;5;240m]\033[1;38;5;251m"
+#define QFONT_PREFIX NKO "211mQFont" NKC
+static float
+	pivX = 0.0f, pivY = 0.0f,
+	qfSize = 32.0f,
+	qfR = 1.0f, qfG = 1.0f, qfB = 1.0f, qfA = 1.0f;
+static uint8_t qfStyle = QFONT_REGULAR, qfAxis = QFONT_Y_UP;
+static void (*drawFunc)(const float posX, const float posY, const float sizeX, const float sizeY, const float r, const float g, const float b, const float a);
+void qfSetDrawRect(const int8_t px, const int8_t py, const uint8_t ya, void (*drawRectFunc)(const float posX, const float posY, const float sizeX, const float sizeY, const float r, const float g, const float b, const float a)) {
+	pivX = px <= -1 ? 0.0f : px >= 1 ? 1.0f : 0.5f;
+	pivY = py <= -1 ? 0.0f : py >= 1 ? 1.0f : 0.5f;
+	qfAxis = ya;
+	drawFunc = drawRectFunc;
+}
+void qfConfigure(const float fontSize, const uint8_t style, const float r, const float g, const float b, const float a) {
+	qfSize = fontSize;
+	qfStyle = style;
+	qfR = r;
+	qfG = g;
+	qfB = b;
+	qfA = a;
+}
+static void* mc(void* dest, const void* src, const uint32_t n) {
+	unsigned char* d = (unsigned char*)dest;
+	const unsigned char* s = (const unsigned char*)src;
+	for (uint32_t i = 0; i < n; i++) d[i] = s[i];
+	return dest;
+}
+qfCharData qfCreate(const uint8_t sizeX, const uint8_t sizeY) { return (qfCharData) { .sizeX = sizeX, .sizeY = sizeY }; }
+static int8_t** allChars = 0, isFile = 0;
+static uint32_t charCount = 0, highestID = 0;
+#define u8d (uint8_t)d
+void qfAddChar(const qfCharData charData, const int8_t* d) {
+	if (!d) return;
+	const uint32_t id =
+		((uint32_t)u8d[0] << 24) |
+		((uint32_t)u8d[1] << 16) |
+		((uint32_t)u8d[2] << 8)  |
+		 (uint32_t)u8d[3];
+	if (id >= highestID) {
+		const uint32_t newCapacity = id + 1;
+		int8_t** temp = (int8_t**)realloc(allChars, newCapacity * sizeof(int8_t*));
+		if (!temp) return;
+		allChars = temp;
+		for (uint32_t i = highestID; i < newCapacity; i++) allChars[i] = 0;
+		highestID = newCapacity;
+	}
+	if (allChars[id]) free(allChars[id]);
+	const uint8_t goNext = u8d[5];
+	uint16_t size = 4, actualID = 6;
+	for (uint8_t i = 0; i < goNext; i++) {
+		const uint8_t len = 1 + u8d[actualID];
+		actualID += len;
+		size += len;
+	}
+	allChars[id] = (int8_t*)malloc(size);
+	mc(allChars[id], d + 2, size);
+	allChars[id][0] = charData.sizeX;
+	allChars[id][1] = charData.sizeY;
+	charCount++;
+	const uint8_t c = isFile ? 12 : 245;
+	printf(QFONT_PREFIX "%c" NKO "245m%4u" NKC
+		" %s " NKO "%um%c" NKC
+		": WH:" NKO "%um%ux%u" NKC
+		" ID:" NKO "%um0x%08X" NKC
+		" LS:" NKO "%um%4uB" NKC "\n",
+		isFile ? 0 : ' ', charCount, isFile ? "Readed char" : "Added char", c, (char)(id > 31 && id < 127 ? id : '?'), c, charData.sizeX, charData.sizeY, c, id, c, size);
+}
+void qfWriteFile(const uint8_t add, const char* path, const qfCharData charData, const int8_t* d) {
+	if (!d) return;
+	FILE* f = fopen(path, add ? "ab" : "wb");
+	if (!f) return;
+	const uint32_t id =
+	(((uint32_t)u8d[0] << 24)) |
+	(((uint32_t)u8d[1] << 16)) |
+	(((uint32_t)u8d[2] << 8))  |
+	((uint32_t)u8d[3]);
+	const uint8_t startAt = u8d[4], goNext = u8d[5];
+	uint16_t l = 0, actualID = 6;
+	for (uint8_t i = 0; i < goNext; i++) {
+		const uint8_t len = 1 + u8d[actualID];
+		actualID += len;
+		l += len;
+	}
+	fwrite(&d[0], 1, 1, f);
+	fwrite(&d[1], 1, 1, f);
+	fwrite(&d[2], 1, 1, f);
+	fwrite(&d[3], 1, 1, f);
+	fwrite(&charData.sizeX, 1, 1, f);
+	fwrite(&charData.sizeY, 1, 1, f);
+	fwrite(&startAt, 1, 1, f);
+	fwrite(&goNext, 1, 1, f);
+	fwrite(&d[6], 1, l, f);
+	fclose(f);
+	const uint16_t totalRecordSize = 6 + l;
+	printf(QFONT_PREFIX
+	"   Saved to file   " NKO "115m%c" NKC
+	": WH:" NKO "115m%ux%u" NKC
+	" ID:" NKO "115m0x%08X" NKC
+	" LS:" NKO "115m%4uB" NKC "\n",
+	(char)(id > 31 && id < 127 ? id : '?'), charData.sizeX, charData.sizeY, id, totalRecordSize);
+}
+void qfReadFile(const char* path) {
+	FILE* f = fopen(path, "rb");
+	if (!f) return;
+	isFile = 1;
+	uint32_t id = 0;
+	while (fread(&id, sizeof(uint32_t), 1, f) == 1) {
+		uint8_t sizeX = 0, sizeY = 0, startAt = 0, goNext = 0;
+		if (fread(&sizeX, 1, 1, f) != 1 ||
+			fread(&sizeY, 1, 1, f) != 1 ||
+			fread(&startAt, 1, 1, f) != 1 ||
+			fread(&goNext, 1, 1, f) != 1) break;
+		const qfCharData cd = (qfCharData){ .sizeX = sizeX, .sizeY = sizeY };
+		uint16_t size = 6;
+		for (uint8_t i = 0; i < goNext; i++) {
+			uint8_t v = 0;
+			if (fread(&v, 1, 1, f) != 1) break;
+			fseek(f, (long)v, SEEK_CUR);
+			size += (1 + v);
+		}
+		int8_t* d = (int8_t*)malloc(size);
+		if (!d) {
+			fclose(f);
+			return;
+		}
+		fseek(f, -(long)(size + 2), SEEK_CUR);
+		d[3] = (int8_t)(id >> 24);
+		d[2] = (int8_t)(id >> 16);
+		d[1] = (int8_t)(id >> 8);
+		d[0] = (int8_t)id;
+		fseek(f, 6, SEEK_CUR);
+		fread(&d[4], 1, size - 4, f);
+		qfAddChar(cd, d);
+	}
+	isFile = 0;
+	fclose(f);
+}
+float qfDrawChar(const float posX, const float posY, const uint32_t c) {
+	if (c >= highestID || !allChars[c]) return .0f;
+	const uint32_t cr =
+		((qfStyle & QFONT_UPPERCASE) && c >= 'a' && c <= 'z') ? c - 32 :
+		((qfStyle & QFONT_LOWERCASE) && c >= 'A' && c <= 'Z') ? c + 32 : c;
+	const int8_t* d = allChars[cr];
+	const uint8_t
+		w = u8d[0], h = u8d[1],
+		s = u8d[2], rn = u8d[3],
+		n = s + rn > h ? h - s : rn,
+		fw = (qfStyle & QFONT_BOLD) ? w + 1 : w;
+	if (s >= h) return .0f;
+	uint8_t x = 0, y = s, i = 4;
+	const float sc = qfSize / h;
+	for (uint8_t r = 0; r < n; r++) {
+		const uint8_t len = u8d[i] + 1;
+		const float st = (qfStyle & QFONT_ITALIC) ? -(y / (float)h) * 3.0f : 0.0f;
+		for (uint8_t l = 1; l < len; l++) {
+			const int8_t dil = d[i + l];
+			const uint8_t
+				draw = dil < 0,
+				rv = draw ? -dil : dil,
+				v = rv > w ? w : rv,
+				dv = (qfStyle & QFONT_BOLD) && draw ? v + 1 : v;
+			const float
+				px = qfAxis ? (x + v * pivX - st) : (x + v * pivX + st),
+				pyt = (y + pivY) * sc,
+				py = qfAxis ? posY + pyt : posY - pyt;
+			if (draw) drawFunc(posX + px * sc, py, dv * sc, sc, qfR,qfG,qfB,qfA);
+			x += v;
+		}
+		i += len;
+		x = 0;
+		y++;
+	}
+	if (qfStyle & QFONT_UNDERLINE) drawFunc(posX + (fw * sc * 0.5f), posY - qfSize, fw * sc, sc, qfR,qfG,qfB,qfA);
+	if (qfStyle & QFONT_STRIKETHROUGH) drawFunc(posX + (fw * sc * 0.5f), posY - qfSize * 0.5f, fw * sc, sc, qfR,qfG,qfB,qfA);
+	return fw * sc;
+}
+static uint8_t tmpi = 0;
+static char tmp[11];
+void qfDrawText(const float posX, const float posY, const char* t) {
+	float x = posX, y = posY;
+	while (*t) {
+		if (*t == '\n') {
+			x = posX;
+			y -= qfSize;
+			t++;
+			continue;
+		}
+		if (*t == '\33') {
+			t++;
+			const uint8_t type = *t == 'd' ? 1 : *t == 'x' ? 2 : 0;
+			if (!type || !*t) continue;
+			tmpi = 0;
+			tmp[0] = 0;
+			for (uint8_t i = 0; i < sizeof(tmp) - 1; i++) {
+				t++;
+				if (!*t) return;
+				if (*t != 'q') tmp[tmpi++] = *t; else break;
+			}
+			uint32_t res = 0;
+			uint8_t i = 0;
+			if (type == 1) {
+				while (tmp[i] >= '0' && tmp[i] <= '9') {
+					res = res * 10 + tmp[i] - '0';
+					i++;
+				}
+			} else {
+				for (i = 0; i < tmpi; i++) if (tmp[i] >= 'A' && tmp[i] <= 'F') tmp[i] += 32;
+				i = 0;
+				while (i < tmpi) {
+					const char c = tmp[i];
+					uint32_t val = 0;
+					if (c >= '0' && c <= '9') val = c - '0';
+					else if (c >= 'a' && c <= 'f') val = c - 'a' + 10;
+					else break;
+					res = (res << 4) | val;
+					i++;
+				}
+			}
+			x += qfDrawChar(x, y, res);
+			t++;
+			continue;
+		}
+		x += qfDrawChar(x, y, (unsigned char)*t++);
+	}
+}
+#define qfl qfFont,(int8_t[]){0,0,0
+void qfInit() {
+	qfCharData qfFont = qfCreate(8, 12);
+	qfAddChar(qfl,0x7e, 0,0}); // alloc
+	charCount--;
+	qfAddChar(qfl,0x1f, 0,12, 1, -8, 1, -8, 1, -8, 1, -8, 1, -8, 1, -8, 1, -8, 1, -8, 1, -8, 1, -8, 1, -8, 1, -8});
+	qfAddChar(qfl,0x20, 0,0});
+	qfAddChar(qfl,0x21, 2,8, 2, 3,-2, 2, 3,-2, 2, 3,-2, 2, 3,-2, 2, 3,-2, 0, 2, 3,-2, 2, 3,-2});
+	qfAddChar(qfl,0x22, 2,2, 4, 2,-1,1,-1, 4, 2,-1,1,-1});
+	qfAddChar(qfl,0x23, 2,8, 4, 2,-1,2,-1, 4, 2,-1,2,-1, 2, 1,-6, 4, 2,-1,2,-1, 4, 2,-1,2,-1, 2, 1,-6, 4, 2,-1,2,-1, 4, 2,-1,2,-1});
+	qfAddChar(qfl,0x24, 1,10, 2, 3,-2, 2, 2,-4, 4, 1,-1,4,-1, 2, 1,-1, 2, 2,-2, 2, 4,-2, 2, 6,-1, 4, 1,-1,4,-1, 2, 2,-4, 2, 3,-2});
+	qfAddChar(qfl,0x25, 2,8, 4, 1,-2,2,-1, 4, 1,-2,2,-1, 2, 4,-1, 2, 4,-1, 2, 3,-1, 2, 3,-1, 4, 2,-1,2,-2, 4, 2,-1,2,-2});
+	qfAddChar(qfl,0x26, 2,8, 2, 2,-3, 4, 1,-1,3,-1, 2, 1,-1, 2, 2,-1, 4, 1,-1,1,-1, 6, 1,-1,2,-1,1,-1, 4, 1,-1,3,-1, 4, 2,-3,1,-1});
+	qfAddChar(qfl,0x27, 2,2, 2, 4,-1, 2, 4,-1});
+	qfAddChar(qfl,0x28, 2,8, 2, 5,-1, 2, 4,-1, 2, 3,-1, 2, 3,-1, 2, 3,-1, 2, 3,-1, 2, 4,-1, 2, 5,-1});
+	qfAddChar(qfl,0x29, 2,8, 2, 2,-1, 2, 3,-1, 2, 4,-1, 2, 4,-1, 2, 4,-1, 2, 4,-1, 2, 3,-1, 2, 2,-1});
+	qfAddChar(qfl,0x2a, 2,3, 4, 2,-1,2,-1, 2, 3,-2, 4, 2,-1,2,-1});
+	qfAddChar(qfl,0x2b, 3,5, 2, 3,-1, 2, 3,-1, 2, 1,-5, 2, 3,-1, 2, 3,-1,});
+	qfAddChar(qfl,0x2c, 8,4, 2, 3,-2, 2, 3,-2, 2, 4,-1, 2, 3,-1});
+	qfAddChar(qfl,0x2d, 5,1,  2, 1,-6 });
+	qfAddChar(qfl,0x2e, 8,2, 2, 3,-2, 2, 3,-2});
+	qfAddChar(qfl,0x2f, 2,8, 2, 5,-1, 2, 5,-1, 2, 4,-1, 2, 4,-1, 2, 3,-1, 2, 3,-1, 2, 2,-1, 2, 2,-1});
+	qfAddChar(qfl,0x30, 2,8, 2, 2,-4, 4, 1,-1,4,-1, 4, 1,-2,3,-1, 6, 1,-1,1,-1,2,-1, 6, 1,-1,2,-1,1,-1, 4, 1,-1,3,-2, 4, 1,-1,4,-1, 2, 2,-4});
+	qfAddChar(qfl,0x31, 2,8, 2, 4,-1, 2, 3,-2, 4, 2,-1,1,-1, 2, 4,-1, 2, 4,-1, 2, 4,-1, 2, 4,-1, 2, 2,-5});
+	qfAddChar(qfl,0x32, 2,8, 2, 2,-4, 4, 1,-1,4,-1, 2, 6,-1, 2, 5,-1, 2, 4,-1, 2, 3,-1, 2, 2,-1, 2, 1,-6});
+	qfAddChar(qfl,0x33, 2,8, 2, 2,-4, 4, 1,-1,4,-1, 2, 6,-1, 2, 3,-3, 2, 6,-1, 2, 6,-1, 4, 1,-1,4,-1, 2, 2,-4});
+	qfAddChar(qfl,0x34, 2,8, 2, 4,-2, 4, 3,-1,1,-1, 4, 2,-1,2,-1, 4, 1,-1,3,-1, 2, 1,-6, 2, 5,-1, 2, 5,-1, 2, 5,-1});
+	qfAddChar(qfl,0x35, 2,8, 2, 1,-6, 2, 1,-1, 2, 1,-1, 2, 1,-5, 2, 6,-1, 2, 6,-1, 4, 1,-1,4,-1, 2, 2,-4});
+	qfAddChar(qfl,0x36, 2,8, 2, 2,-4, 4, 1,-1,4,-1, 2, 1,-1, 2, 1,-5, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 2, 2,-4});
+	qfAddChar(qfl,0x37, 2,8, 2, 1,-6, 2, 6,-1, 2, 5,-1, 2, 4,-1, 2, 4,-1, 2, 3,-1, 2, 3,-1, 2, 3,-1});
+	qfAddChar(qfl,0x38, 2,8, 2, 2,-4, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 2, 2,-4, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 2, 2,-4});
+	qfAddChar(qfl,0x39, 2,8, 2, 2,-4, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 2, 2,-5, 2, 6,-1, 4, 1,-1,4,-1, 2, 2,-4});
+	qfAddChar(qfl,0x3a, 3,6, 2, 3,-2, 2, 3,-2, 0, 0, 2, 3,-2, 2, 3,-2});
+	qfAddChar(qfl,0x3b, 3,8, 2, 3,-2, 2, 3,-2, 0, 0, 2, 3,-2, 2, 3,-2, 2, 4,-1, 2, 3,-1});
+	qfAddChar(qfl,0x3c, 3,6, 2, 5,-2, 2, 3,-2, 2, 1,-2, 2, 1,-2, 2, 3,-2, 2, 5,-2});
+	qfAddChar(qfl,0x3d, 4,4, 2, 1,-6, 0, 0, 2, 1,-6});
+	qfAddChar(qfl,0x3e, 3,6, 2, 1,-2, 2, 3,-2, 2, 5,-2, 2, 5,-2, 2, 3,-2, 2, 1,-2});
+	qfAddChar(qfl,0x3f, 2,8, 2, 3,-3, 4, 2,-1,3,-1, 2, 6,-1, 2, 5,-1, 2, 4,-1, 2, 4,-1, 0, 2, 4,-1});
+	qfAddChar(qfl,0x40, 2,8, 2, 2,-4, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 6, 1,-1,1,-2,1,-1, 4, 1,-1,1,-3, 2, 1,-1, 4, 1,-1,4,-1, 2, 2,-4});
+	qfAddChar(qfl,0x41, 2,8, 2, 3,-2, 4, 2,-1,2,-1, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 2, 1,-6, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 4, 1,-1,4,-1});
+	qfAddChar(qfl,0x42, 2,8, 2, 1,-5, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 2, 1,-5, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 2, 1,-5});
+	qfAddChar(qfl,0x43, 2,8, 2, 2,-4, 4, 1,-1,4,-1, 2, 1,-1, 2, 1,-1, 2, 1,-1, 2, 1,-1, 4, 1,-1,4,-1, 2, 2,-4});
+	qfAddChar(qfl,0x44, 2,8, 2, 1,-5, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 2, 1,-5});
+	qfAddChar(qfl,0x45, 2,8, 2, 1,-6, 2, 1,-1, 2, 1,-1, 2, 1,-4, 2, 1,-1, 2, 1,-1, 2, 1,-1, 2, 1,-6});
+	qfAddChar(qfl,0x46, 2,8, 2, 1,-6, 2, 1,-1, 2, 1,-1, 2, 1,-4, 2, 1,-1, 2, 1,-1, 2, 1,-1, 2, 1,-1});
+	qfAddChar(qfl,0x47, 2,8, 2, 2,-4, 4, 1,-1,4,-1, 2, 1,-1, 2, 1,-1, 4, 1,-1,2,-3, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 2, 2,-4});
+	qfAddChar(qfl,0x48, 2,8, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 2, 1,-6, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 4, 1,-1,4,-1});
+	qfAddChar(qfl,0x49, 2,8, 2, 1,-5, 2, 3,-1, 2, 3,-1, 2, 3,-1, 2, 3,-1, 2, 3,-1, 2, 3,-1, 2, 1,-5});
+	qfAddChar(qfl,0x4a, 2,8, 2, 1,-5, 2, 3,-1, 2, 3,-1, 2, 3,-1, 2, 3,-1, 2, 3,-1, 2, 3,-1, 2, 1,-2});
+	qfAddChar(qfl,0x4b, 2,8, 4, 1,-1,4,-1, 4, 1,-1,3,-1, 4, 1,-1,2,-1, 2, 1,-3, 4, 1,-1,2,-1, 4, 1,-1,3,-1, 4, 1,-1,4,-1, 4, 1,-1,4,-1,});
+	qfAddChar(qfl,0x4c, 2,8, 2, 1,-1, 2, 1,-1, 2, 1,-1, 2, 1,-1, 2, 1,-1, 2, 1,-1, 2, 1,-1, 2, 1,-6});
+	qfAddChar(qfl,0x4d, 2,8, 4, 1,-1,4,-1, 4, 1,-2,2,-2, 6, 1,-1,1,-2,1,-1, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 4, 1,-1,4,-1});
+	qfAddChar(qfl,0x4e, 2,8, 4, 1,-1,4,-1, 4, 1,-2,3,-1, 6, 1,-1,1,-1,2,-1, 6, 1,-1,1,-1,2,-1, 6, 1,-1,2,-1,1,-1, 6, 1,-1,2,-1,1,-1, 4, 1,-1,3,-2, 4, 1,-1,4,-1});
+	qfAddChar(qfl,0x4f, 2,8, 2, 2,-4, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 2, 2,-4});
+	qfAddChar(qfl,0x50, 2,8, 2, 1,-5, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 2, 1,-5, 2, 1,-1, 2, 1,-1, 2, 1,-1});
+	qfAddChar(qfl,0x51, 2,9, 2, 2,-4, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 2, 2,-5, 2, 6,-2});
+	qfAddChar(qfl,0x52, 2,8, 2, 1,-5, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 2, 1,-5, 4, 1,-1,3,-1, 4, 1,-1,4,-1, 4, 1,-1,4,-1,});
+	qfAddChar(qfl,0x53, 2,8, 2, 2,-4, 4, 1,-1,4,-1, 2, 1,-1, 2, 2,-2, 2, 4,-2, 2, 6,-1, 4, 1,-1,4,-1, 2, 2,-4});
+	qfAddChar(qfl,0x54, 2,8, 2, 1,-5, 2, 3,-1, 2, 3,-1, 2, 3,-1, 2, 3,-1, 2, 3,-1, 2, 3,-1, 2, 3,-1,});
+	qfAddChar(qfl,0x55, 2,8, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 2, 2,-4});
+	qfAddChar(qfl,0x56, 2,8, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 4, 2,-1,2,-1, 4, 2,-1,2,-1, 4, 2,-1,2,-1, 2, 3,-2, 2, 3,-2});
+	qfAddChar(qfl,0x57, 2,8, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 6, 1,-1,1,-2,1,-1, 4, 1,-2,2,-2, 4, 1,-1,4,-1});
+	qfAddChar(qfl,0x58, 2,8, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 4, 2,-1,2,-1, 2, 3,-2, 2, 3,-2, 4, 2,-1,2,-1, 4, 1,-1,4,-1, 4, 1,-1,4,-1});
+	qfAddChar(qfl,0x59, 2,8, 4, 1,-1,3,-1, 4, 1,-1,3,-1, 4, 2,-1,1,-1, 4, 2,-1,1,-1, 2, 3,-1, 2, 3,-1, 2, 3,-1, 2, 3,-1});
+	qfAddChar(qfl,0x5a, 2,8, 2, 1,-6, 2, 6,-1, 2, 5,-1, 2, 4,-1, 2, 3,-1, 2, 2,-1, 2, 1,-1, 2, 1,-6});
+	qfAddChar(qfl,0x5b, 2,8, 2, 3,-3, 2, 3,-1, 2, 3,-1, 2, 3,-1, 2, 3,-1, 2, 3,-1, 2, 3,-1, 2, 3,-3});
+	qfAddChar(qfl,0x5c, 2,8, 2, 2,-1, 2, 2,-1, 2, 3,-1, 2, 3,-1, 2, 4,-1, 2, 4,-1, 2, 5,-1, 2, 5,-1});
+	qfAddChar(qfl,0x5d, 2,8, 2, 2,-3, 2, 4,-1, 2, 4,-1, 2, 4,-1, 2, 4,-1, 2, 4,-1, 2, 4,-1, 2, 2,-3});
+	qfAddChar(qfl,0x5e, 2,2, 2, 3,-2, 4, 2,-1,2,-1});
+	qfAddChar(qfl,0x5f, 9,1,   2, 1,-6 });
+	qfAddChar(qfl,0x60, 2,2, 2, 3,-1, 2, 4,-1});
+	qfAddChar(qfl,0x61, 4,6, 2, 2,-4, 2, 6,-1, 2, 2,-5, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 2, 2,-5});
+	qfAddChar(qfl,0x62, 2,8, 2, 1,-1, 2, 1,-1, 4, 1,-1,1,-3, 4, 1,-2,3,-1, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 2, 1,-5,});
+	qfAddChar(qfl,0x63, 4,6, 2, 2,-4, 4, 1,-1,4,-1, 2, 1,-1, 2, 1,-1, 4, 1,-1,4,-1, 2, 2,-4});
+	qfAddChar(qfl,0x64, 2,8, 2, 6,-1, 2, 6,-1, 4, 2,-3,1,-1, 4, 1,-1,3,-2, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 2, 2,-5});
+	qfAddChar(qfl,0x65, 4,6, 2, 2,-4, 4, 1,-1,4,-1, 2, 1,-6, 2, 1,-1, 4, 1,-1,4,-1, 2, 2,-4});
+	qfAddChar(qfl,0x66, 2,8, 2, 4,-2, 2, 3,-1, 2, 3,-1, 2, 1,-5, 2, 3,-1, 2, 3,-1, 2, 3,-1, 2, 3,-1});
+	qfAddChar(qfl,0x67, 4,8, 4, 2,-3,1,-1, 4, 1,-1,3,-2, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 2, 2,-5, 2, 6,-1, 4, 1,-1,4,-1, 2, 2,-4});
+	qfAddChar(qfl,0x68, 2,8, 2, 1,-1, 2, 1,-1, 4, 1,-1,1,-3, 4, 1,-2,3,-1, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 4, 1,-1,4,-1});
+	qfAddChar(qfl,0x69, 2,8, 2, 3,-1, 2, 3,-1, 0, 2, 2,-2, 2, 3,-1, 2, 3,-1, 2, 3,-1, 2, 1,-5});
+	qfAddChar(qfl,0x6a, 2,10, 2, 4,-1, 2, 4,-1, 0, 2, 3,-2, 2, 4,-1, 2, 4,-1, 2, 4,-1, 2, 4,-1, 4, 2,-1,1,-1, 2, 3,-1});
+	qfAddChar(qfl,0x6b, 2,8, 2, 1,-1, 2, 1,-1, 4, 1,-1,4,-1, 4, 1,-1,3,-1, 2, 1,-4, 4, 1,-1,3,-1, 4, 1,-1,4,-1, 4, 1,-1,4,-1});
+	qfAddChar(qfl,0x6c, 2,8, 2, 2,-2, 2, 3,-1, 2, 3,-1, 2, 3,-1, 2, 3,-1, 2, 3,-1, 2, 3,-1, 2, 1,-5});
+	qfAddChar(qfl,0x6d, 4,6, 3, -3,1,-2, 5, -1,2,-1,2,-1, 5, -1,2,-1,2,-1, 5, -1,2,-1,2,-1, 5, -1,2,-1,2,-1, 5, -1,2,-1,2,-1});
+	qfAddChar(qfl,0x6e, 4,6, 4, 1,-1,1,-3, 4, 1,-2,3,-1, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 4, 1,-1,4,-1});
+	qfAddChar(qfl,0x6f, 4,6, 2, 2,-4, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 2, 2,-4});
+	qfAddChar(qfl,0x70, 4,8, 4, 1,-1,1,-3, 4, 1,-2,3,-1, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 2, 1,-5, 2, 1,-1, 2, 1,-1});
+	qfAddChar(qfl,0x71, 4,8, 4, 2,-3,1,-1, 4, 1,-1,3,-2, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 2, 2,-5, 2, 6,-1, 2, 6,-1});
+	qfAddChar(qfl,0x72, 4,6, 4, 1,-1,1,-3, 4, 1,-2,3,-1, 2, 1,-1, 2, 1,-1, 2, 1,-1, 2, 1,-1});
+	qfAddChar(qfl,0x73, 4,6, 2, 2,-5, 2, 1,-1, 2, 2,-4, 2, 6,-1, 2, 6,-1, 2, 1,-5});
+	qfAddChar(qfl,0x74, 2,8, 2, 3,-1, 2, 3,-1, 2, 1,-5, 2, 3,-1, 2, 3,-1, 2, 3,-1, 2, 3,-1, 2, 4,-2});
+	qfAddChar(qfl,0x75, 4,6, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 4, 1,-1,3,-2, 4, 2,-3,1,-1});
+	qfAddChar(qfl,0x76, 4,6, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 4, 2,-1,2,-1, 4, 2,-1,2,-1, 2, 3,-2, 2, 3,-2});
+	qfAddChar(qfl,0x77, 4,6, 3, -1,5,-1, 3, -1,5,-1, 5, -1,2,-1,2,-1, 5, -1,2,-1,2,-1, 5, -1,2,-1,2,-1, 4, 1,-2,1,-2});
+	qfAddChar(qfl,0x78, 4,6, 4, 1,-1,4,-1, 4, 2,-1,2,-1, 2, 3,-2, 2, 3,-2, 4, 2,-1,2,-1, 4, 1,-1,4,-1});
+	qfAddChar(qfl,0x79, 4,8, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 4, 1,-1,4,-1, 4, 1,-1,3,-2, 4, 2,-3,1,-1, 2, 6,-1, 4, 1,-1,4,-1, 2, 2,-4});
+	qfAddChar(qfl,0x7a, 4,6, 2, 1,-6, 2, 5,-1, 2, 4,-1, 2, 3,-1, 2, 2,-1, 2, 1,-6});
+	qfAddChar(qfl,0x7b, 2,8, 2, 5,-1, 2, 4,-1, 2, 4,-1, 2, 3,-2, 2, 3,-2, 2, 4,-1, 2, 4,-1, 2, 5,-1});
+	qfAddChar(qfl,0x7c, 0,12, 2, 3,-2, 2, 3,-2, 2, 3,-2, 2, 3,-2, 2, 3,-2, 2, 3,-2, 2, 3,-2, 2, 3,-2, 2, 3,-2, 2, 3,-2, 2, 3,-2, 2, 3,-2});
+	qfAddChar(qfl,0x7d, 2,8, 2, 2,-1, 2, 3,-1, 2, 3,-1, 2, 3,-2, 2, 3,-2, 2, 3,-1, 2, 3,-1, 2, 2,-1});
+	qfAddChar(qfl,0x7e, 5,2, 4, 2,-2,2,-1, 4, 1,-1,2,-2});
+}
 // ========================================================================================================================================================================
 // ===== QGPU =============================================================================================================================================================
 // ========================================================================================================================================================================
@@ -58,6 +412,9 @@ typedef struct {
 	VkBuffer uboBuffer;
 	VkDeviceMemory uboBufferMemory;
 	void* mappedUbo;
+	VkBuffer lightsBuffer;
+	VkDeviceMemory lightsBufferMemory;
+	void* mappedLights;
 
 	VkPipeline uiPipeline;
 	VkPipelineLayout uiPipelineLayout;
@@ -88,9 +445,13 @@ typedef struct {
 	uint8_t hasRotation;
 } InternalContext;
 typedef struct { uint8_t ambientOcclusion, msaaLevel, shadows; } GraphicsSettings;
-typedef struct { float viewProj[16], lightViewProj[16], lightPosRange[4], lightPowerShadow[4]; } CameraUBO;
-typedef struct { float pos[3]; float color[4]; } QGPU_Vertex;
-typedef struct { float pos[2]; float color[4]; } QGPU_Vertex2D;
+typedef struct { float viewProj[16], lightViewProj[16], lightPosRange[4], lightPowerShadow[4], sceneInfo[4]; } CameraUBO;
+typedef struct { float pos[3], normal[3], color[4]; } QGPU_Vertex;
+#define QGPU_LIGHT_POINT       0
+#define QGPU_LIGHT_SPOT        1
+#define QGPU_LIGHT_DIRECTIONAL 2
+typedef struct { float posRange[4], dirPower[4], typeAngle[4]; } GPULight;
+typedef struct { float pos[2], color[4]; } QGPU_Vertex2D;
 
 static InternalContext g_ctx;
 static GraphicsSettings g_settings = { .ambientOcclusion = 1, .msaaLevel = 4, .shadows = 1 };
@@ -99,25 +460,20 @@ static ColorRGB backgroundClr;
 static uint8_t inInit = 0, framebufferResized = 0;
 static void onFramebufferResize(GLFWwindow* window, int w, int h) { (void)window; (void)w; (void)h; framebufferResized = 1; }
 static Vector3 camPos = {0.0f, 0.0f, 3.0f}, camTarget = {0.0f, 0.0f, 0.0f}, camUp = {0.0f, 1.0f, 0.0f};
-static float camFovDeg = 60.0f, camNear = 0.05f, camFar = 1000.0f, currentFPS = 0, lights[MAX_LIGHTS * 5];
+static float camFovDeg = 60.0f, camNear = 0.05f, camFar = 1000.0f, currentFPS = 0;
+static GPULight lights[MAX_LIGHTS];
 static uint frameCount, lightCount;
 
 #define MAX_UI_TRIANGLES (MAX_UI_VERTICES / 3)
-typedef struct { float p[3][2]; float color[4]; uint32_t layer; uint32_t order; } UITriangle2D;
+typedef struct { float p[3][2]; float color[4]; uint32_t layer, order; } UITriangle2D;
 static UITriangle2D uiTriangles[MAX_UI_TRIANGLES];
-static uint32_t uiTriangleCount;
-static uint32_t currentUILayer;
+static uint32_t uiTriangleCount, currentUILayer;
 static int compareUITriangle(const void* a, const void* b) {
 	const UITriangle2D *ta = (const UITriangle2D*)a, *tb = (const UITriangle2D*)b;
 	if (ta->layer != tb->layer) return (ta->layer < tb->layer) ? -1 : 1;
 	if (ta->order != tb->order) return (ta->order < tb->order) ? -1 : 1;
 	return 0;
 }
-
-#define qFontX 8
-#define qFontY 11
-#define qFontMax 6
-static int8_t newChars[65536][qFontY][qFontMax] = {0};
 // ========================================================================================================================================================================
 // ===== TOOLS ============================================================================================================================================================
 // ========================================================================================================================================================================
@@ -159,6 +515,7 @@ static float qCos(const float rad) {
 }
 static float qTan(const float rad) { float c = qCos(rad); if (c == 0.0f) c = 0.0001f; return qSin(rad) / c; }
 
+static Vector3 v3Add(const Vector3 a, const Vector3 b) { return (Vector3){a.x + b.x, a.y + b.y, a.z + b.z}; }
 static Vector3 v3Sub(const Vector3 a, const Vector3 b) { return (Vector3){a.x - b.x, a.y - b.y, a.z - b.z}; }
 static Vector3 v3Scale(const Vector3 a, const float s) { return (Vector3){a.x * s, a.y * s, a.z * s}; }
 static Vector3 v3Cross(const Vector3 a, const Vector3 b) { return (Vector3){a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x}; }
@@ -169,8 +526,7 @@ static Vector3 v3Normalize(const Vector3 a) { float l = v3Length(a); if (l < 0.0
 static void mat4Identity(float* m) { memset(m, 0, sizeof(float) * 16); m[0] = m[5] = m[10] = m[15] = 1.0f; }
 static void mat4Multiply(float* out, const float* a, const float* b) {
 	float r[16];
-	for (uint8_t col = 0; col < 4; col++)
-		for (uint8_t row = 0; row < 4; row++) {
+	for (uint8_t col = 0; col < 4; col++) for (uint8_t row = 0; row < 4; row++) {
 			float sum = 0.0f;
 			for (uint8_t k = 0; k < 4; k++) sum += a[k * 4 + row] * b[col * 4 + k];
 			r[col * 4 + row] = sum;
@@ -194,6 +550,16 @@ static void mat4Perspective(float* m, const float fovyRad, const float aspect, c
 	m[11] = -1.0f;
 	m[14] = (znear * zfar) / (znear - zfar);
 }
+static void mat4Ortho(float* m, const float left, const float right, const float bottom, const float top, const float znear, const float zfar) {
+	memset(m, 0, sizeof(float) * 16);
+	m[0] = 2.0f / (right - left);
+	m[5] = -2.0f / (top - bottom);
+	m[10] = 1.0f / (znear - zfar);
+	m[12] = -(right + left) / (right - left);
+	m[13] = (top + bottom) / (top - bottom);
+	m[14] = znear / (znear - zfar);
+	m[15] = 1.0f;
+}
 static void transformPoint(float* x, float* y, float* z) {
 	if (!g_ctx.hasRotation) return;
 	float px = *x - g_ctx.pivotX, py = *y - g_ctx.pivotY, pz = *z - g_ctx.pivotZ, radX = g_ctx.rotX * (PI / 180.0f), radY = g_ctx.rotY * (PI / 180.0f), radZ = g_ctx.rotZ * (PI / 180.0f),
@@ -202,21 +568,6 @@ static void transformPoint(float* x, float* y, float* z) {
 	*x = x3 + g_ctx.pivotX;
 	*y = y3 + g_ctx.pivotY;
 	*z = z3 + g_ctx.pivotZ;
-}
-static float getLight(const Vector3 p, const Vector3 n) {
-	float total = g_settings.ambientOcclusion ? 0.05f : 0.2f;
-	for (uint i = 0; i < lightCount; i++) {
-		Vector3 lp = { lights[i * 5], lights[i * 5 + 1], lights[i * 5 + 2] };
-		float rng = lights[i * 5 + 3], pow = lights[i * 5 + 4];
-		if (rng <= 0.0f || pow <= 0.0f) continue;
-		Vector3 toLight = v3Sub(lp, p);
-		float dis = v3Length(toLight);
-		if (dis > rng) continue;
-		float nDotL = 1.0f;
-		if (dis > 0.00001f) nDotL = qclampf(v3Dot(n, v3Scale(toLight, 1.0f / dis)), 0.0f, 1.0f);
-		total += pow * (1.0f - (dis / rng)) * nDotL;
-	}
-	return qclampf(total, 0.0f, 2.0f);
 }
 // ========================================================================================================================================================================
 // ===== CONSOLE ==========================================================================================================================================================
@@ -259,13 +610,25 @@ void qgLog(const char* format, ...) {
 }
 void qgLogVertices() {
 	if (!_showLogs) return;
-	const float p = ((float)g_ctx.currentVOffset / MAX_VERTICES) * 100.0f;
-	if (p > 95) qgPrintc(LIGHT_RED, "%i/%i (%.0f%%)\n", g_ctx.currentVOffset, MAX_VERTICES, p);
-	else if (p > 75) qgPrintc(RED, "%i/%i (%.0f%%)\n", g_ctx.currentVOffset, MAX_VERTICES, p);
-	else if (p > 50) qgPrintc(ORANGE, "%i/%i (%.0f%%)\n", g_ctx.currentVOffset, MAX_VERTICES, p);
-	else if (p > 25) qgPrintc(YELLOW, "%i/%i (%.0f%%)\n", g_ctx.currentVOffset, MAX_VERTICES, p);
-	else if (p > 10) qgPrintc(DARK_YELLOW, "%i/%i (%.0f%%)\n", g_ctx.currentVOffset, MAX_VERTICES, p);
-	else qgPrintc(GREEN, "%i/%i (%.0f%%)\n", g_ctx.currentVOffset, MAX_VERTICES, p);
+	const float p = ((float)g_ctx.currentVOffset / MAX_VERTICES) * 100.0f,
+				p2 = ((float)g_ctx.currentUIVOffset / MAX_UI_VERTICES) * 100.0f;
+	uint8_t clr = 0;
+	if (p > 95) clr = LIGHT_RED;
+	else if (p > 75) clr = RED;
+	else if (p > 50) clr = ORANGE;
+	else if (p > 25) clr = YELLOW;
+	else if (p > 10) clr = DARK_YELLOW;
+	else clr = GREEN;
+	qgPrint("3D: ");
+	qgPrintc(clr, "%u/%u (%.0f%%)", g_ctx.currentVOffset, MAX_VERTICES, p);
+	if (p2 > 95) clr = LIGHT_RED;
+	else if (p2 > 75) clr = RED;
+	else if (p2 > 50) clr = ORANGE;
+	else if (p2 > 25) clr = YELLOW;
+	else if (p2 > 10) clr = DARK_YELLOW;
+	else clr = GREEN;
+	qgPrint(" 2D: ");
+	qgPrintc(clr, "%u/%u (%.0f%%)\n", g_ctx.currentUIVOffset, MAX_UI_VERTICES, p2);
 }
 void qgWarn(const char* format, ...) {
 	va_list args;
@@ -316,109 +679,177 @@ static void printColors() {
 	qgPrintc(frame,"╚═════════════════════════╝\n");
 }
 static const uint32_t mainVertCode[] = {
-	0x07230203,0x00010000,0x000d000b,0x00000031,0x00000000,0x00020011,0x00000001,0x0006000b,0x00000001,0x4c534c47,0x6474732e,0x3035342e,0x00000000,0x0003000e,0x00000000,0x00000001,
-	0x000a000f,0x00000000,0x00000004,0x6e69616d,0x00000000,0x00000009,0x0000000b,0x0000000d,0x00000019,0x00000026,0x00030003,0x00000002,0x000001c2,0x000a0004,0x475f4c47,0x4c474f4f,
-	0x70635f45,0x74735f70,0x5f656c79,0x656e696c,0x7269645f,0x69746365,0x00006576,0x00080004,0x475f4c47,0x4c474f4f,0x6e695f45,0x64756c63,0x69645f65,0x74636572,0x00657669,0x00040005,
-	0x00000004,0x6e69616d,0x00000000,0x00050005,0x00000009,0x67617266,0x6f6c6f43,0x00000072,0x00040005,0x0000000b,0x6f436e69,0x00726f6c,0x00070005,0x0000000d,0x67617266,0x6867694c,
-	0x61705374,0x6f506563,0x00000073,0x00050005,0x0000000f,0x656d6143,0x42556172,0x0000004f,0x00060006,0x0000000f,0x00000000,0x77656976,0x6a6f7250,0x00000000,0x00070006,0x0000000f,
-	0x00000001,0x6867696c,0x65695674,0x6f725077,0x0000006a,0x00070006,0x0000000f,0x00000002,0x6867696c,0x736f5074,0x676e6152,0x00000065,0x00080006,0x0000000f,0x00000003,0x6867696c,
-	0x776f5074,0x68537265,0x776f6461,0x00000000,0x00030005,0x00000011,0x006d6163,0x00040005,0x00000019,0x6f506e69,0x00000073,0x00060005,0x00000024,0x505f6c67,0x65567265,0x78657472,
-	0x00000000,0x00060006,0x00000024,0x00000000,0x505f6c67,0x7469736f,0x006e6f69,0x00070006,0x00000024,0x00000001,0x505f6c67,0x746e696f,0x657a6953,0x00000000,0x00070006,0x00000024,
-	0x00000002,0x435f6c67,0x4470696c,0x61747369,0x0065636e,0x00070006,0x00000024,0x00000003,0x435f6c67,0x446c6c75,0x61747369,0x0065636e,0x00030005,0x00000026,0x00000000,0x00040047,
-	0x00000009,0x0000001e,0x00000000,0x00040047,0x0000000b,0x0000001e,0x00000001,0x00040047,0x0000000d,0x0000001e,0x00000001,0x00030047,0x0000000f,0x00000002,0x00040048,0x0000000f,
-	0x00000000,0x00000005,0x00050048,0x0000000f,0x00000000,0x00000007,0x00000010,0x00050048,0x0000000f,0x00000000,0x00000023,0x00000000,0x00040048,0x0000000f,0x00000001,0x00000005,
-	0x00050048,0x0000000f,0x00000001,0x00000007,0x00000010,0x00050048,0x0000000f,0x00000001,0x00000023,0x00000040,0x00050048,0x0000000f,0x00000002,0x00000023,0x00000080,0x00050048,
-	0x0000000f,0x00000003,0x00000023,0x00000090,0x00040047,0x00000011,0x00000021,0x00000000,0x00040047,0x00000011,0x00000022,0x00000000,0x00040047,0x00000019,0x0000001e,0x00000000,
-	0x00030047,0x00000024,0x00000002,0x00050048,0x00000024,0x00000000,0x0000000b,0x00000000,0x00050048,0x00000024,0x00000001,0x0000000b,0x00000001,0x00050048,0x00000024,0x00000002,
-	0x0000000b,0x00000003,0x00050048,0x00000024,0x00000003,0x0000000b,0x00000004,0x00020013,0x00000002,0x00030021,0x00000003,0x00000002,0x00030016,0x00000006,0x00000020,0x00040017,
-	0x00000007,0x00000006,0x00000004,0x00040020,0x00000008,0x00000003,0x00000007,0x0004003b,0x00000008,0x00000009,0x00000003,0x00040020,0x0000000a,0x00000001,0x00000007,0x0004003b,
-	0x0000000a,0x0000000b,0x00000001,0x0004003b,0x00000008,0x0000000d,0x00000003,0x00040018,0x0000000e,0x00000007,0x00000004,0x0006001e,0x0000000f,0x0000000e,0x0000000e,0x00000007,
-	0x00000007,0x00040020,0x00000010,0x00000002,0x0000000f,0x0004003b,0x00000010,0x00000011,0x00000002,0x00040015,0x00000012,0x00000020,0x00000001,0x0004002b,0x00000012,0x00000013,
-	0x00000001,0x00040020,0x00000014,0x00000002,0x0000000e,0x00040017,0x00000017,0x00000006,0x00000003,0x00040020,0x00000018,0x00000001,0x00000017,0x0004003b,0x00000018,0x00000019,
-	0x00000001,0x0004002b,0x00000006,0x0000001b,0x3f800000,0x00040015,0x00000021,0x00000020,0x00000000,0x0004002b,0x00000021,0x00000022,0x00000001,0x0004001c,0x00000023,0x00000006,
-	0x00000022,0x0006001e,0x00000024,0x00000007,0x00000006,0x00000023,0x00000023,0x00040020,0x00000025,0x00000003,0x00000024,0x0004003b,0x00000025,0x00000026,0x00000003,0x0004002b,
-	0x00000012,0x00000027,0x00000000,0x00050036,0x00000002,0x00000004,0x00000000,0x00000003,0x000200f8,0x00000005,0x0004003d,0x00000007,0x0000000c,0x0000000b,0x0003003e,0x00000009,
-	0x0000000c,0x00050041,0x00000014,0x00000015,0x00000011,0x00000013,0x0004003d,0x0000000e,0x00000016,0x00000015,0x0004003d,0x00000017,0x0000001a,0x00000019,0x00050051,0x00000006,
-	0x0000001c,0x0000001a,0x00000000,0x00050051,0x00000006,0x0000001d,0x0000001a,0x00000001,0x00050051,0x00000006,0x0000001e,0x0000001a,0x00000002,0x00070050,0x00000007,0x0000001f,
-	0x0000001c,0x0000001d,0x0000001e,0x0000001b,0x00050091,0x00000007,0x00000020,0x00000016,0x0000001f,0x0003003e,0x0000000d,0x00000020,0x00050041,0x00000014,0x00000028,0x00000011,
-	0x00000027,0x0004003d,0x0000000e,0x00000029,0x00000028,0x0004003d,0x00000017,0x0000002a,0x00000019,0x00050051,0x00000006,0x0000002b,0x0000002a,0x00000000,0x00050051,0x00000006,
-	0x0000002c,0x0000002a,0x00000001,0x00050051,0x00000006,0x0000002d,0x0000002a,0x00000002,0x00070050,0x00000007,0x0000002e,0x0000002b,0x0000002c,0x0000002d,0x0000001b,0x00050091,
-	0x00000007,0x0000002f,0x00000029,0x0000002e,0x00050041,0x00000008,0x00000030,0x00000026,0x00000027,0x0003003e,0x00000030,0x0000002f,0x000100fd,0x00010038
+	0x07230203,0x00010000,0x000d000b,0x00000037,0x00000000,0x00020011,0x00000001,0x0006000b,0x00000001,0x4c534c47,0x6474732e,0x3035342e,0x00000000,0x0003000e,0x00000000,0x00000001,
+	0x000d000f,0x00000000,0x00000004,0x6e69616d,0x00000000,0x00000009,0x0000000b,0x0000000d,0x0000000e,0x00000012,0x00000014,0x00000016,0x0000002c,0x00030003,0x00000002,0x000001c2,
+	0x000a0004,0x475f4c47,0x4c474f4f,0x70635f45,0x74735f70,0x5f656c79,0x656e696c,0x7269645f,0x69746365,0x00006576,0x00080004,0x475f4c47,0x4c474f4f,0x6e695f45,0x64756c63,0x69645f65,
+	0x74636572,0x00657669,0x00040005,0x00000004,0x6e69616d,0x00000000,0x00060005,0x00000009,0x67617266,0x6c726f57,0x736f5064,0x00000000,0x00040005,0x0000000b,0x6f506e69,0x00000073,
+	0x00050005,0x0000000d,0x67617266,0x6d726f4e,0x00006c61,0x00050005,0x0000000e,0x6f4e6e69,0x6c616d72,0x00000000,0x00050005,0x00000012,0x67617266,0x6f6c6f43,0x00000072,0x00040005,
+	0x00000014,0x6f436e69,0x00726f6c,0x00070005,0x00000016,0x67617266,0x6867694c,0x61705374,0x6f506563,0x00000073,0x00050005,0x00000018,0x656d6143,0x42556172,0x0000004f,0x00060006,
+	0x00000018,0x00000000,0x77656976,0x6a6f7250,0x00000000,0x00070006,0x00000018,0x00000001,0x6867696c,0x65695674,0x6f725077,0x0000006a,0x00070006,0x00000018,0x00000002,0x6867696c,
+	0x736f5074,0x676e6152,0x00000065,0x00080006,0x00000018,0x00000003,0x6867696c,0x776f5074,0x68537265,0x776f6461,0x00000000,0x00060006,0x00000018,0x00000004,0x6e656373,0x666e4965,
+	0x0000006f,0x00030005,0x0000001a,0x006d6163,0x00060005,0x0000002a,0x505f6c67,0x65567265,0x78657472,0x00000000,0x00060006,0x0000002a,0x00000000,0x505f6c67,0x7469736f,0x006e6f69,
+	0x00070006,0x0000002a,0x00000001,0x505f6c67,0x746e696f,0x657a6953,0x00000000,0x00070006,0x0000002a,0x00000002,0x435f6c67,0x4470696c,0x61747369,0x0065636e,0x00070006,0x0000002a,
+	0x00000003,0x435f6c67,0x446c6c75,0x61747369,0x0065636e,0x00030005,0x0000002c,0x00000000,0x00040047,0x00000009,0x0000001e,0x00000000,0x00040047,0x0000000b,0x0000001e,0x00000000,
+	0x00040047,0x0000000d,0x0000001e,0x00000001,0x00040047,0x0000000e,0x0000001e,0x00000001,0x00040047,0x00000012,0x0000001e,0x00000002,0x00040047,0x00000014,0x0000001e,0x00000002,
+	0x00040047,0x00000016,0x0000001e,0x00000003,0x00030047,0x00000018,0x00000002,0x00040048,0x00000018,0x00000000,0x00000005,0x00050048,0x00000018,0x00000000,0x00000007,0x00000010,
+	0x00050048,0x00000018,0x00000000,0x00000023,0x00000000,0x00040048,0x00000018,0x00000001,0x00000005,0x00050048,0x00000018,0x00000001,0x00000007,0x00000010,0x00050048,0x00000018,
+	0x00000001,0x00000023,0x00000040,0x00050048,0x00000018,0x00000002,0x00000023,0x00000080,0x00050048,0x00000018,0x00000003,0x00000023,0x00000090,0x00050048,0x00000018,0x00000004,
+	0x00000023,0x000000a0,0x00040047,0x0000001a,0x00000021,0x00000000,0x00040047,0x0000001a,0x00000022,0x00000000,0x00030047,0x0000002a,0x00000002,0x00050048,0x0000002a,0x00000000,
+	0x0000000b,0x00000000,0x00050048,0x0000002a,0x00000001,0x0000000b,0x00000001,0x00050048,0x0000002a,0x00000002,0x0000000b,0x00000003,0x00050048,0x0000002a,0x00000003,0x0000000b,
+	0x00000004,0x00020013,0x00000002,0x00030021,0x00000003,0x00000002,0x00030016,0x00000006,0x00000020,0x00040017,0x00000007,0x00000006,0x00000003,0x00040020,0x00000008,0x00000003,
+	0x00000007,0x0004003b,0x00000008,0x00000009,0x00000003,0x00040020,0x0000000a,0x00000001,0x00000007,0x0004003b,0x0000000a,0x0000000b,0x00000001,0x0004003b,0x00000008,0x0000000d,
+	0x00000003,0x0004003b,0x0000000a,0x0000000e,0x00000001,0x00040017,0x00000010,0x00000006,0x00000004,0x00040020,0x00000011,0x00000003,0x00000010,0x0004003b,0x00000011,0x00000012,
+	0x00000003,0x00040020,0x00000013,0x00000001,0x00000010,0x0004003b,0x00000013,0x00000014,0x00000001,0x0004003b,0x00000011,0x00000016,0x00000003,0x00040018,0x00000017,0x00000010,
+	0x00000004,0x0007001e,0x00000018,0x00000017,0x00000017,0x00000010,0x00000010,0x00000010,0x00040020,0x00000019,0x00000002,0x00000018,0x0004003b,0x00000019,0x0000001a,0x00000002,
+	0x00040015,0x0000001b,0x00000020,0x00000001,0x0004002b,0x0000001b,0x0000001c,0x00000001,0x00040020,0x0000001d,0x00000002,0x00000017,0x0004002b,0x00000006,0x00000021,0x3f800000,
+	0x00040015,0x00000027,0x00000020,0x00000000,0x0004002b,0x00000027,0x00000028,0x00000001,0x0004001c,0x00000029,0x00000006,0x00000028,0x0006001e,0x0000002a,0x00000010,0x00000006,
+	0x00000029,0x00000029,0x00040020,0x0000002b,0x00000003,0x0000002a,0x0004003b,0x0000002b,0x0000002c,0x00000003,0x0004002b,0x0000001b,0x0000002d,0x00000000,0x00050036,0x00000002,
+	0x00000004,0x00000000,0x00000003,0x000200f8,0x00000005,0x0004003d,0x00000007,0x0000000c,0x0000000b,0x0003003e,0x00000009,0x0000000c,0x0004003d,0x00000007,0x0000000f,0x0000000e,
+	0x0003003e,0x0000000d,0x0000000f,0x0004003d,0x00000010,0x00000015,0x00000014,0x0003003e,0x00000012,0x00000015,0x00050041,0x0000001d,0x0000001e,0x0000001a,0x0000001c,0x0004003d,
+	0x00000017,0x0000001f,0x0000001e,0x0004003d,0x00000007,0x00000020,0x0000000b,0x00050051,0x00000006,0x00000022,0x00000020,0x00000000,0x00050051,0x00000006,0x00000023,0x00000020,
+	0x00000001,0x00050051,0x00000006,0x00000024,0x00000020,0x00000002,0x00070050,0x00000010,0x00000025,0x00000022,0x00000023,0x00000024,0x00000021,0x00050091,0x00000010,0x00000026,
+	0x0000001f,0x00000025,0x0003003e,0x00000016,0x00000026,0x00050041,0x0000001d,0x0000002e,0x0000001a,0x0000002d,0x0004003d,0x00000017,0x0000002f,0x0000002e,0x0004003d,0x00000007,
+	0x00000030,0x0000000b,0x00050051,0x00000006,0x00000031,0x00000030,0x00000000,0x00050051,0x00000006,0x00000032,0x00000030,0x00000001,0x00050051,0x00000006,0x00000033,0x00000030,
+	0x00000002,0x00070050,0x00000010,0x00000034,0x00000031,0x00000032,0x00000033,0x00000021,0x00050091,0x00000010,0x00000035,0x0000002f,0x00000034,0x00050041,0x00000011,0x00000036,
+	0x0000002c,0x0000002d,0x0003003e,0x00000036,0x00000035,0x000100fd,0x00010038
 }, mainFragCode[] = {
-	0x07230203,0x00010000,0x000d000b,0x0000007c,0x00000000,0x00020011,0x00000001,0x0006000b,0x00000001,0x4c534c47,0x6474732e,0x3035342e,0x00000000,0x0003000e,0x00000000,0x00000001,
-	0x0008000f,0x00000004,0x00000004,0x6e69616d,0x00000000,0x00000021,0x00000070,0x00000071,0x00030010,0x00000004,0x00000007,0x00030003,0x00000002,0x000001c2,0x000a0004,0x475f4c47,
-	0x4c474f4f,0x70635f45,0x74735f70,0x5f656c79,0x656e696c,0x7269645f,0x69746365,0x00006576,0x00080004,0x475f4c47,0x4c474f4f,0x6e695f45,0x64756c63,0x69645f65,0x74636572,0x00657669,
-	0x00040005,0x00000004,0x6e69616d,0x00000000,0x00060005,0x00000008,0x64616873,0x6146776f,0x726f7463,0x00000028,0x00050005,0x0000000c,0x656d6143,0x42556172,0x0000004f,0x00060006,
-	0x0000000c,0x00000000,0x77656976,0x6a6f7250,0x00000000,0x00070006,0x0000000c,0x00000001,0x6867696c,0x65695674,0x6f725077,0x0000006a,0x00070006,0x0000000c,0x00000002,0x6867696c,
-	0x736f5074,0x676e6152,0x00000065,0x00080006,0x0000000c,0x00000003,0x6867696c,0x776f5074,0x68537265,0x776f6461,0x00000000,0x00030005,0x0000000e,0x006d6163,0x00040005,0x0000001f,
-	0x6a6f7270,0x00000000,0x00070005,0x00000021,0x67617266,0x6867694c,0x61705374,0x6f506563,0x00000073,0x00030005,0x0000002c,0x00007675,0x00040005,0x00000058,0x73616962,0x00000000,
-	0x00060005,0x0000005a,0x736f6c63,0x44747365,0x68747065,0x00000000,0x00050005,0x0000005e,0x64616873,0x614d776f,0x00000070,0x00040005,0x0000006d,0x64616873,0x0000776f,0x00050005,
-	0x00000070,0x4374756f,0x726f6c6f,0x00000000,0x00050005,0x00000071,0x67617266,0x6f6c6f43,0x00000072,0x00030047,0x0000000c,0x00000002,0x00040048,0x0000000c,0x00000000,0x00000005,
-	0x00050048,0x0000000c,0x00000000,0x00000007,0x00000010,0x00050048,0x0000000c,0x00000000,0x00000023,0x00000000,0x00040048,0x0000000c,0x00000001,0x00000005,0x00050048,0x0000000c,
-	0x00000001,0x00000007,0x00000010,0x00050048,0x0000000c,0x00000001,0x00000023,0x00000040,0x00050048,0x0000000c,0x00000002,0x00000023,0x00000080,0x00050048,0x0000000c,0x00000003,
-	0x00000023,0x00000090,0x00040047,0x0000000e,0x00000021,0x00000000,0x00040047,0x0000000e,0x00000022,0x00000000,0x00040047,0x00000021,0x0000001e,0x00000001,0x00040047,0x0000005e,
-	0x00000021,0x00000001,0x00040047,0x0000005e,0x00000022,0x00000000,0x00040047,0x00000070,0x0000001e,0x00000000,0x00040047,0x00000071,0x0000001e,0x00000000,0x00020013,0x00000002,
-	0x00030021,0x00000003,0x00000002,0x00030016,0x00000006,0x00000020,0x00030021,0x00000007,0x00000006,0x00040017,0x0000000a,0x00000006,0x00000004,0x00040018,0x0000000b,0x0000000a,
-	0x00000004,0x0006001e,0x0000000c,0x0000000b,0x0000000b,0x0000000a,0x0000000a,0x00040020,0x0000000d,0x00000002,0x0000000c,0x0004003b,0x0000000d,0x0000000e,0x00000002,0x00040015,
-	0x0000000f,0x00000020,0x00000001,0x0004002b,0x0000000f,0x00000010,0x00000003,0x00040015,0x00000011,0x00000020,0x00000000,0x0004002b,0x00000011,0x00000012,0x00000001,0x00040020,
-	0x00000013,0x00000002,0x00000006,0x0004002b,0x00000006,0x00000016,0x3f000000,0x00020014,0x00000017,0x0004002b,0x00000006,0x0000001b,0x3f800000,0x00040017,0x0000001d,0x00000006,
-	0x00000003,0x00040020,0x0000001e,0x00000007,0x0000001d,0x00040020,0x00000020,0x00000001,0x0000000a,0x0004003b,0x00000020,0x00000021,0x00000001,0x0004002b,0x00000011,0x00000024,
-	0x00000003,0x00040020,0x00000025,0x00000001,0x00000006,0x00040017,0x0000002a,0x00000006,0x00000002,0x00040020,0x0000002b,0x00000007,0x0000002a,0x0004002b,0x00000011,0x00000032,
-	0x00000000,0x00040020,0x00000033,0x00000007,0x00000006,0x0004002b,0x00000006,0x00000036,0x00000000,0x0004002b,0x00000011,0x00000050,0x00000002,0x0004002b,0x00000006,0x00000059,
-	0x3951b717,0x00090019,0x0000005b,0x00000006,0x00000001,0x00000000,0x00000000,0x00000000,0x00000001,0x00000000,0x0003001b,0x0000005c,0x0000005b,0x00040020,0x0000005d,0x00000000,
-	0x0000005c,0x0004003b,0x0000005d,0x0000005e,0x00000000,0x0004002b,0x00000006,0x00000069,0x3eb33333,0x00040020,0x0000006f,0x00000003,0x0000000a,0x0004003b,0x0000006f,0x00000070,
-	0x00000003,0x0004003b,0x00000020,0x00000071,0x00000001,0x00050036,0x00000002,0x00000004,0x00000000,0x00000003,0x000200f8,0x00000005,0x0004003b,0x00000033,0x0000006d,0x00000007,
-	0x00040039,0x00000006,0x0000006e,0x00000008,0x0003003e,0x0000006d,0x0000006e,0x0004003d,0x0000000a,0x00000072,0x00000071,0x0008004f,0x0000001d,0x00000073,0x00000072,0x00000072,
-	0x00000000,0x00000001,0x00000002,0x0004003d,0x00000006,0x00000074,0x0000006d,0x0005008e,0x0000001d,0x00000075,0x00000073,0x00000074,0x00050041,0x00000025,0x00000076,0x00000071,
-	0x00000024,0x0004003d,0x00000006,0x00000077,0x00000076,0x00050051,0x00000006,0x00000078,0x00000075,0x00000000,0x00050051,0x00000006,0x00000079,0x00000075,0x00000001,0x00050051,
-	0x00000006,0x0000007a,0x00000075,0x00000002,0x00070050,0x0000000a,0x0000007b,0x00000078,0x00000079,0x0000007a,0x00000077,0x0003003e,0x00000070,0x0000007b,0x000100fd,0x00010038,
-	0x00050036,0x00000006,0x00000008,0x00000000,0x00000007,0x000200f8,0x00000009,0x0004003b,0x0000001e,0x0000001f,0x00000007,0x0004003b,0x0000002b,0x0000002c,0x00000007,0x0004003b,
-	0x00000033,0x00000058,0x00000007,0x0004003b,0x00000033,0x0000005a,0x00000007,0x00060041,0x00000013,0x00000014,0x0000000e,0x00000010,0x00000012,0x0004003d,0x00000006,0x00000015,
-	0x00000014,0x000500b8,0x00000017,0x00000018,0x00000015,0x00000016,0x000300f7,0x0000001a,0x00000000,0x000400fa,0x00000018,0x00000019,0x0000001a,0x000200f8,0x00000019,0x000200fe,
-	0x0000001b,0x000200f8,0x0000001a,0x0004003d,0x0000000a,0x00000022,0x00000021,0x0008004f,0x0000001d,0x00000023,0x00000022,0x00000022,0x00000000,0x00000001,0x00000002,0x00050041,
-	0x00000025,0x00000026,0x00000021,0x00000024,0x0004003d,0x00000006,0x00000027,0x00000026,0x00060050,0x0000001d,0x00000028,0x00000027,0x00000027,0x00000027,0x00050088,0x0000001d,
-	0x00000029,0x00000023,0x00000028,0x0003003e,0x0000001f,0x00000029,0x0004003d,0x0000001d,0x0000002d,0x0000001f,0x0007004f,0x0000002a,0x0000002e,0x0000002d,0x0000002d,0x00000000,
-	0x00000001,0x0005008e,0x0000002a,0x0000002f,0x0000002e,0x00000016,0x00050050,0x0000002a,0x00000030,0x00000016,0x00000016,0x00050081,0x0000002a,0x00000031,0x0000002f,0x00000030,
-	0x0003003e,0x0000002c,0x00000031,0x00050041,0x00000033,0x00000034,0x0000002c,0x00000032,0x0004003d,0x00000006,0x00000035,0x00000034,0x000500b8,0x00000017,0x00000037,0x00000035,
-	0x00000036,0x000400a8,0x00000017,0x00000038,0x00000037,0x000300f7,0x0000003a,0x00000000,0x000400fa,0x00000038,0x00000039,0x0000003a,0x000200f8,0x00000039,0x00050041,0x00000033,
-	0x0000003b,0x0000002c,0x00000032,0x0004003d,0x00000006,0x0000003c,0x0000003b,0x000500ba,0x00000017,0x0000003d,0x0000003c,0x0000001b,0x000200f9,0x0000003a,0x000200f8,0x0000003a,
-	0x000700f5,0x00000017,0x0000003e,0x00000037,0x0000001a,0x0000003d,0x00000039,0x000400a8,0x00000017,0x0000003f,0x0000003e,0x000300f7,0x00000041,0x00000000,0x000400fa,0x0000003f,
-	0x00000040,0x00000041,0x000200f8,0x00000040,0x00050041,0x00000033,0x00000042,0x0000002c,0x00000012,0x0004003d,0x00000006,0x00000043,0x00000042,0x000500b8,0x00000017,0x00000044,
-	0x00000043,0x00000036,0x000200f9,0x00000041,0x000200f8,0x00000041,0x000700f5,0x00000017,0x00000045,0x0000003e,0x0000003a,0x00000044,0x00000040,0x000400a8,0x00000017,0x00000046,
-	0x00000045,0x000300f7,0x00000048,0x00000000,0x000400fa,0x00000046,0x00000047,0x00000048,0x000200f8,0x00000047,0x00050041,0x00000033,0x00000049,0x0000002c,0x00000012,0x0004003d,
-	0x00000006,0x0000004a,0x00000049,0x000500ba,0x00000017,0x0000004b,0x0000004a,0x0000001b,0x000200f9,0x00000048,0x000200f8,0x00000048,0x000700f5,0x00000017,0x0000004c,0x00000045,
-	0x00000041,0x0000004b,0x00000047,0x000400a8,0x00000017,0x0000004d,0x0000004c,0x000300f7,0x0000004f,0x00000000,0x000400fa,0x0000004d,0x0000004e,0x0000004f,0x000200f8,0x0000004e,
-	0x00050041,0x00000033,0x00000051,0x0000001f,0x00000050,0x0004003d,0x00000006,0x00000052,0x00000051,0x000500ba,0x00000017,0x00000053,0x00000052,0x0000001b,0x000200f9,0x0000004f,
-	0x000200f8,0x0000004f,0x000700f5,0x00000017,0x00000054,0x0000004c,0x00000048,0x00000053,0x0000004e,0x000300f7,0x00000056,0x00000000,0x000400fa,0x00000054,0x00000055,0x00000056,
-	0x000200f8,0x00000055,0x000200fe,0x0000001b,0x000200f8,0x00000056,0x0003003e,0x00000058,0x00000059,0x0004003d,0x0000005c,0x0000005f,0x0000005e,0x0004003d,0x0000002a,0x00000060,
-	0x0000002c,0x00050057,0x0000000a,0x00000061,0x0000005f,0x00000060,0x00050051,0x00000006,0x00000062,0x00000061,0x00000000,0x0003003e,0x0000005a,0x00000062,0x00050041,0x00000033,
-	0x00000063,0x0000001f,0x00000050,0x0004003d,0x00000006,0x00000064,0x00000063,0x0004003d,0x00000006,0x00000065,0x00000058,0x00050083,0x00000006,0x00000066,0x00000064,0x00000065,
-	0x0004003d,0x00000006,0x00000067,0x0000005a,0x000500ba,0x00000017,0x00000068,0x00000066,0x00000067,0x000600a9,0x00000006,0x0000006a,0x00000068,0x00000069,0x0000001b,0x000200fe,
-	0x0000006a,0x00010038
+	0x07230203,0x00010000,0x000d000b,0x0000011d,0x00000000,0x00020011,0x00000001,0x0006000b,0x00000001,0x4c534c47,0x6474732e,0x3035342e,0x00000000,0x0003000e,0x00000000,0x00000001,
+	0x000a000f,0x00000004,0x00000004,0x6e69616d,0x00000000,0x0000001e,0x00000075,0x000000bf,0x00000111,0x00000112,0x00030010,0x00000004,0x00000007,0x00030003,0x00000002,0x000001c2,
+	0x000a0004,0x475f4c47,0x4c474f4f,0x70635f45,0x74735f70,0x5f656c79,0x656e696c,0x7269645f,0x69746365,0x00006576,0x00080004,0x475f4c47,0x4c474f4f,0x6e695f45,0x64756c63,0x69645f65,
+	0x74636572,0x00657669,0x00040005,0x00000004,0x6e69616d,0x00000000,0x00060005,0x00000008,0x64616873,0x6146776f,0x726f7463,0x00000028,0x00050005,0x0000000c,0x656d6143,0x42556172,
+	0x0000004f,0x00060006,0x0000000c,0x00000000,0x77656976,0x6a6f7250,0x00000000,0x00070006,0x0000000c,0x00000001,0x6867696c,0x65695674,0x6f725077,0x0000006a,0x00070006,0x0000000c,
+	0x00000002,0x6867696c,0x736f5074,0x676e6152,0x00000065,0x00080006,0x0000000c,0x00000003,0x6867696c,0x776f5074,0x68537265,0x776f6461,0x00000000,0x00060006,0x0000000c,0x00000004,
+	0x6e656373,0x666e4965,0x0000006f,0x00030005,0x0000000e,0x006d6163,0x00070005,0x0000001e,0x67617266,0x6867694c,0x61705374,0x6f506563,0x00000073,0x00040005,0x0000002a,0x6a6f7270,
+	0x00000000,0x00030005,0x00000033,0x00007675,0x00040005,0x0000005e,0x73616962,0x00000000,0x00060005,0x00000060,0x736f6c63,0x44747365,0x68747065,0x00000000,0x00050005,0x00000064,
+	0x64616873,0x614d776f,0x00000070,0x00030005,0x00000073,0x0000006e,0x00050005,0x00000075,0x67617266,0x6d726f4e,0x00006c61,0x00040005,0x00000078,0x61746f74,0x0000006c,0x00040005,
+	0x0000007d,0x6e756f63,0x00000074,0x00040005,0x00000081,0x64616873,0x0000776f,0x00030005,0x00000083,0x00000069,0x00050005,0x0000008d,0x4c555047,0x74686769,0x00000000,0x00060006,
+	0x0000008d,0x00000000,0x52736f70,0x65676e61,0x00000000,0x00060006,0x0000008d,0x00000001,0x50726964,0x7265776f,0x00000000,0x00060006,0x0000008d,0x00000002,0x65707974,0x6c676e41,
+	0x00000065,0x00030005,0x0000008f,0x0000004c,0x00050005,0x00000090,0x4c555047,0x74686769,0x00000000,0x00060006,0x00000090,0x00000000,0x52736f70,0x65676e61,0x00000000,0x00060006,
+	0x00000090,0x00000001,0x50726964,0x7265776f,0x00000000,0x00060006,0x00000090,0x00000002,0x65707974,0x6c676e41,0x00000065,0x00060005,0x00000092,0x6867694c,0x75427374,0x72656666,
+	0x00000000,0x00050006,0x00000092,0x00000000,0x6867696c,0x00007374,0x00050005,0x00000094,0x6867696c,0x75427374,0x00000066,0x00040005,0x000000a2,0x65776f70,0x00000072,0x00040005,
+	0x000000aa,0x746e6f63,0x00626972,0x00040005,0x000000bb,0x694c6f74,0x00746867,0x00060005,0x000000bf,0x67617266,0x6c726f57,0x736f5064,0x00000000,0x00040005,0x000000c2,0x676e6172,
+	0x00000065,0x00040005,0x000000c5,0x74736964,0x00000000,0x00050005,0x000000d1,0x6867696c,0x72694474,0x00000000,0x00040005,0x000000d8,0x65747461,0x0000006e,0x00040005,0x000000e2,
+	0x746f7073,0x00736f43,0x00050005,0x00000111,0x4374756f,0x726f6c6f,0x00000000,0x00050005,0x00000112,0x67617266,0x6f6c6f43,0x00000072,0x00030047,0x0000000c,0x00000002,0x00040048,
+	0x0000000c,0x00000000,0x00000005,0x00050048,0x0000000c,0x00000000,0x00000007,0x00000010,0x00050048,0x0000000c,0x00000000,0x00000023,0x00000000,0x00040048,0x0000000c,0x00000001,
+	0x00000005,0x00050048,0x0000000c,0x00000001,0x00000007,0x00000010,0x00050048,0x0000000c,0x00000001,0x00000023,0x00000040,0x00050048,0x0000000c,0x00000002,0x00000023,0x00000080,
+	0x00050048,0x0000000c,0x00000003,0x00000023,0x00000090,0x00050048,0x0000000c,0x00000004,0x00000023,0x000000a0,0x00040047,0x0000000e,0x00000021,0x00000000,0x00040047,0x0000000e,
+	0x00000022,0x00000000,0x00040047,0x0000001e,0x0000001e,0x00000003,0x00040047,0x00000064,0x00000021,0x00000001,0x00040047,0x00000064,0x00000022,0x00000000,0x00040047,0x00000075,
+	0x0000001e,0x00000001,0x00050048,0x00000090,0x00000000,0x00000023,0x00000000,0x00050048,0x00000090,0x00000001,0x00000023,0x00000010,0x00050048,0x00000090,0x00000002,0x00000023,
+	0x00000020,0x00040047,0x00000091,0x00000006,0x00000030,0x00030047,0x00000092,0x00000003,0x00040048,0x00000092,0x00000000,0x00000018,0x00050048,0x00000092,0x00000000,0x00000023,
+	0x00000000,0x00030047,0x00000094,0x00000018,0x00040047,0x00000094,0x00000021,0x00000002,0x00040047,0x00000094,0x00000022,0x00000000,0x00040047,0x000000bf,0x0000001e,0x00000000,
+	0x00040047,0x00000111,0x0000001e,0x00000000,0x00040047,0x00000112,0x0000001e,0x00000002,0x00020013,0x00000002,0x00030021,0x00000003,0x00000002,0x00030016,0x00000006,0x00000020,
+	0x00030021,0x00000007,0x00000006,0x00040017,0x0000000a,0x00000006,0x00000004,0x00040018,0x0000000b,0x0000000a,0x00000004,0x0007001e,0x0000000c,0x0000000b,0x0000000b,0x0000000a,
+	0x0000000a,0x0000000a,0x00040020,0x0000000d,0x00000002,0x0000000c,0x0004003b,0x0000000d,0x0000000e,0x00000002,0x00040015,0x0000000f,0x00000020,0x00000001,0x0004002b,0x0000000f,
+	0x00000010,0x00000003,0x00040015,0x00000011,0x00000020,0x00000000,0x0004002b,0x00000011,0x00000012,0x00000001,0x00040020,0x00000013,0x00000002,0x00000006,0x0004002b,0x00000006,
+	0x00000016,0x3f000000,0x00020014,0x00000017,0x0004002b,0x00000006,0x0000001b,0x3f800000,0x00040020,0x0000001d,0x00000001,0x0000000a,0x0004003b,0x0000001d,0x0000001e,0x00000001,
+	0x0004002b,0x00000011,0x0000001f,0x00000003,0x00040020,0x00000020,0x00000001,0x00000006,0x0004002b,0x00000006,0x00000023,0x00000000,0x00040017,0x00000028,0x00000006,0x00000003,
+	0x00040020,0x00000029,0x00000007,0x00000028,0x00040017,0x00000031,0x00000006,0x00000002,0x00040020,0x00000032,0x00000007,0x00000031,0x0004002b,0x00000011,0x00000039,0x00000000,
+	0x00040020,0x0000003a,0x00000007,0x00000006,0x0004002b,0x00000011,0x00000056,0x00000002,0x0004002b,0x00000006,0x0000005f,0x3951b717,0x00090019,0x00000061,0x00000006,0x00000001,
+	0x00000000,0x00000000,0x00000000,0x00000001,0x00000000,0x0003001b,0x00000062,0x00000061,0x00040020,0x00000063,0x00000000,0x00000062,0x0004003b,0x00000063,0x00000064,0x00000000,
+	0x0004002b,0x00000006,0x0000006f,0x3eb33333,0x00040020,0x00000074,0x00000001,0x00000028,0x0004003b,0x00000074,0x00000075,0x00000001,0x0004002b,0x0000000f,0x00000079,0x00000004,
+	0x00040020,0x0000007c,0x00000007,0x0000000f,0x0004002b,0x0000000f,0x00000084,0x00000000,0x0005001e,0x0000008d,0x0000000a,0x0000000a,0x0000000a,0x00040020,0x0000008e,0x00000007,
+	0x0000008d,0x0005001e,0x00000090,0x0000000a,0x0000000a,0x0000000a,0x0003001d,0x00000091,0x00000090,0x0003001e,0x00000092,0x00000091,0x00040020,0x00000093,0x00000002,0x00000092,
+	0x0004003b,0x00000093,0x00000094,0x00000002,0x00040020,0x00000096,0x00000002,0x00000090,0x00040020,0x0000009a,0x00000007,0x0000000a,0x0004002b,0x0000000f,0x0000009d,0x00000001,
+	0x0004002b,0x0000000f,0x000000a0,0x00000002,0x0004002b,0x00000006,0x000000ad,0x3fc00000,0x0004003b,0x00000074,0x000000bf,0x00000001,0x0004002b,0x00000006,0x000000d4,0x38d1b717,
+	0x0004002b,0x00000006,0x000000f4,0x3d4ccccd,0x0004002b,0x00000006,0x0000010e,0x40000000,0x00040020,0x00000110,0x00000003,0x0000000a,0x0004003b,0x00000110,0x00000111,0x00000003,
+	0x0004003b,0x0000001d,0x00000112,0x00000001,0x00050036,0x00000002,0x00000004,0x00000000,0x00000003,0x000200f8,0x00000005,0x0004003b,0x00000029,0x00000073,0x00000007,0x0004003b,
+	0x0000003a,0x00000078,0x00000007,0x0004003b,0x0000007c,0x0000007d,0x00000007,0x0004003b,0x0000003a,0x00000081,0x00000007,0x0004003b,0x0000007c,0x00000083,0x00000007,0x0004003b,
+	0x0000008e,0x0000008f,0x00000007,0x0004003b,0x0000003a,0x000000a2,0x00000007,0x0004003b,0x0000003a,0x000000aa,0x00000007,0x0004003b,0x00000029,0x000000bb,0x00000007,0x0004003b,
+	0x0000003a,0x000000c2,0x00000007,0x0004003b,0x0000003a,0x000000c5,0x00000007,0x0004003b,0x00000029,0x000000d1,0x00000007,0x0004003b,0x0000003a,0x000000d8,0x00000007,0x0004003b,
+	0x0000003a,0x000000e2,0x00000007,0x0004003d,0x00000028,0x00000076,0x00000075,0x0006000c,0x00000028,0x00000077,0x00000001,0x00000045,0x00000076,0x0003003e,0x00000073,0x00000077,
+	0x00060041,0x00000013,0x0000007a,0x0000000e,0x00000079,0x00000039,0x0004003d,0x00000006,0x0000007b,0x0000007a,0x0003003e,0x00000078,0x0000007b,0x00060041,0x00000013,0x0000007e,
+	0x0000000e,0x00000079,0x00000012,0x0004003d,0x00000006,0x0000007f,0x0000007e,0x0004006e,0x0000000f,0x00000080,0x0000007f,0x0003003e,0x0000007d,0x00000080,0x00040039,0x00000006,
+	0x00000082,0x00000008,0x0003003e,0x00000081,0x00000082,0x0003003e,0x00000083,0x00000084,0x000200f9,0x00000085,0x000200f8,0x00000085,0x000400f6,0x00000087,0x00000088,0x00000000,
+	0x000200f9,0x00000089,0x000200f8,0x00000089,0x0004003d,0x0000000f,0x0000008a,0x00000083,0x0004003d,0x0000000f,0x0000008b,0x0000007d,0x000500b1,0x00000017,0x0000008c,0x0000008a,
+	0x0000008b,0x000400fa,0x0000008c,0x00000086,0x00000087,0x000200f8,0x00000086,0x0004003d,0x0000000f,0x00000095,0x00000083,0x00060041,0x00000096,0x00000097,0x00000094,0x00000084,
+	0x00000095,0x0004003d,0x00000090,0x00000098,0x00000097,0x00050051,0x0000000a,0x00000099,0x00000098,0x00000000,0x00050041,0x0000009a,0x0000009b,0x0000008f,0x00000084,0x0003003e,
+	0x0000009b,0x00000099,0x00050051,0x0000000a,0x0000009c,0x00000098,0x00000001,0x00050041,0x0000009a,0x0000009e,0x0000008f,0x0000009d,0x0003003e,0x0000009e,0x0000009c,0x00050051,
+	0x0000000a,0x0000009f,0x00000098,0x00000002,0x00050041,0x0000009a,0x000000a1,0x0000008f,0x000000a0,0x0003003e,0x000000a1,0x0000009f,0x00060041,0x0000003a,0x000000a3,0x0000008f,
+	0x0000009d,0x0000001f,0x0004003d,0x00000006,0x000000a4,0x000000a3,0x0003003e,0x000000a2,0x000000a4,0x0004003d,0x00000006,0x000000a5,0x000000a2,0x000500bc,0x00000017,0x000000a6,
+	0x000000a5,0x00000023,0x000300f7,0x000000a8,0x00000000,0x000400fa,0x000000a6,0x000000a7,0x000000a8,0x000200f8,0x000000a7,0x000200f9,0x00000088,0x000200f8,0x000000a8,0x0003003e,
+	0x000000aa,0x00000023,0x00060041,0x0000003a,0x000000ab,0x0000008f,0x000000a0,0x00000039,0x0004003d,0x00000006,0x000000ac,0x000000ab,0x000500ba,0x00000017,0x000000ae,0x000000ac,
+	0x000000ad,0x000300f7,0x000000b0,0x00000000,0x000400fa,0x000000ae,0x000000af,0x000000ba,0x000200f8,0x000000af,0x0004003d,0x00000006,0x000000b1,0x000000a2,0x0004003d,0x00000028,
+	0x000000b2,0x00000073,0x00050041,0x0000009a,0x000000b3,0x0000008f,0x0000009d,0x0004003d,0x0000000a,0x000000b4,0x000000b3,0x0008004f,0x00000028,0x000000b5,0x000000b4,0x000000b4,
+	0x00000000,0x00000001,0x00000002,0x0004007f,0x00000028,0x000000b6,0x000000b5,0x00050094,0x00000006,0x000000b7,0x000000b2,0x000000b6,0x0007000c,0x00000006,0x000000b8,0x00000001,
+	0x00000028,0x000000b7,0x00000023,0x00050085,0x00000006,0x000000b9,0x000000b1,0x000000b8,0x0003003e,0x000000aa,0x000000b9,0x000200f9,0x000000b0,0x000200f8,0x000000ba,0x00050041,
+	0x0000009a,0x000000bc,0x0000008f,0x00000084,0x0004003d,0x0000000a,0x000000bd,0x000000bc,0x0008004f,0x00000028,0x000000be,0x000000bd,0x000000bd,0x00000000,0x00000001,0x00000002,
+	0x0004003d,0x00000028,0x000000c0,0x000000bf,0x00050083,0x00000028,0x000000c1,0x000000be,0x000000c0,0x0003003e,0x000000bb,0x000000c1,0x00060041,0x0000003a,0x000000c3,0x0000008f,
+	0x00000084,0x0000001f,0x0004003d,0x00000006,0x000000c4,0x000000c3,0x0003003e,0x000000c2,0x000000c4,0x0004003d,0x00000028,0x000000c6,0x000000bb,0x0006000c,0x00000006,0x000000c7,
+	0x00000001,0x00000042,0x000000c6,0x0003003e,0x000000c5,0x000000c7,0x0004003d,0x00000006,0x000000c8,0x000000c2,0x000500bc,0x00000017,0x000000c9,0x000000c8,0x00000023,0x0004003d,
+	0x00000006,0x000000ca,0x000000c5,0x0004003d,0x00000006,0x000000cb,0x000000c2,0x000500ba,0x00000017,0x000000cc,0x000000ca,0x000000cb,0x000500a6,0x00000017,0x000000cd,0x000000c9,
+	0x000000cc,0x000300f7,0x000000cf,0x00000000,0x000400fa,0x000000cd,0x000000ce,0x000000cf,0x000200f8,0x000000ce,0x000200f9,0x00000088,0x000200f8,0x000000cf,0x0004003d,0x00000028,
+	0x000000d2,0x000000bb,0x0004003d,0x00000006,0x000000d3,0x000000c5,0x0007000c,0x00000006,0x000000d5,0x00000001,0x00000028,0x000000d3,0x000000d4,0x00060050,0x00000028,0x000000d6,
+	0x000000d5,0x000000d5,0x000000d5,0x00050088,0x00000028,0x000000d7,0x000000d2,0x000000d6,0x0003003e,0x000000d1,0x000000d7,0x0004003d,0x00000006,0x000000d9,0x000000c5,0x0004003d,
+	0x00000006,0x000000da,0x000000c2,0x00050088,0x00000006,0x000000db,0x000000d9,0x000000da,0x00050083,0x00000006,0x000000dc,0x0000001b,0x000000db,0x0003003e,0x000000d8,0x000000dc,
+	0x00060041,0x0000003a,0x000000dd,0x0000008f,0x000000a0,0x00000039,0x0004003d,0x00000006,0x000000de,0x000000dd,0x000500ba,0x00000017,0x000000df,0x000000de,0x00000016,0x000300f7,
+	0x000000e1,0x00000000,0x000400fa,0x000000df,0x000000e0,0x000000e1,0x000200f8,0x000000e0,0x0004003d,0x00000028,0x000000e3,0x000000d1,0x0004007f,0x00000028,0x000000e4,0x000000e3,
+	0x00050041,0x0000009a,0x000000e5,0x0000008f,0x0000009d,0x0004003d,0x0000000a,0x000000e6,0x000000e5,0x0008004f,0x00000028,0x000000e7,0x000000e6,0x000000e6,0x00000000,0x00000001,
+	0x00000002,0x00050094,0x00000006,0x000000e8,0x000000e4,0x000000e7,0x0003003e,0x000000e2,0x000000e8,0x0004003d,0x00000006,0x000000e9,0x000000e2,0x00060041,0x0000003a,0x000000ea,
+	0x0000008f,0x000000a0,0x00000012,0x0004003d,0x00000006,0x000000eb,0x000000ea,0x000500b8,0x00000017,0x000000ec,0x000000e9,0x000000eb,0x000300f7,0x000000ee,0x00000000,0x000400fa,
+	0x000000ec,0x000000ed,0x000000ee,0x000200f8,0x000000ed,0x000200f9,0x00000088,0x000200f8,0x000000ee,0x0004003d,0x00000006,0x000000f0,0x000000e2,0x00060041,0x0000003a,0x000000f1,
+	0x0000008f,0x000000a0,0x00000012,0x0004003d,0x00000006,0x000000f2,0x000000f1,0x00050083,0x00000006,0x000000f3,0x000000f0,0x000000f2,0x00050088,0x00000006,0x000000f5,0x000000f3,
+	0x000000f4,0x0008000c,0x00000006,0x000000f6,0x00000001,0x0000002b,0x000000f5,0x00000023,0x0000001b,0x0004003d,0x00000006,0x000000f7,0x000000d8,0x00050085,0x00000006,0x000000f8,
+	0x000000f7,0x000000f6,0x0003003e,0x000000d8,0x000000f8,0x000200f9,0x000000e1,0x000200f8,0x000000e1,0x0004003d,0x00000006,0x000000f9,0x000000a2,0x0004003d,0x00000006,0x000000fa,
+	0x000000d8,0x00050085,0x00000006,0x000000fb,0x000000f9,0x000000fa,0x0004003d,0x00000028,0x000000fc,0x00000073,0x0004003d,0x00000028,0x000000fd,0x000000d1,0x00050094,0x00000006,
+	0x000000fe,0x000000fc,0x000000fd,0x0007000c,0x00000006,0x000000ff,0x00000001,0x00000028,0x000000fe,0x00000023,0x00050085,0x00000006,0x00000100,0x000000fb,0x000000ff,0x0003003e,
+	0x000000aa,0x00000100,0x000200f9,0x000000b0,0x000200f8,0x000000b0,0x0004003d,0x0000000f,0x00000101,0x00000083,0x000500aa,0x00000017,0x00000102,0x00000101,0x00000084,0x000300f7,
+	0x00000104,0x00000000,0x000400fa,0x00000102,0x00000103,0x00000104,0x000200f8,0x00000103,0x0004003d,0x00000006,0x00000105,0x00000081,0x0004003d,0x00000006,0x00000106,0x000000aa,
+	0x00050085,0x00000006,0x00000107,0x00000106,0x00000105,0x0003003e,0x000000aa,0x00000107,0x000200f9,0x00000104,0x000200f8,0x00000104,0x0004003d,0x00000006,0x00000108,0x000000aa,
+	0x0004003d,0x00000006,0x00000109,0x00000078,0x00050081,0x00000006,0x0000010a,0x00000109,0x00000108,0x0003003e,0x00000078,0x0000010a,0x000200f9,0x00000088,0x000200f8,0x00000088,
+	0x0004003d,0x0000000f,0x0000010b,0x00000083,0x00050080,0x0000000f,0x0000010c,0x0000010b,0x0000009d,0x0003003e,0x00000083,0x0000010c,0x000200f9,0x00000085,0x000200f8,0x00000087,
+	0x0004003d,0x00000006,0x0000010d,0x00000078,0x0008000c,0x00000006,0x0000010f,0x00000001,0x0000002b,0x0000010d,0x00000023,0x0000010e,0x0003003e,0x00000078,0x0000010f,0x0004003d,
+	0x0000000a,0x00000113,0x00000112,0x0008004f,0x00000028,0x00000114,0x00000113,0x00000113,0x00000000,0x00000001,0x00000002,0x0004003d,0x00000006,0x00000115,0x00000078,0x0005008e,
+	0x00000028,0x00000116,0x00000114,0x00000115,0x00050041,0x00000020,0x00000117,0x00000112,0x0000001f,0x0004003d,0x00000006,0x00000118,0x00000117,0x00050051,0x00000006,0x00000119,
+	0x00000116,0x00000000,0x00050051,0x00000006,0x0000011a,0x00000116,0x00000001,0x00050051,0x00000006,0x0000011b,0x00000116,0x00000002,0x00070050,0x0000000a,0x0000011c,0x00000119,
+	0x0000011a,0x0000011b,0x00000118,0x0003003e,0x00000111,0x0000011c,0x000100fd,0x00010038,0x00050036,0x00000006,0x00000008,0x00000000,0x00000007,0x000200f8,0x00000009,0x0004003b,
+	0x00000029,0x0000002a,0x00000007,0x0004003b,0x00000032,0x00000033,0x00000007,0x0004003b,0x0000003a,0x0000005e,0x00000007,0x0004003b,0x0000003a,0x00000060,0x00000007,0x00060041,
+	0x00000013,0x00000014,0x0000000e,0x00000010,0x00000012,0x0004003d,0x00000006,0x00000015,0x00000014,0x000500b8,0x00000017,0x00000018,0x00000015,0x00000016,0x000300f7,0x0000001a,
+	0x00000000,0x000400fa,0x00000018,0x00000019,0x0000001a,0x000200f8,0x00000019,0x000200fe,0x0000001b,0x000200f8,0x0000001a,0x00050041,0x00000020,0x00000021,0x0000001e,0x0000001f,
+	0x0004003d,0x00000006,0x00000022,0x00000021,0x000500bc,0x00000017,0x00000024,0x00000022,0x00000023,0x000300f7,0x00000026,0x00000000,0x000400fa,0x00000024,0x00000025,0x00000026,
+	0x000200f8,0x00000025,0x000200fe,0x0000001b,0x000200f8,0x00000026,0x0004003d,0x0000000a,0x0000002b,0x0000001e,0x0008004f,0x00000028,0x0000002c,0x0000002b,0x0000002b,0x00000000,
+	0x00000001,0x00000002,0x00050041,0x00000020,0x0000002d,0x0000001e,0x0000001f,0x0004003d,0x00000006,0x0000002e,0x0000002d,0x00060050,0x00000028,0x0000002f,0x0000002e,0x0000002e,
+	0x0000002e,0x00050088,0x00000028,0x00000030,0x0000002c,0x0000002f,0x0003003e,0x0000002a,0x00000030,0x0004003d,0x00000028,0x00000034,0x0000002a,0x0007004f,0x00000031,0x00000035,
+	0x00000034,0x00000034,0x00000000,0x00000001,0x0005008e,0x00000031,0x00000036,0x00000035,0x00000016,0x00050050,0x00000031,0x00000037,0x00000016,0x00000016,0x00050081,0x00000031,
+	0x00000038,0x00000036,0x00000037,0x0003003e,0x00000033,0x00000038,0x00050041,0x0000003a,0x0000003b,0x00000033,0x00000039,0x0004003d,0x00000006,0x0000003c,0x0000003b,0x000500b8,
+	0x00000017,0x0000003d,0x0000003c,0x00000023,0x000400a8,0x00000017,0x0000003e,0x0000003d,0x000300f7,0x00000040,0x00000000,0x000400fa,0x0000003e,0x0000003f,0x00000040,0x000200f8,
+	0x0000003f,0x00050041,0x0000003a,0x00000041,0x00000033,0x00000039,0x0004003d,0x00000006,0x00000042,0x00000041,0x000500ba,0x00000017,0x00000043,0x00000042,0x0000001b,0x000200f9,
+	0x00000040,0x000200f8,0x00000040,0x000700f5,0x00000017,0x00000044,0x0000003d,0x00000026,0x00000043,0x0000003f,0x000400a8,0x00000017,0x00000045,0x00000044,0x000300f7,0x00000047,
+	0x00000000,0x000400fa,0x00000045,0x00000046,0x00000047,0x000200f8,0x00000046,0x00050041,0x0000003a,0x00000048,0x00000033,0x00000012,0x0004003d,0x00000006,0x00000049,0x00000048,
+	0x000500b8,0x00000017,0x0000004a,0x00000049,0x00000023,0x000200f9,0x00000047,0x000200f8,0x00000047,0x000700f5,0x00000017,0x0000004b,0x00000044,0x00000040,0x0000004a,0x00000046,
+	0x000400a8,0x00000017,0x0000004c,0x0000004b,0x000300f7,0x0000004e,0x00000000,0x000400fa,0x0000004c,0x0000004d,0x0000004e,0x000200f8,0x0000004d,0x00050041,0x0000003a,0x0000004f,
+	0x00000033,0x00000012,0x0004003d,0x00000006,0x00000050,0x0000004f,0x000500ba,0x00000017,0x00000051,0x00000050,0x0000001b,0x000200f9,0x0000004e,0x000200f8,0x0000004e,0x000700f5,
+	0x00000017,0x00000052,0x0000004b,0x00000047,0x00000051,0x0000004d,0x000400a8,0x00000017,0x00000053,0x00000052,0x000300f7,0x00000055,0x00000000,0x000400fa,0x00000053,0x00000054,
+	0x00000055,0x000200f8,0x00000054,0x00050041,0x0000003a,0x00000057,0x0000002a,0x00000056,0x0004003d,0x00000006,0x00000058,0x00000057,0x000500ba,0x00000017,0x00000059,0x00000058,
+	0x0000001b,0x000200f9,0x00000055,0x000200f8,0x00000055,0x000700f5,0x00000017,0x0000005a,0x00000052,0x0000004e,0x00000059,0x00000054,0x000300f7,0x0000005c,0x00000000,0x000400fa,
+	0x0000005a,0x0000005b,0x0000005c,0x000200f8,0x0000005b,0x000200fe,0x0000001b,0x000200f8,0x0000005c,0x0003003e,0x0000005e,0x0000005f,0x0004003d,0x00000062,0x00000065,0x00000064,
+	0x0004003d,0x00000031,0x00000066,0x00000033,0x00050057,0x0000000a,0x00000067,0x00000065,0x00000066,0x00050051,0x00000006,0x00000068,0x00000067,0x00000000,0x0003003e,0x00000060,
+	0x00000068,0x00050041,0x0000003a,0x00000069,0x0000002a,0x00000056,0x0004003d,0x00000006,0x0000006a,0x00000069,0x0004003d,0x00000006,0x0000006b,0x0000005e,0x00050083,0x00000006,
+	0x0000006c,0x0000006a,0x0000006b,0x0004003d,0x00000006,0x0000006d,0x00000060,0x000500ba,0x00000017,0x0000006e,0x0000006c,0x0000006d,0x000600a9,0x00000006,0x00000070,0x0000006e,
+	0x0000006f,0x0000001b,0x000200fe,0x00000070,0x00010038
 }, shadowVertCode[] = {
-	0x07230203,0x00010000,0x000d000b,0x00000026,0x00000000,0x00020011,0x00000001,0x0006000b,0x00000001,0x4c534c47,0x6474732e,0x3035342e,0x00000000,0x0003000e,0x00000000,0x00000001,
-	0x0008000f,0x00000000,0x00000004,0x6e69616d,0x00000000,0x0000000d,0x0000001a,0x00000025,0x00030003,0x00000002,0x000001c2,0x000a0004,0x475f4c47,0x4c474f4f,0x70635f45,0x74735f70,
-	0x5f656c79,0x656e696c,0x7269645f,0x69746365,0x00006576,0x00080004,0x475f4c47,0x4c474f4f,0x6e695f45,0x64756c63,0x69645f65,0x74636572,0x00657669,0x00040005,0x00000004,0x6e69616d,
-	0x00000000,0x00060005,0x0000000b,0x505f6c67,0x65567265,0x78657472,0x00000000,0x00060006,0x0000000b,0x00000000,0x505f6c67,0x7469736f,0x006e6f69,0x00070006,0x0000000b,0x00000001,
-	0x505f6c67,0x746e696f,0x657a6953,0x00000000,0x00070006,0x0000000b,0x00000002,0x435f6c67,0x4470696c,0x61747369,0x0065636e,0x00070006,0x0000000b,0x00000003,0x435f6c67,0x446c6c75,
-	0x61747369,0x0065636e,0x00030005,0x0000000d,0x00000000,0x00050005,0x00000011,0x656d6143,0x42556172,0x0000004f,0x00060006,0x00000011,0x00000000,0x77656976,0x6a6f7250,0x00000000,
-	0x00070006,0x00000011,0x00000001,0x6867696c,0x65695674,0x6f725077,0x0000006a,0x00070006,0x00000011,0x00000002,0x6867696c,0x736f5074,0x676e6152,0x00000065,0x00080006,0x00000011,
-	0x00000003,0x6867696c,0x776f5074,0x68537265,0x776f6461,0x00000000,0x00030005,0x00000013,0x006d6163,0x00040005,0x0000001a,0x6f506e69,0x00000073,0x00040005,0x00000025,0x6f436e69,
-	0x00726f6c,0x00030047,0x0000000b,0x00000002,0x00050048,0x0000000b,0x00000000,0x0000000b,0x00000000,0x00050048,0x0000000b,0x00000001,0x0000000b,0x00000001,0x00050048,0x0000000b,
-	0x00000002,0x0000000b,0x00000003,0x00050048,0x0000000b,0x00000003,0x0000000b,0x00000004,0x00030047,0x00000011,0x00000002,0x00040048,0x00000011,0x00000000,0x00000005,0x00050048,
-	0x00000011,0x00000000,0x00000007,0x00000010,0x00050048,0x00000011,0x00000000,0x00000023,0x00000000,0x00040048,0x00000011,0x00000001,0x00000005,0x00050048,0x00000011,0x00000001,
-	0x00000007,0x00000010,0x00050048,0x00000011,0x00000001,0x00000023,0x00000040,0x00050048,0x00000011,0x00000002,0x00000023,0x00000080,0x00050048,0x00000011,0x00000003,0x00000023,
-	0x00000090,0x00040047,0x00000013,0x00000021,0x00000000,0x00040047,0x00000013,0x00000022,0x00000000,0x00040047,0x0000001a,0x0000001e,0x00000000,0x00040047,0x00000025,0x0000001e,
-	0x00000001,0x00020013,0x00000002,0x00030021,0x00000003,0x00000002,0x00030016,0x00000006,0x00000020,0x00040017,0x00000007,0x00000006,0x00000004,0x00040015,0x00000008,0x00000020,
-	0x00000000,0x0004002b,0x00000008,0x00000009,0x00000001,0x0004001c,0x0000000a,0x00000006,0x00000009,0x0006001e,0x0000000b,0x00000007,0x00000006,0x0000000a,0x0000000a,0x00040020,
-	0x0000000c,0x00000003,0x0000000b,0x0004003b,0x0000000c,0x0000000d,0x00000003,0x00040015,0x0000000e,0x00000020,0x00000001,0x0004002b,0x0000000e,0x0000000f,0x00000000,0x00040018,
-	0x00000010,0x00000007,0x00000004,0x0006001e,0x00000011,0x00000010,0x00000010,0x00000007,0x00000007,0x00040020,0x00000012,0x00000002,0x00000011,0x0004003b,0x00000012,0x00000013,
-	0x00000002,0x0004002b,0x0000000e,0x00000014,0x00000001,0x00040020,0x00000015,0x00000002,0x00000010,0x00040017,0x00000018,0x00000006,0x00000003,0x00040020,0x00000019,0x00000001,
-	0x00000018,0x0004003b,0x00000019,0x0000001a,0x00000001,0x0004002b,0x00000006,0x0000001c,0x3f800000,0x00040020,0x00000022,0x00000003,0x00000007,0x00040020,0x00000024,0x00000001,
-	0x00000007,0x0004003b,0x00000024,0x00000025,0x00000001,0x00050036,0x00000002,0x00000004,0x00000000,0x00000003,0x000200f8,0x00000005,0x00050041,0x00000015,0x00000016,0x00000013,
-	0x00000014,0x0004003d,0x00000010,0x00000017,0x00000016,0x0004003d,0x00000018,0x0000001b,0x0000001a,0x00050051,0x00000006,0x0000001d,0x0000001b,0x00000000,0x00050051,0x00000006,
-	0x0000001e,0x0000001b,0x00000001,0x00050051,0x00000006,0x0000001f,0x0000001b,0x00000002,0x00070050,0x00000007,0x00000020,0x0000001d,0x0000001e,0x0000001f,0x0000001c,0x00050091,
-	0x00000007,0x00000021,0x00000017,0x00000020,0x00050041,0x00000022,0x00000023,0x0000000d,0x0000000f,0x0003003e,0x00000023,0x00000021,0x000100fd,0x00010038
+	0x07230203,0x00010000,0x000d000b,0x00000024,0x00000000,0x00020011,0x00000001,0x0006000b,0x00000001,0x4c534c47,0x6474732e,0x3035342e,0x00000000,0x0003000e,0x00000000,0x00000001,
+	0x0007000f,0x00000000,0x00000004,0x6e69616d,0x00000000,0x0000000d,0x0000001a,0x00030003,0x00000002,0x000001c2,0x000a0004,0x475f4c47,0x4c474f4f,0x70635f45,0x74735f70,0x5f656c79,
+	0x656e696c,0x7269645f,0x69746365,0x00006576,0x00080004,0x475f4c47,0x4c474f4f,0x6e695f45,0x64756c63,0x69645f65,0x74636572,0x00657669,0x00040005,0x00000004,0x6e69616d,0x00000000,
+	0x00060005,0x0000000b,0x505f6c67,0x65567265,0x78657472,0x00000000,0x00060006,0x0000000b,0x00000000,0x505f6c67,0x7469736f,0x006e6f69,0x00070006,0x0000000b,0x00000001,0x505f6c67,
+	0x746e696f,0x657a6953,0x00000000,0x00070006,0x0000000b,0x00000002,0x435f6c67,0x4470696c,0x61747369,0x0065636e,0x00070006,0x0000000b,0x00000003,0x435f6c67,0x446c6c75,0x61747369,
+	0x0065636e,0x00030005,0x0000000d,0x00000000,0x00050005,0x00000011,0x656d6143,0x42556172,0x0000004f,0x00060006,0x00000011,0x00000000,0x77656976,0x6a6f7250,0x00000000,0x00070006,
+	0x00000011,0x00000001,0x6867696c,0x65695674,0x6f725077,0x0000006a,0x00070006,0x00000011,0x00000002,0x6867696c,0x736f5074,0x676e6152,0x00000065,0x00080006,0x00000011,0x00000003,
+	0x6867696c,0x776f5074,0x68537265,0x776f6461,0x00000000,0x00060006,0x00000011,0x00000004,0x6e656373,0x666e4965,0x0000006f,0x00030005,0x00000013,0x006d6163,0x00040005,0x0000001a,
+	0x6f506e69,0x00000073,0x00030047,0x0000000b,0x00000002,0x00050048,0x0000000b,0x00000000,0x0000000b,0x00000000,0x00050048,0x0000000b,0x00000001,0x0000000b,0x00000001,0x00050048,
+	0x0000000b,0x00000002,0x0000000b,0x00000003,0x00050048,0x0000000b,0x00000003,0x0000000b,0x00000004,0x00030047,0x00000011,0x00000002,0x00040048,0x00000011,0x00000000,0x00000005,
+	0x00050048,0x00000011,0x00000000,0x00000007,0x00000010,0x00050048,0x00000011,0x00000000,0x00000023,0x00000000,0x00040048,0x00000011,0x00000001,0x00000005,0x00050048,0x00000011,
+	0x00000001,0x00000007,0x00000010,0x00050048,0x00000011,0x00000001,0x00000023,0x00000040,0x00050048,0x00000011,0x00000002,0x00000023,0x00000080,0x00050048,0x00000011,0x00000003,
+	0x00000023,0x00000090,0x00050048,0x00000011,0x00000004,0x00000023,0x000000a0,0x00040047,0x00000013,0x00000021,0x00000000,0x00040047,0x00000013,0x00000022,0x00000000,0x00040047,
+	0x0000001a,0x0000001e,0x00000000,0x00020013,0x00000002,0x00030021,0x00000003,0x00000002,0x00030016,0x00000006,0x00000020,0x00040017,0x00000007,0x00000006,0x00000004,0x00040015,
+	0x00000008,0x00000020,0x00000000,0x0004002b,0x00000008,0x00000009,0x00000001,0x0004001c,0x0000000a,0x00000006,0x00000009,0x0006001e,0x0000000b,0x00000007,0x00000006,0x0000000a,
+	0x0000000a,0x00040020,0x0000000c,0x00000003,0x0000000b,0x0004003b,0x0000000c,0x0000000d,0x00000003,0x00040015,0x0000000e,0x00000020,0x00000001,0x0004002b,0x0000000e,0x0000000f,
+	0x00000000,0x00040018,0x00000010,0x00000007,0x00000004,0x0007001e,0x00000011,0x00000010,0x00000010,0x00000007,0x00000007,0x00000007,0x00040020,0x00000012,0x00000002,0x00000011,
+	0x0004003b,0x00000012,0x00000013,0x00000002,0x0004002b,0x0000000e,0x00000014,0x00000001,0x00040020,0x00000015,0x00000002,0x00000010,0x00040017,0x00000018,0x00000006,0x00000003,
+	0x00040020,0x00000019,0x00000001,0x00000018,0x0004003b,0x00000019,0x0000001a,0x00000001,0x0004002b,0x00000006,0x0000001c,0x3f800000,0x00040020,0x00000022,0x00000003,0x00000007,
+	0x00050036,0x00000002,0x00000004,0x00000000,0x00000003,0x000200f8,0x00000005,0x00050041,0x00000015,0x00000016,0x00000013,0x00000014,0x0004003d,0x00000010,0x00000017,0x00000016,
+	0x0004003d,0x00000018,0x0000001b,0x0000001a,0x00050051,0x00000006,0x0000001d,0x0000001b,0x00000000,0x00050051,0x00000006,0x0000001e,0x0000001b,0x00000001,0x00050051,0x00000006,
+	0x0000001f,0x0000001b,0x00000002,0x00070050,0x00000007,0x00000020,0x0000001d,0x0000001e,0x0000001f,0x0000001c,0x00050091,0x00000007,0x00000021,0x00000017,0x00000020,0x00050041,
+	0x00000022,0x00000023,0x0000000d,0x0000000f,0x0003003e,0x00000023,0x00000021,0x000100fd,0x00010038
 }, uiVertCode[] = {
 	0x07230203,0x00010000,0x000d000b,0x00000030,0x00000000,0x00020011,0x00000001,0x0006000b,0x00000001,0x4c534c47,0x6474732e,0x3035342e,0x00000000,0x0003000e,0x00000000,0x00000001,
 	0x0009000f,0x00000000,0x00000004,0x6e69616d,0x00000000,0x0000000b,0x00000023,0x0000002c,0x0000002e,0x00030003,0x00000002,0x000001c2,0x000a0004,0x475f4c47,0x4c474f4f,0x70635f45,
@@ -459,8 +890,7 @@ static const uint32_t mainVertCode[] = {
 static uint32_t findMemoryType(const uint32_t typeFilter, const VkMemoryPropertyFlags properties) {
 	VkPhysicalDeviceMemoryProperties memProperties;
 	vkGetPhysicalDeviceMemoryProperties(g_ctx.physicalDevice, &memProperties);
-	for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++)
-		if ((typeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties) return i;
+	for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) if ((typeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties) return i;
 	return 0;
 }
 static void createBuffer(const VkDeviceSize size, const VkBufferUsageFlags usage, const VkMemoryPropertyFlags properties, VkBuffer* buffer, VkDeviceMemory* bufferMemory) {
@@ -645,8 +1075,8 @@ static void createMainRenderPass() {
 		.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED, .finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
 	};
 	const VkAttachmentReference colorRef = { 0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL },
-		depthRef = { 1, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL },
-		resolveRef = { 2, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL };
+	depthRef = { 1, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL },
+	resolveRef = { 2, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL };
 	const VkSubpassDescription subpass = {
 		.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
 		.colorAttachmentCount = 1, .pColorAttachments = &colorRef,
@@ -704,27 +1134,33 @@ static void createShadowRenderPass() {
 static void createDescriptorsAndUbo() {
 	createBuffer(sizeof(CameraUBO), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &g_ctx.uboBuffer, &g_ctx.uboBufferMemory);
 	vkMapMemory(g_ctx.device, g_ctx.uboBufferMemory, 0, sizeof(CameraUBO), 0, &g_ctx.mappedUbo);
-	const VkDescriptorSetLayoutBinding bindings[2] = {
+	createBuffer(sizeof(GPULight) * MAX_LIGHTS, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &g_ctx.lightsBuffer, &g_ctx.lightsBufferMemory);
+	vkMapMemory(g_ctx.device, g_ctx.lightsBufferMemory, 0, sizeof(GPULight) * MAX_LIGHTS, 0, &g_ctx.mappedLights);
+	const VkDescriptorSetLayoutBinding bindings[3] = {
 		{ .binding = 0, .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, .descriptorCount = 1, .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT },
-		{ .binding = 1, .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, .descriptorCount = 1, .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT }
+		{ .binding = 1, .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, .descriptorCount = 1, .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT },
+		{ .binding = 2, .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, .descriptorCount = 1, .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT }
 	};
-	const VkDescriptorSetLayoutCreateInfo layoutInfo = { .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, .bindingCount = 2, .pBindings = bindings };
+	const VkDescriptorSetLayoutCreateInfo layoutInfo = { .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, .bindingCount = 3, .pBindings = bindings };
 	vkCreateDescriptorSetLayout(g_ctx.device, &layoutInfo, NULL, &g_ctx.descriptorSetLayout);
-	const VkDescriptorPoolSize poolSizes[2] = {
+	const VkDescriptorPoolSize poolSizes[3] = {
 		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 },
-		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 }
+		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 },
+		{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1 }
 	};
-	const VkDescriptorPoolCreateInfo poolInfo = { .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO, .maxSets = 1, .poolSizeCount = 2, .pPoolSizes = poolSizes };
+	const VkDescriptorPoolCreateInfo poolInfo = { .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO, .maxSets = 1, .poolSizeCount = 3, .pPoolSizes = poolSizes };
 	vkCreateDescriptorPool(g_ctx.device, &poolInfo, NULL, &g_ctx.descriptorPool);
 	const VkDescriptorSetAllocateInfo allocInfo = { .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO, .descriptorPool = g_ctx.descriptorPool, .descriptorSetCount = 1, .pSetLayouts = &g_ctx.descriptorSetLayout };
 	vkAllocateDescriptorSets(g_ctx.device, &allocInfo, &g_ctx.descriptorSet);
 	const VkDescriptorBufferInfo bufferInfo = { .buffer = g_ctx.uboBuffer, .offset = 0, .range = sizeof(CameraUBO) };
+	const VkDescriptorBufferInfo lightsInfo = { .buffer = g_ctx.lightsBuffer, .offset = 0, .range = sizeof(GPULight) * MAX_LIGHTS };
 	const VkDescriptorImageInfo imageInfo = { .sampler = g_ctx.shadowSampler, .imageView = g_ctx.shadowImageView, .imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL };
-	const VkWriteDescriptorSet writes[2] = {
+	const VkWriteDescriptorSet writes[3] = {
 		{ .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, .dstSet = g_ctx.descriptorSet, .dstBinding = 0, .descriptorCount = 1, .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, .pBufferInfo = &bufferInfo },
-		{ .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, .dstSet = g_ctx.descriptorSet, .dstBinding = 1, .descriptorCount = 1, .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, .pImageInfo = &imageInfo }
+		{ .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, .dstSet = g_ctx.descriptorSet, .dstBinding = 1, .descriptorCount = 1, .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, .pImageInfo = &imageInfo },
+		{ .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, .dstSet = g_ctx.descriptorSet, .dstBinding = 2, .descriptorCount = 1, .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, .pBufferInfo = &lightsInfo }
 	};
-	vkUpdateDescriptorSets(g_ctx.device, 2, writes, 0, NULL);
+	vkUpdateDescriptorSets(g_ctx.device, 3, writes, 0, NULL);
 }
 // ========================================================================================================================================================================
 // ===== PIPELINES ========================================================================================================================================================
@@ -734,14 +1170,15 @@ static void createPipelines() {
 	vkCreatePipelineLayout(g_ctx.device, &layoutInfo, NULL, &g_ctx.pipelineLayout);
 
 	const VkVertexInputBindingDescription bindingDesc = { .binding = 0, .stride = sizeof(QGPU_Vertex), .inputRate = VK_VERTEX_INPUT_RATE_VERTEX };
-	const VkVertexInputAttributeDescription attribDescs[2] = {
+	const VkVertexInputAttributeDescription attribDescs[3] = {
 		{ .binding = 0, .location = 0, .format = VK_FORMAT_R32G32B32_SFLOAT, .offset = offsetof(QGPU_Vertex, pos) },
-		{ .binding = 0, .location = 1, .format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = offsetof(QGPU_Vertex, color) }
+		{ .binding = 0, .location = 1, .format = VK_FORMAT_R32G32B32_SFLOAT, .offset = offsetof(QGPU_Vertex, normal) },
+		{ .binding = 0, .location = 2, .format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = offsetof(QGPU_Vertex, color) }
 	};
 	const VkPipelineVertexInputStateCreateInfo vertexInputInfo = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
 		.vertexBindingDescriptionCount = 1, .pVertexBindingDescriptions = &bindingDesc,
-		.vertexAttributeDescriptionCount = 2, .pVertexAttributeDescriptions = attribDescs
+		.vertexAttributeDescriptionCount = 3, .pVertexAttributeDescriptions = attribDescs
 	};
 	const VkPipelineInputAssemblyStateCreateInfo inputAssembly = { .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO, .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST };
 	const VkPipelineViewportStateCreateInfo viewportState = { .sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO, .viewportCount = 1, .scissorCount = 1 };
@@ -890,6 +1327,8 @@ Vector3 qgGetCameraPosition() { return camPos; }
 // ========================================================================================================================================================================
 // ===== INIT =============================================================================================================================================================
 // ========================================================================================================================================================================
+extern void qgAddRect(const Vector2 position, const Vector2 size, const ColorRGBA color);
+void qgAqfDraw(const float x, const float y, const float sx, const float sy, const float r, const float g, const float b, const float a) { qgAddRect((Vector2){x, y}, (Vector2){sx, sy}, (ColorRGBA){r,g,b,a}); }
 int qgpuCreate(const uint width, const uint height, const char* title, void (*initFunc)(), void (*updateFunc)()) {
 	if (!glfwInit()) return 1;
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
@@ -938,9 +1377,11 @@ int qgpuCreate(const uint width, const uint height, const char* title, void (*in
 	if (_showInfo) printInfo();
 	if (_showColors) printColors();
 	qgSetStyle(REGULAR);
-	printf("\n");
+	putchar('\n');
 
 	inInit = 1;
+	qfSetDrawRect(0,0, QFONT_Y_UP, qgAqfDraw);
+	qfInit();
 	if (initFunc) initFunc();
 	inInit = 0;
 
@@ -987,9 +1428,7 @@ int qgpuCreate(const uint width, const uint height, const char* title, void (*in
 		if (acquireResult == VK_ERROR_OUT_OF_DATE_KHR || acquireResult == VK_SUBOPTIMAL_KHR || framebufferResized) { framebufferResized = 0; recreateSwapchain(); continue; }
 		else if (acquireResult != VK_SUCCESS) qgError("Failed to acquire swap chain image!\n");
 
-		g_ctx.currentVOffset = 0;
 		g_ctx.currentIOffset = 0;
-		g_ctx.currentUIVOffset = 0;
 		g_ctx.currentUIIOffset = 0;
 		uiTriangleCount = 0;
 		currentUILayer = 0;
@@ -1001,6 +1440,8 @@ int qgpuCreate(const uint width, const uint height, const char* title, void (*in
 		vkBeginCommandBuffer(g_ctx.currentCmd, &beginInfo);
 
 		if (updateFunc) updateFunc();
+		g_ctx.currentVOffset = 0;
+		g_ctx.currentUIVOffset = 0;
 
 		if (uiTriangleCount > 0) {
 			qsort(uiTriangles, uiTriangleCount, sizeof(UITriangle2D), compareUITriangle);
@@ -1036,19 +1477,33 @@ int qgpuCreate(const uint width, const uint height, const char* title, void (*in
 
 		uint8_t haveShadowLight = (lightCount > 0 && g_settings.shadows);
 		if (haveShadowLight) {
-			Vector3 lightPos = { lights[0], lights[1], lights[2] };
-			float lightRange = lights[3];
+			const GPULight* L0 = &lights[0];
+			const Vector3 lpos = { L0->posRange[0], L0->posRange[1], L0->posRange[2] }, ldir = { L0->dirPower[0], L0->dirPower[1], L0->dirPower[2] };
+			const float lrange = L0->posRange[3], farZ = lrange > 1.0f ? lrange : 100.0f;
 			float lightView[16], lightProj[16];
-			mat4LookAt(lightView, lightPos, camTarget, (Vector3){0.0f, 1.0f, 0.0f});
-			mat4Perspective(lightProj, 100.0f * (PI / 180.0f), 1.0f, 0.1f, lightRange > 1.0f ? lightRange : 100.0f);
+			if (L0->typeAngle[0] == QGPU_LIGHT_DIRECTIONAL) {
+				const float extent = 20.0f;
+				mat4LookAt(lightView, v3Sub(camTarget, v3Scale(ldir, extent * 2.0f)), camTarget, (Vector3){0.0f, 1.0f, 0.0f});
+				mat4Ortho(lightProj, -extent, extent, -extent, extent, 0.1f, extent * 4.0f);
+			} else if (L0->typeAngle[0] == QGPU_LIGHT_SPOT) {
+				mat4LookAt(lightView, lpos, v3Add(lpos, ldir), (Vector3){0.0f, 1.0f, 0.0f});
+				mat4Perspective(lightProj, qclampf(L0->typeAngle[2] * 2.0f, 2.0f, 170.0f) * (PI / 180.0f), 1.0f, 0.1f, farZ);
+			} else {
+				mat4LookAt(lightView, lpos, camTarget, (Vector3){0.0f, 1.0f, 0.0f});
+				mat4Perspective(lightProj, 100.0f * (PI / 180.0f), 1.0f, 0.1f, farZ);
+			}
 			mat4Multiply(ubo.lightViewProj, lightProj, lightView);
-			ubo.lightPosRange[0] = lightPos.x; ubo.lightPosRange[1] = lightPos.y; ubo.lightPosRange[2] = lightPos.z; ubo.lightPosRange[3] = lightRange;
-			ubo.lightPowerShadow[0] = lights[4]; ubo.lightPowerShadow[1] = 1.0f; ubo.lightPowerShadow[2] = 0.1f; ubo.lightPowerShadow[3] = lightRange;
+			ubo.lightPosRange[0] = lpos.x; ubo.lightPosRange[1] = lpos.y; ubo.lightPosRange[2] = lpos.z; ubo.lightPosRange[3] = lrange;
+			ubo.lightPowerShadow[0] = L0->dirPower[3]; ubo.lightPowerShadow[1] = 1.0f; ubo.lightPowerShadow[2] = 0.1f; ubo.lightPowerShadow[3] = lrange;
 		} else {
 			mat4Identity(ubo.lightViewProj);
 			ubo.lightPosRange[0] = ubo.lightPosRange[1] = ubo.lightPosRange[2] = ubo.lightPosRange[3] = 0.0f;
 			ubo.lightPowerShadow[0] = 0.0f; ubo.lightPowerShadow[1] = 0.0f; ubo.lightPowerShadow[2] = 0.0f; ubo.lightPowerShadow[3] = 0.0f;
 		}
+		ubo.sceneInfo[0] = g_settings.ambientOcclusion ? 0.05f : 0.2f;
+		ubo.sceneInfo[1] = (float)lightCount;
+		ubo.sceneInfo[2] = ubo.sceneInfo[3] = 0.0f;
+		if (lightCount > 0) memcpy(g_ctx.mappedLights, lights, sizeof(GPULight) * lightCount);
 		memcpy(g_ctx.mappedUbo, &ubo, sizeof(CameraUBO));
 
 		if (haveShadowLight && g_ctx.currentIOffset > 0) {
@@ -1129,6 +1584,9 @@ int qgpuCreate(const uint width, const uint height, const char* title, void (*in
 	vkUnmapMemory(g_ctx.device, g_ctx.vertexBufferMemory);
 	vkUnmapMemory(g_ctx.device, g_ctx.indexBufferMemory);
 	vkUnmapMemory(g_ctx.device, g_ctx.uboBufferMemory);
+	vkUnmapMemory(g_ctx.device, g_ctx.lightsBufferMemory);
+	vkDestroyBuffer(g_ctx.device, g_ctx.lightsBuffer, NULL);
+	vkFreeMemory(g_ctx.device, g_ctx.lightsBufferMemory, NULL);
 	vkUnmapMemory(g_ctx.device, g_ctx.uiVertexBufferMemory);
 	vkUnmapMemory(g_ctx.device, g_ctx.uiIndexBufferMemory);
 	vkDestroySemaphore(g_ctx.device, g_ctx.renderFinishedSemaphore, NULL);
@@ -1197,13 +1655,15 @@ void qgAddTriangle(const Vector3 p1, const Vector3 p2, const Vector3 p3, const C
 	uint32_t* ib = (uint32_t*)g_ctx.mappedIndexBuffer;
 	const uint32_t base = g_ctx.currentVOffset;
 	for (uint8_t i = 0; i < 3; i++) {
-		const float light = getLight(wp[i], normal);
 		vb[base + i].pos[0] = wp[i].x;
 		vb[base + i].pos[1] = wp[i].y;
 		vb[base + i].pos[2] = wp[i].z;
-		vb[base + i].color[0] = qclampf(clr.r * light, 0.0f, 1.0f);
-		vb[base + i].color[1] = qclampf(clr.g * light, 0.0f, 1.0f);
-		vb[base + i].color[2] = qclampf(clr.b * light, 0.0f, 1.0f);
+		vb[base + i].normal[0] = normal.x;
+		vb[base + i].normal[1] = normal.y;
+		vb[base + i].normal[2] = normal.z;
+		vb[base + i].color[0] = qclampf(clr.r, 0.0f, 1.0f);
+		vb[base + i].color[1] = qclampf(clr.g, 0.0f, 1.0f);
+		vb[base + i].color[2] = qclampf(clr.b, 0.0f, 1.0f);
 		vb[base + i].color[3] = qclampf(clr.a, 0.0f, 1.0f);
 	}
 	ib[g_ctx.currentIOffset + 0] = base + 0;
@@ -1252,24 +1712,24 @@ void qgAddCircle(const Vector2 p, const float radius, const uint segments, const
 void qgAddPlane(const Vector3 p, const Vector2 size, const ColorRGBA clr) {
 	const float x = size.x / 2.0f, z = size.y / 2.0f;
 	const Vector3
-		mm = {p.x - x, p.y, p.z - z},
-		mp = {p.x - x, p.y, p.z + z},
-		pm = {p.x + x, p.y, p.z - z},
-		pp = {p.x + x, p.y, p.z + z};
+	mm = {p.x - x, p.y, p.z - z},
+	mp = {p.x - x, p.y, p.z + z},
+	pm = {p.x + x, p.y, p.z - z},
+	pp = {p.x + x, p.y, p.z + z};
 	qgAddTriangle(mm, pm, pp, clr);
 	qgAddTriangle(mm, pp, mp, clr);
 }
 void qgAddBox(const Vector3 p, const Vector3 size, const ColorRGBA clr) {
 	const float x = size.x / 2.0f, y = size.y / 2.0f, z = size.z / 2.0f;
 	const Vector3
-		mmm = {p.x - x, p.y - y, p.z - z},
-		mmp = {p.x - x, p.y - y, p.z + z},
-		mpm = {p.x - x, p.y + y, p.z - z},
-		mpp = {p.x - x, p.y + y, p.z + z},
-		pmm = {p.x + x, p.y - y, p.z - z},
-		pmp = {p.x + x, p.y - y, p.z + z},
-		ppm = {p.x + x, p.y + y, p.z - z},
-		ppp = {p.x + x, p.y + y, p.z + z};
+	mmm = {p.x - x, p.y - y, p.z - z},
+	mmp = {p.x - x, p.y - y, p.z + z},
+	mpm = {p.x - x, p.y + y, p.z - z},
+	mpp = {p.x - x, p.y + y, p.z + z},
+	pmm = {p.x + x, p.y - y, p.z - z},
+	pmp = {p.x + x, p.y - y, p.z + z},
+	ppm = {p.x + x, p.y + y, p.z - z},
+	ppp = {p.x + x, p.y + y, p.z + z};
 	qgAddTriangle(mmm, pmm, ppm, clr);
 	qgAddTriangle(mmm, ppm, mpm, clr);
 	qgAddTriangle(pmm, pmp, ppp, clr);
@@ -1284,241 +1744,48 @@ void qgAddBox(const Vector3 p, const Vector3 size, const ColorRGBA clr) {
 	qgAddTriangle(mmp, pmm, mmm, clr);
 }
 // ===== Lights
-void qgAddLight(const Vector3 position, const float range, const float power) {
-	if (lightCount >= MAX_LIGHTS) { qgWarn("qgAddLight: MAX_LIGHTS reached\n"); return; }
-	lights[lightCount * 5 + 0] = position.x;
-	lights[lightCount * 5 + 1] = position.y;
-	lights[lightCount * 5 + 2] = position.z;
-	lights[lightCount * 5 + 3] = range;
-	lights[lightCount * 5 + 4] = power;
-	lightCount++;
+static GPULight* newLight(const char* fn) {
+	if (lightCount >= MAX_LIGHTS) { qgWarn("%s: MAX_LIGHTS reached\n", fn); return NULL; }
+	GPULight* L = &lights[lightCount++];
+	memset(L, 0, sizeof(GPULight));
+	return L;
 }
+void qgAddPointLight(const Vector3 position, const float range, const float power) {
+	GPULight* L = newLight("qgAddPointLight");
+	if (!L) return;
+	L->posRange[0] = position.x; L->posRange[1] = position.y; L->posRange[2] = position.z; L->posRange[3] = range;
+	L->dirPower[3] = power;
+	L->typeAngle[0] = QGPU_LIGHT_POINT;
+}
+void qgAddSpotLight(const Vector3 position, const Vector3 direction, const float angleDegrees, const float range, const float power) {
+	GPULight* L = newLight("qgAddSpotLight");
+	if (!L) return;
+	const Vector3 d = v3Normalize(direction);
+	L->posRange[0] = position.x; L->posRange[1] = position.y; L->posRange[2] = position.z; L->posRange[3] = range;
+	L->dirPower[0] = d.x; L->dirPower[1] = d.y; L->dirPower[2] = d.z; L->dirPower[3] = power;
+	L->typeAngle[0] = QGPU_LIGHT_SPOT;
+	L->typeAngle[1] = qCos(qclampf(angleDegrees, 1.0f, 89.0f) * (PI / 180.0f));
+	L->typeAngle[2] = qclampf(angleDegrees, 1.0f, 89.0f);
+}
+void qgAddDirectionalLight(const Vector3 direction, const float power) {
+	GPULight* L = newLight("qgAddDirectionalLight");
+	if (!L) return;
+	const Vector3 d = v3Normalize(direction);
+	L->dirPower[0] = d.x; L->dirPower[1] = d.y; L->dirPower[2] = d.z; L->dirPower[3] = power;
+	L->typeAngle[0] = QGPU_LIGHT_DIRECTIONAL;
+}
+
+void qgAddLight(const Vector3 position, const float range, const float power) { qgAddPointLight(position, range, power); } // OBSOLETE
 // ========================================================================================================================================================================
 // ===== TEXT =============================================================================================================================================================
 // ========================================================================================================================================================================
-static float qFontSize = 1.6f;
-static ColorRGBA qFontClr = CLR_RGBA(1, 1, 1, 1);
-static uint8_t qFontStyle = QGPU_FONT_STYLE_REGULAR;
-static uint8_t cti(const char c) {
-	if (c >= '0' && c <= '9') return c - 48;
-	if (c >= 'A' && c <= 'H') return c - 54;
-	return 0;
-}
-void qgConvertFont(const char* pathQFR, const char* pathQF) {
-	if (!inInit) { qgWarn("Couldn't convert font in Update function! Please convert it in Init function.\n"); return; }
-	int l = strlen(pathQFR) - 1;
-	if (l < 4) return;
-	if (pathQFR[l - 3] != '.' || pathQFR[l - 2] != 'q' || pathQFR[l - 1] != 'f' || pathQFR[l] != 'r') qgError("The file does not have the .qfr extension!\n");
-	l = strlen(pathQF) - 1;
-	if (l < 3) return;
-	if (pathQF[l - 2] != '.' || pathQF[l - 1] != 'q' || pathQF[l] != 'f') qgError("The file does not have the .qf extension!\n");
-	FILE *qfr = fopen(pathQFR, "r");
-	if (!qfr) qgError("Failed to open qfr file! (%s)\n", pathQFR);
-	FILE *qf = fopen(pathQF, "wb");
-	if (!qf) qgError("Failed to create qf file! (%s)\n", pathQF);
-	char line[84];
-	uint16_t len = 0;
-	fwrite(&len, sizeof(uint16_t), 1, qf);
-	while (fgets(line, sizeof(line), qfr)) {
-		if (line[81] == '\n') line[81] = '\0';
-		if (line[0] == '/') continue;
-		const char code[5] = {line[0], line[1], line[2], line[3], '\0'};
-		const uint16_t c = (uint16_t)strtol(code, NULL, 16);
-		fwrite(&c, sizeof(uint16_t), 1, qf);
-		int8_t l[qFontY][qFontMax];
-		for (uint i = 0; i < qFontY; i++) {
-			for (uint j = 0; j < qFontMax; j++) {
-				const uint8_t x = cti(line[5+(7*i)+j]);
-				if (x == 0 && j != 0) l[i][j - 1] = -l[i][j - 1];
-				l[i][j] = x;
-			}
-		}
-		fwrite(l, sizeof(int8_t), qFontY * qFontMax, qf);
-		len++;
-	}
-	fseek(qf, 0, SEEK_SET);
-	fwrite(&len, sizeof(uint16_t), 1, qf);
-	fclose(qfr);
-	fclose(qf);
-}
 void qgLoadFont(const char* path) {
 	if (!inInit) { qgWarn("Couldn't load font in Update function! Please load it in Init function.\n"); return; }
-	const int l = strlen(path) - 1;
-	if (l < 3) return;
-	if (path[l - 2] != '.' || path[l - 1] != 'q' || path[l] != 'f') qgError("The file does not have the .qf extension!\n");
-	FILE *qf = fopen(path, "rb");
-	if (!qf) qgError("Failed to open qf file! (%s)\n", path);
-	uint16_t len = 0;
-	fread(&len, sizeof(uint16_t), 1, qf);
-	if (len == 0) return;
-	for (uint16_t i = 0; i < len; i++) {
-		uint16_t c = 0;
-		fread(&c, sizeof(uint16_t), 1, qf);
-		fread(newChars[c], sizeof(int8_t), qFontY * qFontMax, qf);
-	}
-	qgLog("Added a %i new chars!\n", len);
-	fclose(qf);
+	qfReadFile(path);
 }
-void qgSetFontData(const float fontSize, const uint8_t style, const ColorRGBA clr) {
-	qFontSize = fontSize / 10.0f;
-	qFontStyle = style;
-	qFontClr = clr;
-}
-static const int8_t qFont[128][qFontY][qFontMax] = {
-	// ===== ! " # $ % & ' ( ) * + , - . / ====================================================================================================================================
-	['!'] = {{0}, {0}, {0}, {3, -12}, {3, -12}, {3, -12}, {3, -12}, {3, -12}, {0}, {3, -12}, {0}},
-	['"'] = {{0}, {0}, {0}, {1, 12, 2, -12}, {1, 12, 2, -12}, {1, 12, 2, -12}, {0}, {0}, {0}, {0}, {0}},
-	['#'] = {{0}, {0}, {0}, {2, 11, 2, -11}, {2, 11, 2, -11}, {1, -16}, {2, 11, 2, -11}, {1, -16}, {2, 11, 2, -11}, {2, 11, 2, -11}, {0}},
-	['$'] = {{0}, {0}, {0}, {3, -12}, {2, -15}, {1, -12}, {2, -14}, {5, -12}, {1, -15}, {3, -12}, {0}},
-	['%'] = {{0}, {0}, {0}, {1, 12, 3, -11}, {1, 12, 2, -12}, {4, -12}, {3, -12}, {2, -12}, {1, 12, 2, -12}, {1, 11, 3, -12}, {0}},
-	['&'] = {{0}, {0}, {0}, {2, -13}, {1, 12, 1, -12}, {2, -13}, {1, 13, 1, -12}, {12, 1, -13}, {12, 2, -12}, {1, 13, 1, -12}, {0}},
-	['\''] = {{0}, {0}, {0}, {3, -12}, {3, -12}, {2, -12}, {0}, {0}, {0}, {0}, {0}},
-	['('] = {{0}, {0}, {0}, {4, -12}, {3, -12}, {2, -12}, {2, -12}, {2, -12}, {3, -12}, {4, -12}, {0}},
-	[')'] = {{0}, {0}, {0}, {2, -12}, {3, -12}, {4, -12}, {4, -12}, {4, -12}, {3, -12}, {2, -12}, {0}},
-	['*'] = {{0}, {0}, {0}, {0}, {3, 11, 1, -11}, {4, -11}, {2, -15}, {4, -11}, {3, 11, 1, -11}, {0}, {0}},
-	['+'] = {{0}, {0}, {0}, {0}, {3, -12}, {3, -12}, {1, -16}, {3, -12}, {3, -12}, {0}, {0}},
-	[','] = {{0}, {0}, {0}, {0}, {0}, {0}, {0}, {0}, {3, -12}, {3, -12}, {2, -12}},
-	['-'] = {{0}, {0}, {0}, {0}, {0}, {0}, {1, -16}, {0}, {0}, {0}, {0}},
-	['.'] = {{0}, {0}, {0}, {0}, {0}, {0}, {0}, {0}, {3, -12}, {3, -12}, {0}},
-	['/'] = {{0}, {0}, {0}, {6, -11}, {5, -12}, {4, -12}, {3, -12}, {2, -12}, {1, -12}, {1, -11}, {0}},
-	// ===== : ; < = > ? @ ====================================================================================================================================================
-	[':'] = {{0}, {0}, {0}, {0}, {3, -12}, {3, -12}, {0}, {3, -12}, {3, -12}, {0}, {0}},
-	[';'] = {{0}, {0}, {0}, {0}, {3, -12}, {3, -12}, {0}, {3, -12}, {3, -12}, {2, -12}, {0}},
-	['<'] = {{0}, {0}, {0}, {4, -12}, {3, -12}, {2, -12}, {1, -12}, {2, -12}, {3, -12}, {4, -12}, {0}},
-	['='] = {{0}, {0}, {0}, {0}, {0}, {1, -16}, {0}, {1, -16}, {0}, {0}, {0}},
-	['>'] = {{0}, {0}, {0}, {2, -12}, {3, -12}, {4, -12}, {5, -12}, {4, -12}, {3, -12}, {2, -12}, {0}},
-	['?'] = {{0}, {0}, {0}, {2, -14}, {1, 12, 2, -12}, {5, -12}, {4, -12}, {3, -12}, {0}, {3, -12}, {0}},
-	['@'] = {{0}, {0}, {0}, {2, -14}, {1, 11, 4, -11}, {11, 2, 13, 1, -11}, {11, 1, 11, 4, -11}, {11, 1, 11, 4, -11}, {11, 2, 13, 1, -11}, {1, -11}, {2, -15}},
-	// ===== [ \ ] ^ _ ` ======================================================================================================================================================
-	['['] = {{0}, {0}, {0}, {2, -14}, {2, -12}, {2, -12}, {2, -12}, {2, -12}, {2, -12}, {2, -14}, {0}},
-	['\\'] = {{0}, {0}, {0}, {1, -11}, {2, -12}, {3, -12}, {4, -12}, {5, -12}, {6, -12}, {7, -11}, {0}},
-	[']'] = {{0}, {0}, {0}, {2, -14}, {4, -12}, {4, -12}, {4, -12}, {4, -12}, {4, -12}, {2, -14}, {0}},
-	['^'] = {{0}, {0}, {0}, {3, -12}, {2, 11, 2, -11}, {1, 11, 4, -11}, {0}, {0}, {0}, {0}, {0}},
-	['_'] = {{0}, {0}, {0}, {0}, {0}, {0}, {0}, {0}, {0}, {1, -16}, {0}},
-	['`'] = {{0}, {0}, {0}, {2, -12}, {2, -12}, {3, -12}, {0}, {0}, {0}, {0}, {0}},
-	// ===== { | } ~ ==========================================================================================================================================================
-	['{'] = {{0}, {0}, {0}, {4, -13}, {3, -12}, {3, -12}, {2, -12}, {3, -12}, {3, -12}, {4, -13}, {0}},
-	['|'] = {{0}, {0}, {3, -12}, {3, -12}, {3, -12}, {3, -12}, {3, -12}, {3, -12}, {3, -12}, {3, -12}, {3, -12}},
-	['}'] = {{0}, {0}, {0}, {1, -13}, {3, -12}, {3, -12}, {4, -12}, {3, -12}, {3, -12}, {1, -13}, {0}},
-	['~'] = {{0}, {0}, {0}, {2, 13, 1, -11}, {1, 11, 1, -13}, {0}, {0}, {0}, {0}, {0}, {0}},
-	// ===== 0 1 2 3 4 5 6 7 8 9 ==============================================================================================================================================
-	['0'] = {{0}, {0}, {0}, {2, -14}, {1, 12, 2, -12}, {1, 12, 1, -13}, {1, 13, 1, -12}, {1, 12, 2, -12}, {1, 12, 2, -12}, {2, -14}, {0}},
-	['1'] = {{0}, {0}, {0}, {3, -12}, {2, -13}, {3, -12}, {3, -12}, {3, -12}, {3, -12}, {2, -14}, {0}},
-	['2'] = {{0}, {0}, {0}, {2, -14}, {1, 12, 2, -12}, {5, -12}, {4, -12}, {2, -12}, {1, -12}, {1, -16}, {0}},
-	['3'] = {{0}, {0}, {0}, {2, -14}, {1, 12, 2, -12}, {5, -12}, {3, -13}, {5, -12}, {1, 12, 2, -12}, {2, -14}, {0}},
-	['4'] = {{0}, {0}, {0}, {4, -12}, {3, -13}, {2, 11, 1, -12}, {1, 11, 2, -12}, {1, -16}, {4, -12}, {4, -12}, {0}},
-	['5'] = {{0}, {0}, {0}, {1, -16}, {1, -12}, {1, -15}, {5, -12}, {5, -12}, {1, 12, 2, -12}, {2, -14}, {0}},
-	['6'] = {{0}, {0}, {0}, {3, -13}, {2, -12}, {1, -12}, {1, -15}, {1, 12, 2, -12}, {1, 12, 2, -12}, {2, -14}, {0}},
-	['7'] = {{0}, {0}, {0}, {1, -16}, {5, -12}, {4, -12}, {3, -12}, {2, -12}, {2, -12}, {2, -12}, {0}},
-	['8'] = {{0}, {0}, {0}, {2, -14}, {1, 12, 2, -12}, {1, 12, 2, -12}, {2, -14}, {1, 12, 2, -12}, {1, 12, 2, -12}, {2, -14}, {0}},
-	['9'] = {{0}, {0}, {0}, {2, -14}, {1, 12, 2, -12}, {1, 12, 2, -12}, {2, -15}, {5, -12}, {4, -12}, {2, -13}, {0}},
-	// ===== A - Z ============================================================================================================================================================
-	['A'] = {{0}, {0}, {0}, {3, -12}, {2, -14}, {1, 12, 2, -12}, {1, 12, 2, -12}, {1, -16}, {1, 12, 2, -12}, {1, 12, 2, -12}, {0}},
-	['B'] = {{0}, {0}, {0}, {1, -15}, {1, 12, 2, -12}, {1, 12, 2, -12}, {1, -15}, {1, 12, 2, -12}, {1, 12, 2, -12}, {1, -15}, {0}},
-	['C'] = {{0}, {0}, {0}, {2, -14}, {1, 12, 2, -12}, {1, -12}, {1, -12}, {1, -12}, {1, 12, 2, -12}, {2, -14}, {0}},
-	['D'] = {{0}, {0}, {0}, {1, -14}, {1, 12, 1, -12}, {1, 12, 2, -12}, {1, 12, 2, -12}, {1, 12, 2, -12}, {1, 12, 1, -12}, {1, -14}, {0}},
-	['E'] = {{0}, {0}, {0}, {1, -16}, {1, -12}, {1, -12}, {1, -15}, {1, -12}, {1, -12}, {1, -16}, {0}},
-	['F'] = {{0}, {0}, {0}, {1, -16}, {1, -12}, {1, -12}, {1, -15}, {1, -12}, {1, -12}, {1, -12}, {0}},
-	['G'] = {{0}, {0}, {0}, {2, -14}, {1, 12, 2, -12}, {1, -12}, {1, 12, 1, -13}, {1, 12, 2, -12}, {1, 12, 2, -12}, {2, -15}, {0}},
-	['H'] = {{0}, {0}, {0}, {1, 12, 2, -12}, {1, 12, 2, -12}, {1, 12, 2, -12}, {1, -16}, {1, 12, 2, -12}, {1, 12, 2, -12}, {1, 12, 2, -12}, {0}},
-	['I'] = {{0}, {0}, {0}, {2, -14}, {3, -12}, {3, -12}, {3, -12}, {3, -12}, {3, -12}, {2, -14}, {0}},
-	['J'] = {{0}, {0}, {0}, {3, -14}, {5, -12}, {5, -12}, {5, -12}, {5, -12}, {1, 12, 2, -12}, {2, -14}, {0}},
-	['K'] = {{0}, {0}, {0}, {1, 12, 2, -12}, {1, 12, 1, -12}, {1, -14}, {1, -13}, {1, -14}, {1, 12, 1, -12}, {1, 12, 2, -12}, {0}},
-	['L'] = {{0}, {0}, {0}, {2, -12}, {2, -12}, {2, -12}, {2, -12}, {2, -12}, {2, -12}, {2, -15}, {0}},
-	['M'] = {{0}, {0}, {0}, {1, 12, 2, -12}, {13, 1, -13}, {12, 1, 11, 1, -12}, {12, 1, 11, 1, -12}, {12, 3, -12}, {12, 3, -12}, {12, 3, -12}, {0}},
-	['N'] = {{0}, {0}, {0}, {1, 12, 2, -12}, {1, 13, 1, -12}, {1, -16}, {1, 12, 1, -13}, {1, 12, 2, -12}, {1, 12, 2, -12}, {1, 12, 2, -12}, {0}},
-	['O'] = {{0}, {0}, {0}, {2, -14}, {1, 12, 2, -12}, {1, 12, 2, -12}, {1, 12, 2, -12}, {1, 12, 2, -12}, {1, 12, 2, -12}, {2, -14}, {0}},
-	['P'] = {{0}, {0}, {0}, {1, -15}, {1, 12, 2, -12}, {1, 12, 2, -12}, {1, -15}, {1, -12}, {1, -12}, {1, -12}, {0}},
-	['Q'] = {{0}, {0}, {0}, {2, -14}, {1, 12, 2, -12}, {1, 12, 2, -12}, {1, 12, 2, -12}, {1, 12, 2, -12}, {1, 12, 2, -12}, {2, -15}, {6, -12}},
-	['R'] = {{0}, {0}, {0}, {1, -15}, {1, 12, 2, -12}, {1, 12, 2, -12}, {1, -15}, {1, -14}, {1, 12, 1, -12}, {1, 12, 2, -12}, {0}},
-	['S'] = {{0}, {0}, {0}, {2, -14}, {1, 12, 2, -12}, {1, -12}, {2, -14}, {5, -12}, {1, 12, 2, -12}, {2, -14}, {0}},
-	['T'] = {{0}, {0}, {0}, {1, -16}, {3, -12}, {3, -12}, {3, -12}, {3, -12}, {3, -12}, {3, -12}, {0}},
-	['U'] = {{0}, {0}, {0}, {1, 12, 2, -12}, {1, 12, 2, -12}, {1, 12, 2, -12}, {1, 12, 2, -12}, {1, 12, 2, -12}, {1, 12, 2, -12}, {2, -14}, {0}},
-	['V'] = {{0}, {0}, {0}, {1, 12, 2, -12}, {1, 12, 2, -12}, {1, 12, 2, -12}, {1, 12, 2, -12}, {2, 11, 2, -11}, {2, 11, 2, -11}, {3, -12}, {0}},
-	['W'] = {{0}, {0}, {0}, {12, 3, -12}, {12, 3, -12}, {12, 3, -12}, {12, 1, 11, 1, -12}, {12, 1, 11, 1, -12}, {13, 1, -14}, {1, 12, 2, -12}, {0}},
-	['X'] = {{0}, {0}, {0}, {1, 12, 2, -12}, {1, 12, 2, -12}, {2, 11, 2, -11}, {3, -12}, {2, 11, 2, -11}, {1, 12, 2, -12}, {1, 12, 2, -12}, {0}},
-	['Y'] = {{0}, {0}, {0}, {1, 12, 2, -12}, {1, 12, 2, -12}, {2, 11, 2, -11}, {3, -12}, {3, -12}, {3, -12}, {3, -12}, {0}},
-	['Z'] = {{0}, {0}, {0}, {1, -16}, {5, -12}, {4, -12}, {3, -12}, {2, -12}, {1, -12}, {1, -16}, {0}},
-	// ===== a - z ============================================================================================================================================================
-	['a'] = {{0}, {0}, {0}, {0}, {0}, {2, -14}, {5, -12}, {2, -15}, {1, 12, 2, -12}, {2, -15}, {0}},
-	['b'] = {{0}, {0}, {0}, {1, -12}, {1, -12}, {1, -15}, {1, 12, 2, -12}, {1, 12, 2, -12}, {1, 12, 2, -12}, {1, -15}, {0}},
-	['c'] = {{0}, {0}, {0}, {0}, {0}, {2, -14}, {1, -12}, {1, -12}, {1, -12}, {2, -14}, {0}},
-	['d'] = {{0}, {0}, {0}, {5, -12}, {5, -12}, {2, -15}, {1, 12, 2, -12}, {1, 12, 2, -12}, {1, 12, 2, -12}, {2, -15}, {0}},
-	['e'] = {{0}, {0}, {0}, {0}, {0}, {2, -14}, {1, 12, 2, -12}, {1, -16}, {1, -12}, {2, -14}, {0}},
-	['f'] = {{0}, {0}, {0}, {3, -13}, {2, 12, 1, -12}, {2, -12}, {1, -15}, {2, -12}, {2, -12}, {2, -12}, {0}},
-	['g'] = {{0}, {0}, {0}, {0}, {0}, {2, -15}, {1, 12, 2, -12}, {1, 12, 2, -12}, {2, -15}, {5, -12}, {1, -15}},
-	['h'] = {{0}, {0}, {0}, {1, -12}, {1, -12}, {1, -15}, {1, 12, 2, -12}, {1, 12, 2, -12}, {1, 12, 2, -12}, {1, 12, 2, -12}, {0}},
-	['i'] = {{0}, {0}, {0}, {3, -12}, {0}, {2, -13}, {3, -12}, {3, -12}, {3, -12}, {2, -14}, {0}},
-	['j'] = {{0}, {0}, {0}, {5, -12}, {0}, {4, -13}, {5, -12}, {5, -12}, {5, -12}, {5, -12}, {2, -14}},
-	['k'] = {{0}, {0}, {0}, {1, -12}, {1, -12}, {1, 12, 2, -12}, {1, 12, 1, -12}, {1, -14}, {1, 12, 1, -12}, {1, 12, 2, -12}, {0}},
-	['l'] = {{0}, {0}, {0}, {2, -13}, {3, -12}, {3, -12}, {3, -12}, {3, -12}, {3, -12}, {2, -14}, {0}},
-	['m'] = {{0}, {0}, {0}, {0}, {0}, {1, 12, 1, -12}, {-17}, {12, 1, 11, 1, -12}, {12, 3, -12}, {12, 3, -12}, {0}},
-	['n'] = {{0}, {0}, {0}, {0}, {0}, {1, -15}, {1, 12, 2, -12}, {1, 12, 2, -12}, {1, 12, 2, -12}, {1, 12, 2, -12}, {0}},
-	['o'] = {{0}, {0}, {0}, {0}, {0}, {2, -14}, {1, 12, 2, -12}, {1, 12, 2, -12}, {1, 12, 2, -12}, {2, -14}, {0}},
-	['p'] = {{0}, {0}, {0}, {0}, {0}, {1, -15}, {1, 12, 2, -12}, {1, 12, 2, -12}, {1, -15}, {1, -12}, {1, -12}},
-	['q'] = {{0}, {0}, {0}, {0}, {0}, {2, -15}, {1, 12, 2, -12}, {1, 12, 2, -12}, {2, -15}, {5, -12}, {5, -12}},
-	['r'] = {{0}, {0}, {0}, {0}, {0}, {1, -15}, {1, 12, 2, -12}, {1, -12}, {1, -12}, {1, -12}, {0}},
-	['s'] = {{0}, {0}, {0}, {0}, {0}, {2, -15}, {1, -12}, {2, -14}, {5, -12}, {1, -15}, {0}},
-	['t'] = {{0}, {0}, {0}, {2, -12}, {2, -12}, {1, -15}, {2, -12}, {2, -12}, {2, -12}, {3, -13}, {0}},
-	['u'] = {{0}, {0}, {0}, {0}, {0}, {1, 12, 2, -12}, {1, 12, 2, -12}, {1, 12, 2, -12}, {1, 12, 2, -12}, {2, -15}, {0}},
-	['v'] = {{0}, {0}, {0}, {0}, {0}, {1, 12, 2, -12}, {1, 12, 2, -12}, {2, 11, 2, -11}, {2, -14}, {3, -12}, {0}},
-	['w'] = {{0}, {0}, {0}, {0}, {0}, {12, 3, -12}, {12, 1, 11, 1, -12}, {12, 1, 11, 1, -12},{1, -15}, {1, 12, 1, -12}, {0}},
-	['x'] = {{0}, {0}, {0}, {0}, {0}, {1, 12, 2, -12}, {2, 11, 2, -11}, {3, -12}, {2, 11, 2, -11}, {1, 12, 2, -12}, {0}},
-	['y'] = {{0}, {0}, {0}, {0}, {0}, {1, 12, 2, -12}, {1, 12, 2, -12}, {1, 12, 2, -12}, {2, -15}, {5, -12}, {1, -15}},
-	['z'] = {{0}, {0}, {0}, {0}, {0}, {1, -16}, {4, -12}, {3, -12}, {2, -12}, {1, -16}, {0}}
-};
-void qgAddChar(const Vector2 pos, const uint16_t c) {
-	const int8_t (*qc)[qFontMax] = (c < 128) ? qFont[c] : (const int8_t (*)[qFontMax])newChars[c];
-	for (uint8_t ly = 0; ly < qFontY; ly++) {
-		uint x = 0;
-		for (uint8_t lx = 0; lx < qFontMax; lx++) {
-			int8_t v = qc[ly][lx];
-			if (v == 0) break;
-			uint8_t isEnd = v < 0;
-			if (isEnd) v = -v;
-			if (v > 10) {
-				uint width_units = v - 10;
-				float center_offset = x + (width_units * 0.5f),
-				nx = pos.x + (center_offset * qFontSize),
-				ny = pos.y - (ly * qFontSize);
-				qgAddRect((Vector2){nx, ny}, (Vector2){width_units * qFontSize, qFontSize}, qFontClr);
-				x += width_units;
-			} else x += v;
-			if (isEnd) break;
-		}
-	}
-}
-static uint8_t ih(const char c) { return (c >= '0' && c <= '9') || (c >= 'A' && c <= 'F'); }
-void qgAddText(const Vector2 pos, const char* text) {
-	uint x = 0, y = 0, i = 0, l = strlen(text);
-	while (text[i] != '\0') {
-		if (text[i] == '\n') {
-			x = 0;
-			y++;
-			i++;
-			continue;
-		}
-		if (text[i] == ' ') {
-			x++;
-			i++;
-			continue;
-		}
-		if (text[i] == '\t') {
-			x += 4;
-			i++;
-			continue;
-		}
-		uint16_t c = (unsigned char)text[i];
-		if (l - i > 6 && text[i] == 'q' && text[i+1] == ';' && ih(text[i+2])  && ih(text[i+3])  && ih(text[i+4])  && ih(text[i+5]) && text[i+6] == ';') {
-			const char code[5] = {text[i+2], text[i+3], text[i+4], text[i+5], '\0'};
-			c = (uint16_t)strtol(code, NULL, 16);
-			i += 6;
-		}
-		qgAddChar((Vector2){pos.x + (x * qFontSize * qFontX), pos.y - (y * qFontSize * qFontY)}, c);
-		x++;
-		i++;
-	}
-}
+void qgSetFontData(const float fontSize, const uint8_t style, const ColorRGBA clr) { qfConfigure(fontSize, style, clr.r,clr.g,clr.b,clr.a); }
+void qgAddChar(const Vector2 pos, const uint32_t c) { qfDrawChar(pos.x, pos.y, c); }
+void qgAddText(const Vector2 pos, const char* text) { qfDrawText(pos.x, pos.y, text); }
 // ========================================================================================================================================================================
 // ===== INPUT ============================================================================================================================================================
 // ========================================================================================================================================================================
