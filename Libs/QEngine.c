@@ -1,3 +1,4 @@
+#define QGPU_UI
 #define QGPU_SHAPES
 #define uint quint
 #define Vector2 QV2
@@ -99,16 +100,10 @@ state formatText(char* to, const uint length, const char* format, ...) {
 	return written;
 }
 
-#if IS_EDITOR
-static state isLight = false;
-static Color c1, c2;
-static uint8 window = 0;
-#else
 static Scene actualScene;
-#endif
 static Vector2 getPos(const Vector2 pos, const qeAlignMode align) {
 	Vector2 v = pos;
-	const float w = qgGetWidth() / 2.0f, h = qgGetHeight() / 2.0f;
+	const float w = qgGetWidth() * 0.5f, h = qgGetHeight() * 0.5f;
 	switch (align) {
 		case Top_Left: v.y += h; v.x -= w; return v;
 		case Top: v.y += h; return v;
@@ -122,65 +117,16 @@ static Vector2 getPos(const Vector2 pos, const qeAlignMode align) {
 	}
 	return v;
 }
-static state mob(const Vector2 pos, const Vector2 size, const qeAlignMode align) {
-	const Vector2 m = getCursorPosition(), p = getPos(pos, align);
-	const float a = p.x - size.x / 2.0f, b = p.x + size.x / 2.0f, c = p.y - size.y / 2.0f, d = p.y + size.y / 2.0f;
-	return a <= m.x && m.x <= b && c <= m.y && m.y <= d;
-}
 static void qeInit() {
 	print("Application was made in QEngine v%i.%i.%i\n", QENGINE_VERSION_MAJOR, QENGINE_VERSION_MINOR, QENGINE_VERSION_PATCH);
-#if IS_EDITOR
-	c1 = isLight ? Clr(100) : Clr(60);
-	c2 = isLight ? Clr(120) : Clr(80);
-	qgSetBackground(CLR_RGB(.1f, .1f, .1f));
-#else
 	if (actualScene.init) actualScene.init();
-#endif
 }
 static state isCaps = false, inputOn = false;
 static char qinput[MAX_INPUT + 1];
 static uint inputLen = 0, userMax = MAX_INPUT;
 static Vector2 prevMP = V2_Zero, deltaMP = V2_Zero;
-#if IS_EDITOR
-static Vector2 viewPos = V2_Zero;
-static const Vector2 blockSize = V2(200, 50);
-static void drawCodeBlock(const char* title, const Vector2 position, const Color color) {
-	const Vector2 pos = Vector2_Add(V2(-position.x, position.y), V2(viewPos.x, viewPos.y));
-	drawRect(pos, blockSize, Bottom_Right, color);
-	drawText(title, Vector2_Sub(pos, V2(blockSize.x * 0.5f - 5, -blockSize.y * 0.5f + 5)), 16, Bottom_Right, Color_White);
-}
-static float connectF(const float x, const float p) {
-	if (x <= 0.0f) return 0.0f;
-	if (x >= 1.0f) return 1.0f;
-	const float k = (x - 1.0f);
-	return x * (1.0f + k * (p - 1.0f) + 0.5f * k * k * (p - 1.0f) * (p - 2.0f));
-}
-static void drawCodeConnect(Vector2 p1, Vector2 p2, const Color c1, const Color c2) {
-	p1.x -= 100 + viewPos.x;
-	p1.y += viewPos.y;
-	p2.x += 100 - viewPos.x;
-	p2.y += viewPos.y;
-	const uint8 steps = qClamp_i((uint8)(qDist(p1, p2) / 16.0f), 0, UINT8_MAX);
-	if (steps < 2) return;
-	float dy = qAbs(p1.y - p2.y);
-	if (dy > 300.0f) dy = 300.0f;
-	const float centerDensity = qMap(dy, 0, 300, 1, 0.6f);
-	const Vector3 vc1 = V3(c1.r, c1.g, c1.b), vc2 = V3(c2.r, c2.g, c2.b);
-	for (uint8 i = 0; i <= steps; i++) {
-		const float t = (float)i / (float)steps;
-		float t_stepped;
-		if (t < 0.5f) t_stepped = 0.5f * connectF(2.0f * t, centerDensity);
-		else t_stepped = 1.0f - 0.5f * connectF(2.0f * (1.0f - t), centerDensity);
-		const float smoothY = (t_stepped < 0.5f) ? 0.5f * connectF(2.0f * t_stepped, 3) : 1.0f - 0.5f * connectF(2.0f * (1.0f - t_stepped), 3),
-		px = p1.x + (p2.x - p1.x) * t_stepped,
-		py = p1.y + (p2.y - p1.y) * smoothY;
-		const Vector3 c = qLerp(vc2, vc1, (float)(steps - i) / (float)steps);
-		drawRect(V2(-px, py), V2(5, 5), Bottom_Right, Clr((byte)c.x, (byte)c.y, (byte)c.z));
-	}
-}
-#endif
+
 static void qeUpdate() {
-// = = = = = INPUT = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 	if (onKeyDown(KEY_CAPSLOCK)) isCaps = !isCaps;
 	const char c = getPressedKey();
 	if (c && inputOn) {
@@ -197,55 +143,18 @@ static void qeUpdate() {
 	const Vector2 mp = getCursorPosition();
 	deltaMP = Vector2_Sub(mp, prevMP);
 	prevMP = mp;
-// = = = = = EDITOR = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-#if IS_EDITOR
-	const uint w = getWidth(), h = getHeight();
-	// Main
-	// blocks (test)
-	const Vector2 p1 = V2(800, 600), p2 = V2(400, 500);
-
-	drawCodeConnect(p1, p2, Clr(160, 20, 20), Clr(20, 160, 20));
-	drawCodeBlock("Test block #1", p1, Clr(160, 20, 20));
-
-	if (getMouseButton(RMB)) { viewPos = Vector2_Add(viewPos, deltaMP); }
-
-	drawCodeBlock("Test block #2", p2, Clr(20, 160, 20));
-
-	// Up bar
-	drawRect(V2(0, -15), V2(w, 30), Top, c2);
-	// Buttons
-	for (uint8 i = 0; i < 5; i++) {
-		if (drawButton(V2(102 + 204 * i, -15), V2(200, 26), Top_Left, window == i ? Clr(50) : c1, Clr(40), Clr(30))) window = i;
-		drawText("test.qeb", V2(5 + 204 * i, -5), 15, Top_Left, Color_White);
-	}
-	// Left panel
-	drawRect(V2(150, -15), V2(300, h - 30), Left, c1);
-#else
+	qgSetCamera((QV3){3,2,6}, (QV3){0,0,0}, 60);
 	if (actualScene.update) actualScene.update();
-#endif
 }
 int initEngineProject(Scene scene) {
 	if (!qsInit()) return 1;
 	qgSetBackground(CLR_RGB(.0f, .0f, .0f));
-	char title[MAX_NAME_LENGTH];
-#if IS_EDITOR
-	snprintf(title, sizeof(title), "QEngine %i.%i.%i Editor | %s %s", QENGINE_VERSION_MAJOR, QENGINE_VERSION_MINOR, QENGINE_VERSION_PATCH, QEP_NAME, QEP_VERSION);
-	(void)scene;
-#else
-	snprintf(title, sizeof(title), "%s %s", QEP_NAME, QEP_VERSION);
 	actualScene = scene;
-#endif
-	const int qgpu = qgpuCreate(QEP_START_WIDTH, QEP_START_HEIGHT, title, qeInit, qeUpdate);
+	const int qgpu = qgpuCreate(QEP_START_WIDTH, QEP_START_HEIGHT, QEP_NAME, qeInit, qeUpdate);
 	qsClose();
 	return qgpu;
 }
-void setScene(Scene scene) {
-	#if IS_EDITOR
-	(void)scene;
-	#else
-	actualScene = scene;
-	#endif
-}
+void setScene(Scene scene) { actualScene = scene; }
 // = = = = = CAMERA = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 static Camera _camera;
 uint getWidth() { return qgGetWidth(); }
@@ -266,8 +175,7 @@ static void setRot(const Vector3 position, const Vector3 rotation) {
 }
 static ColorRGBA vte(const Color c) { return (ColorRGBA){b01(c.r), b01(c.g), b01(c.b), b01(c.a)}; }
 
-void drawTriangle(const Vector3 posA, const Vector3 posB, const Vector3 posC, const Color color) {
-	qgAddTriangle(*(QV3*)&posA, *(QV3*)&posB, *(QV3*)&posC, vte(color)); }
+void drawTriangle(const Vector3 posA, const Vector3 posB, const Vector3 posC, const Color color) { qgAddTriangle(*(QV3*)&posA, *(QV3*)&posB, *(QV3*)&posC, vte(color)); }
 void drawRect(const Vector2 position, const Vector2 size, const qeAlignMode align, const Color color) {
 	const Vector2 p = getPos(position, align);
 	qgAddRect(*(QV2*)&p, *(QV2*)&size, vte(color));
@@ -282,12 +190,9 @@ void drawText(const char* text, const Vector2 position, const float fontSize, co
 	qgAddText(*(QV2*)&p, text);
 }
 
-state drawButton(const Vector2 position, const Vector2 size, const qeAlignMode align, const Color clrBase, const Color clrHover, const Color clrPress) {
+void drawButton(uint8* value, const Vector2 position, const Vector2 size, const qeAlignMode align, const Color color) {
 	const Vector2 p = getPos(position, align);
-	const state hover = mob(position, size, align);
-	const Color c = hover ? getMouseButton(LMB) ? clrPress : clrHover : clrBase;
-	qgAddRect(*(QV2*)&p, *(QV2*)&size, vte(c));
-	return hover && onMouseDown(LMB);
+	qgAddButton(value, *(QV2*)&p, *(QV2*)&size, vte(color));
 }
 
 void drawBox(const Vector3 position, const Vector3 rotation, const Vector3 size, const Color color) {
@@ -333,8 +238,8 @@ char getPressedKey() {
 	const state caps = getKeyState(KEY_CAPSLOCK) != 0,
 	shift = getKeyState(KEY_LSHIFT) != 0,
 	isUpper = caps ^ shift;
-	for (uint key = KEY_A; key <= KEY_Z; key++) if (onKeyDown(key)) return isUpper ? key : (key + 32);
-	for (uint i = 0; i < mapSize; i++) if (onKeyDown(keymap[i].normal)) return shift ? keymap[i].shifted : keymap[i].normal;
+	for (uint8 key = KEY_A; key <= KEY_Z; key++) if (onKeyDown(key)) return isUpper ? key : (key + 32);
+	for (uint8 i = 0; i < mapSize; i++) if (onKeyDown(keymap[i].normal)) return shift ? keymap[i].shifted : keymap[i].normal;
 	return 0;
 }
 state getMouseButton(const uint mouseKey) { return qgGetMouse(mouseKey); }

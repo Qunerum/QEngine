@@ -203,7 +203,7 @@ void drawRect(const Vector2 position, const Vector2 size, const qeAlignMode alig
 void drawCircle(const Vector2 position, const uint segments, const float radius, const qeAlignMode align, const Color color);
 void drawText(const char* text, const Vector2 position, const float fontSize, const qeAlignMode align, const Color color);
 
-state drawButton(const Vector2 position, const Vector2 size, const qeAlignMode align, const Color clrBase, const Color clrHover, const Color clrPress);
+void drawButton(uint8* value, const Vector2 position, const Vector2 size, const qeAlignMode align, const Color color);
 
 void drawBox(const Vector3 position, const Vector3 rotation, const Vector3 size, const Color color);
 
@@ -507,5 +507,4 @@ static inline void qReverse(char* text) {
 	}
 }
 #endif
-
 #endif

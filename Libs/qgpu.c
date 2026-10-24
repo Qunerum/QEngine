@@ -16,15 +16,22 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
+#define QGPU_SHAPES
+#define QGPU_UI
 #define QGPU_COLORS
 #include "qgpu.h"
 
-#define QGPU_VERSION_MAJOR 2
-#define QGPU_VERSION_MINOR 6
-#define QGPU_VERSION_PATCH 0
 // ========================================================================================================================================================================
 // ===== QFONT.h ==========================================================================================================================================================
 // ========================================================================================================================================================================
+/*
+ * Copyright (c) 2026 Qunerum
+ *
+ * This file is part of QFont.
+ * This software is licensed under the MIT License.
+ * See LICENSE file in the project root for full license information.
+ */
+
 #define QFONT_REGULAR       0b00000000
 #define QFONT_BOLD          0b00000001
 #define QFONT_ITALIC        0b00000010
@@ -40,9 +47,23 @@ typedef struct { uint8_t sizeX, sizeY; } qfCharData;
 // ========================================================================================================================================================================
 // ===== QFONT.c ==========================================================================================================================================================
 // ========================================================================================================================================================================
+/*
+ * Copyright (c) 2026 Qunerum
+ *
+ * This file is part of QFont.
+ * This software is licensed under the MIT License.
+ * See LICENSE file in the project root for full license information.
+ */
+
+#include <stdint.h>
+#include <stdlib.h>
+#include <stdio.h>
+// #include "qfont.h"
+
 #define NKO "\033[1;38;5;240m[\033[1;38;5;"
 #define NKC "\033[1;38;5;240m]\033[1;38;5;251m"
 #define QFONT_PREFIX NKO "211mQFont" NKC
+
 static float
 	pivX = 0.0f, pivY = 0.0f,
 	qfSize = 32.0f,
@@ -70,7 +91,7 @@ static void* mc(void* dest, const void* src, const uint32_t n) {
 	return dest;
 }
 qfCharData qfCreate(const uint8_t sizeX, const uint8_t sizeY) { return (qfCharData) { .sizeX = sizeX, .sizeY = sizeY }; }
-static int8_t** allChars = 0, isFile = 0;
+static int8_t **allChars = 0, isFile = 0;
 static uint32_t charCount = 0, highestID = 0;
 #define u8d (uint8_t)d
 void qfAddChar(const qfCharData charData, const int8_t* d) {
@@ -107,17 +128,21 @@ void qfAddChar(const qfCharData charData, const int8_t* d) {
 		": WH:" NKO "%um%ux%u" NKC
 		" ID:" NKO "%um0x%08X" NKC
 		" LS:" NKO "%um%4uB" NKC "\n",
-		isFile ? 0 : ' ', charCount, isFile ? "Readed char" : "Added char", c, (char)(id > 31 && id < 127 ? id : '?'), c, charData.sizeX, charData.sizeY, c, id, c, size);
+		isFile?0:' ',   charCount,
+		isFile?"Readed char":"Added char",   c,   (char)(id>31&&id<127?id:'?'),
+		c,    charData.sizeX,    charData.sizeY,
+		c,   id,
+		c,   size);
 }
 void qfWriteFile(const uint8_t add, const char* path, const qfCharData charData, const int8_t* d) {
 	if (!d) return;
 	FILE* f = fopen(path, add ? "ab" : "wb");
 	if (!f) return;
 	const uint32_t id =
-	(((uint32_t)u8d[0] << 24)) |
-	(((uint32_t)u8d[1] << 16)) |
-	(((uint32_t)u8d[2] << 8))  |
-	((uint32_t)u8d[3]);
+		((uint32_t)u8d[0] << 24) |
+		((uint32_t)u8d[1] << 16) |
+		((uint32_t)u8d[2] << 8)  |
+		 (uint32_t)u8d[3];
 	const uint8_t startAt = u8d[4], goNext = u8d[5];
 	uint16_t l = 0, actualID = 6;
 	for (uint8_t i = 0; i < goNext; i++) {
@@ -137,15 +162,21 @@ void qfWriteFile(const uint8_t add, const char* path, const qfCharData charData,
 	fclose(f);
 	const uint16_t totalRecordSize = 6 + l;
 	printf(QFONT_PREFIX
-	"   Saved to file   " NKO "115m%c" NKC
-	": WH:" NKO "115m%ux%u" NKC
-	" ID:" NKO "115m0x%08X" NKC
-	" LS:" NKO "115m%4uB" NKC "\n",
-	(char)(id > 31 && id < 127 ? id : '?'), charData.sizeX, charData.sizeY, id, totalRecordSize);
+		"   Saved to file   " NKO "115m%c" NKC
+		": WH:" NKO "115m%ux%u" NKC
+		" ID:" NKO "115m0x%08X" NKC
+		" LS:" NKO "115m%4uB" NKC "\n",
+		(char)(id>31&&id<127?id:'?'),
+		charData.sizeX,   charData.sizeY,
+		id,
+		totalRecordSize);
 }
 void qfReadFile(const char* path) {
 	FILE* f = fopen(path, "rb");
-	if (!f) return;
+	if (!f) {
+		printf(QFONT_PREFIX " \033[1;38;5;220mThe file '%s' does not exist.\n", path);
+		return;
+	}
 	isFile = 1;
 	uint32_t id = 0;
 	while (fread(&id, sizeof(uint32_t), 1, f) == 1) {
@@ -269,7 +300,7 @@ void qfDrawText(const float posX, const float posY, const char* t) {
 }
 #define qfl qfFont,(int8_t[]){0,0,0
 void qfInit() {
-	qfCharData qfFont = qfCreate(8, 12);
+	const qfCharData qfFont = qfCreate(8, 12);
 	qfAddChar(qfl,0x7e, 0,0}); // alloc
 	charCount--;
 	qfAddChar(qfl,0x1f, 0,12, 1, -8, 1, -8, 1, -8, 1, -8, 1, -8, 1, -8, 1, -8, 1, -8, 1, -8, 1, -8, 1, -8, 1, -8});
@@ -465,7 +496,7 @@ static GPULight lights[MAX_LIGHTS];
 static uint frameCount, lightCount;
 
 #define MAX_UI_TRIANGLES (MAX_UI_VERTICES / 3)
-typedef struct { float p[3][2]; float color[4]; uint32_t layer, order; } UITriangle2D;
+typedef struct { float p[3][2], color[4], clip[4]; uint32_t layer, order; } UITriangle2D;
 static UITriangle2D uiTriangles[MAX_UI_TRIANGLES];
 static uint32_t uiTriangleCount, currentUILayer;
 static int compareUITriangle(const void* a, const void* b) {
@@ -474,6 +505,22 @@ static int compareUITriangle(const void* a, const void* b) {
 	if (ta->order != tb->order) return (ta->order < tb->order) ? -1 : 1;
 	return 0;
 }
+#define QGPU_CLIP_NONE 1e7f
+#define MAX_CLIP_STACK 32
+typedef struct { float rect[4]; } ClipRect;
+typedef struct { uint32_t firstIndex, indexCount; float clip[4]; } UIBatch;
+static ClipRect clipStack[MAX_CLIP_STACK];
+static int clipDepth, clipOverflow;
+static UIBatch uiBatches[MAX_UI_TRIANGLES];
+static uint32_t uiBatchCount;
+static void currentClip(float out[4]) {
+	if (clipDepth == 0) { out[0] = out[1] = -QGPU_CLIP_NONE; out[2] = out[3] = QGPU_CLIP_NONE; return; }
+	memcpy(out, clipStack[clipDepth - 1].rect, sizeof(float) * 4);
+}
+static float qminf(const float a, const float b) { return a < b ? a : b; }
+static float qmaxf(const float a, const float b) { return a > b ? a : b; }
+static int ifloorf(const float v) { const int i = (int)v; return (v < (float)i) ? i - 1 : i; }
+static int iceilf(const float v) { const int i = (int)v; return (v > (float)i) ? i + 1 : i; }
 // ========================================================================================================================================================================
 // ===== TOOLS ============================================================================================================================================================
 // ========================================================================================================================================================================
@@ -515,6 +562,7 @@ static float qCos(const float rad) {
 }
 static float qTan(const float rad) { float c = qCos(rad); if (c == 0.0f) c = 0.0001f; return qSin(rad) / c; }
 
+static Vector2 v2Scale(const Vector2 a, const float s) { return (Vector2){a.x * s, a.y * s}; }
 static Vector3 v3Add(const Vector3 a, const Vector3 b) { return (Vector3){a.x + b.x, a.y + b.y, a.z + b.z}; }
 static Vector3 v3Sub(const Vector3 a, const Vector3 b) { return (Vector3){a.x - b.x, a.y - b.y, a.z - b.z}; }
 static Vector3 v3Scale(const Vector3 a, const float s) { return (Vector3){a.x * s, a.y * s, a.z * s}; }
@@ -560,9 +608,30 @@ static void mat4Ortho(float* m, const float left, const float right, const float
 	m[14] = znear / (znear - zfar);
 	m[15] = 1.0f;
 }
+static void extractFrustumPlanes(float planes[6][4], const float* m) {
+	float r[4][4];
+	for (uint8_t i = 0; i < 4; i++) { r[i][0] = m[i]; r[i][1] = m[4 + i]; r[i][2] = m[8 + i]; r[i][3] = m[12 + i]; }
+	for (uint8_t k = 0; k < 4; k++) {
+		planes[0][k] = r[3][k] + r[0][k];
+		planes[1][k] = r[3][k] - r[0][k];
+		planes[2][k] = r[3][k] + r[1][k];
+		planes[3][k] = r[3][k] - r[1][k];
+		planes[4][k] = r[2][k];
+		planes[5][k] = r[3][k] - r[2][k];
+	}
+}
+static uint8_t triangleOutsideFrustum(const float planes[6][4], const QGPU_Vertex* v0, const QGPU_Vertex* v1, const QGPU_Vertex* v2) {
+	for (uint8_t p = 0; p < 6; p++) {
+		const float* pl = planes[p];
+		if (pl[0] * v0->pos[0] + pl[1] * v0->pos[1] + pl[2] * v0->pos[2] + pl[3] < 0.0f &&
+		    pl[0] * v1->pos[0] + pl[1] * v1->pos[1] + pl[2] * v1->pos[2] + pl[3] < 0.0f &&
+		    pl[0] * v2->pos[0] + pl[1] * v2->pos[1] + pl[2] * v2->pos[2] + pl[3] < 0.0f) return 1;
+	}
+	return 0;
+}
 static void transformPoint(float* x, float* y, float* z) {
 	if (!g_ctx.hasRotation) return;
-	float px = *x - g_ctx.pivotX, py = *y - g_ctx.pivotY, pz = *z - g_ctx.pivotZ, radX = g_ctx.rotX * (PI / 180.0f), radY = g_ctx.rotY * (PI / 180.0f), radZ = g_ctx.rotZ * (PI / 180.0f),
+	const float px = *x - g_ctx.pivotX, py = *y - g_ctx.pivotY, pz = *z - g_ctx.pivotZ, radX = g_ctx.rotX * (PI / 180.0f), radY = g_ctx.rotY * (PI / 180.0f), radZ = g_ctx.rotZ * (PI / 180.0f),
 	cx = qCos(radX), sx = qSin(radX), cy = qCos(radY), sy = qSin(radY), cz = qCos(radZ), sz = qSin(radZ),
 	y1 = py * cx - pz * sx, z1 = py * sx + pz * cx, x1 = px, x2 = x1 * cy + z1 * sy, z2 = -x1 * sy + z1 * cy, y2 = y1, x3 = x2 * cz - y2 * sz, y3 = x2 * sz + y2 * cz, z3 = z2;
 	*x = x3 + g_ctx.pivotX;
@@ -573,9 +642,9 @@ static void transformPoint(float* x, float* y, float* z) {
 // ===== CONSOLE ==========================================================================================================================================================
 // ========================================================================================================================================================================
 static uint8_t _showBanner = 1, _madeWith = 1, _showInfo = 1, _showColors = 1, _showLogs = 1, qgpuClr = MAGENTA, creator = LIGHT_RED, title = YELLOW, frame = GRAY, frmTxt = LIGHT_GRAY,
-oldClr = 255, actClr = 255, actStyle = 0;
+	oldClr = 255, actClr = 255, actStyle = 0;
 void qgVprintc(const int color, const char* format, va_list args) {
-	printf("\033[%i;38;5;%im", actStyle, color);
+	printf("\033[%u;38;5;%um", actStyle, color);
 	vprintf(format, args);
 	printf("\033[0m");
 }
@@ -588,8 +657,8 @@ void qgRestoreColor() {
 	actClr = oldClr;
 	oldClr = x;
 }
-void qgSetStyle(const uint8_t style) { actStyle = qclamp(style, 0, 1); }
-void qgPrintc(const int color, const char* format, ...) {
+void qgSetStyle(const uint8_t style) { actStyle = qclamp(style, 0, 9); }
+void qgPrintc(const uint8_t color, const char* format, ...) {
 	va_list args;
 	va_start(args, format);
 	qgVprintc(color, format, args);
@@ -608,6 +677,7 @@ void qgLog(const char* format, ...) {
 	qgVprintc(DARK_GRAY, format, args);
 	va_end(args);
 }
+static uint32_t lastVisibleVertices = 0;
 void qgLogVertices() {
 	if (!_showLogs) return;
 	const float p = ((float)g_ctx.currentVOffset / MAX_VERTICES) * 100.0f,
@@ -621,6 +691,7 @@ void qgLogVertices() {
 	else clr = GREEN;
 	qgPrint("3D: ");
 	qgPrintc(clr, "%u/%u (%.0f%%)", g_ctx.currentVOffset, MAX_VERTICES, p);
+	qgPrint(" visible: %u", lastVisibleVertices);
 	if (p2 > 95) clr = LIGHT_RED;
 	else if (p2 > 75) clr = RED;
 	else if (p2 > 50) clr = ORANGE;
@@ -643,7 +714,7 @@ void qgError(const char* format, ...) {
 	va_end(args);
 	exit(1);
 }
-void qgSetShow(const uint8_t shower, const uint8_t state) {
+void qgSetShow(const QgShower shower, const uint8_t state) {
 	switch (shower) {
 		case QGPU_SHOW_BANNER: _showBanner = state; break;
 		case QGPU_SHOW_MADE_WITH_QGPU: _madeWith = state; break;
@@ -664,7 +735,7 @@ static void printMadeWith() { qgPrintc(ORANGE, "The application was made with th
 static void printInfo() {
 	qgPrintc(frame, "╔═╣   "); qgPrintc(title, "Info"); qgPrintc(frame, "   ╠═══════════╦╗\n");
 	qgPrintc(frame, "║ "); qgPrintc(frmTxt, "Name: "); qgPrintc(qgpuClr, "QGPU"); qgPrintc(frame, "             ╚╝\n");
-	qgPrintc(frame, "║ "); qgPrintc(frmTxt, "Version: "); qgPrintc(qgpuClr, "%i.%i.%i\n", QGPU_VERSION_MAJOR, QGPU_VERSION_MINOR, QGPU_VERSION_PATCH);
+	qgPrintc(frame, "║ "); qgPrintc(frmTxt, "Version: "); qgPrintc(qgpuClr, QGPU_VERSION_TEXT "\n");
 	qgPrintc(frame, "║ "); qgPrintc(frmTxt, "Creator: "); qgPrintc(creator, "Qunerum"); qgPrintc(frame, "       ╔╗\n");
 	qgPrintc(frame, "╚════════════════════════╩╝\n");
 }
@@ -1304,7 +1375,7 @@ static void createUIPipeline() {
 	vkDestroyShaderModule(g_ctx.device, fragModule, NULL);
 	vkDestroyShaderModule(g_ctx.device, vertModule, NULL);
 }
-void qgSetGraphicsSetting(const uint8_t setting, const uint8_t value) {
+void qgSetGraphicsSetting(const QgSetting setting, const uint8_t value) {
 	switch (setting) {
 		case QGPU_SETTINGS_AMBIENT_OCCLUSION: g_settings.ambientOcclusion = value; break;
 		case QGPU_SETTINGS_MSAA_LEVEL:
@@ -1327,8 +1398,7 @@ Vector3 qgGetCameraPosition() { return camPos; }
 // ========================================================================================================================================================================
 // ===== INIT =============================================================================================================================================================
 // ========================================================================================================================================================================
-extern void qgAddRect(const Vector2 position, const Vector2 size, const ColorRGBA color);
-void qgAqfDraw(const float x, const float y, const float sx, const float sy, const float r, const float g, const float b, const float a) { qgAddRect((Vector2){x, y}, (Vector2){sx, sy}, (ColorRGBA){r,g,b,a}); }
+void qgAqfDraw(const float x, const float y, const float sx, const float sy, const float r, const float g, const float b, const float a) { qgAddRect((Vector2){x, y}, (Vector2){sx, sy}, CLR_RGBA(r,g,b,a)); }
 int qgpuCreate(const uint width, const uint height, const char* title, void (*initFunc)(), void (*updateFunc)()) {
 	if (!glfwInit()) return 1;
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
@@ -1432,6 +1502,9 @@ int qgpuCreate(const uint width, const uint height, const char* title, void (*in
 		g_ctx.currentUIIOffset = 0;
 		uiTriangleCount = 0;
 		currentUILayer = 0;
+		clipDepth = 0;
+		clipOverflow = 0;
+		uiBatchCount = 0;
 		lightCount = 0;
 		qgResetRotation();
 
@@ -1449,8 +1522,11 @@ int qgpuCreate(const uint width, const uint height, const char* title, void (*in
 			uint32_t* ib = (uint32_t*)g_ctx.mappedUIIndexBuffer;
 			for (uint32_t i = 0; i < uiTriangleCount; i++) {
 				const UITriangle2D* t = &uiTriangles[i];
-				const uint32_t base = g_ctx.currentUIVOffset;
-				for (int v = 0; v < 3; v++) {
+				const float minX = qminf(t->p[0][0], qminf(t->p[1][0], t->p[2][0])), maxX = qmaxf(t->p[0][0], qmaxf(t->p[1][0], t->p[2][0])),
+						minY = qminf(t->p[0][1], qminf(t->p[1][1], t->p[2][1])), maxY = qmaxf(t->p[0][1], qmaxf(t->p[1][1], t->p[2][1]));
+				if (maxX < t->clip[0] || minX > t->clip[2] || maxY < t->clip[1] || minY > t->clip[3]) continue;
+				const uint32_t base = g_ctx.currentUIVOffset, firstIndex = g_ctx.currentUIIOffset;
+				for (uint8_t v = 0; v < 3; v++) {
 					vb[base + v].pos[0] = t->p[v][0];
 					vb[base + v].pos[1] = t->p[v][1];
 					vb[base + v].color[0] = t->color[0];
@@ -1458,22 +1534,54 @@ int qgpuCreate(const uint width, const uint height, const char* title, void (*in
 					vb[base + v].color[2] = t->color[2];
 					vb[base + v].color[3] = t->color[3];
 				}
-				ib[g_ctx.currentUIIOffset + 0] = base + 0;
-				ib[g_ctx.currentUIIOffset + 1] = base + 1;
-				ib[g_ctx.currentUIIOffset + 2] = base + 2;
+				ib[firstIndex + 0] = base + 0;
+				ib[firstIndex + 1] = base + 1;
+				ib[firstIndex + 2] = base + 2;
 				g_ctx.currentUIIOffset += 3;
 				g_ctx.currentUIVOffset += 3;
+				UIBatch* last = uiBatchCount > 0 ? &uiBatches[uiBatchCount - 1] : NULL;
+				if (last && memcmp(last->clip, t->clip, sizeof(float) * 4) == 0) last->indexCount += 3;
+				else { UIBatch* nb = &uiBatches[uiBatchCount++]; nb->firstIndex = firstIndex; nb->indexCount = 3; memcpy(nb->clip, t->clip, sizeof(float) * 4); }
 			}
 		}
 
 		int curW, curH;
 		glfwGetFramebufferSize(g_ctx.window, &curW, &curH);
-		float aspect = curH > 0 ? (float)curW / (float)curH : 1.0f;
+		const float aspect = curH > 0 ? (float)curW / (float)curH : 1.0f;
 		CameraUBO ubo;
 		float view[16], proj[16];
 		mat4LookAt(view, camPos, camTarget, camUp);
 		mat4Perspective(proj, camFovDeg * (PI / 180.0f), aspect, camNear, camFar);
 		mat4Multiply(ubo.viewProj, proj, view);
+
+		float frustum[6][4];
+		extractFrustumPlanes(frustum, ubo.viewProj);
+		uint32_t visibleIndexCount = 0;
+		Vector3 sceneCenter = camTarget; float sceneRadius = 10.0f;
+		{
+			const QGPU_Vertex* vb = (const QGPU_Vertex*)g_ctx.mappedVertexBuffer;
+			uint32_t *ib = (uint32_t*)g_ctx.mappedIndexBuffer, *visible = ib + MAX_VERTICES;
+			float bmin[3] = { 1e30f, 1e30f, 1e30f }, bmax[3] = { -1e30f, -1e30f, -1e30f };
+			for (uint32_t t = 0; t < g_ctx.currentIOffset; t += 3) {
+				const uint32_t a = ib[t], b = ib[t + 1], c = ib[t + 2];
+				const uint32_t ids[3] = { a, b, c };
+				for (int k = 0; k < 3; k++) for (int ax = 0; ax < 3; ax++) {
+					const float v = vb[ids[k]].pos[ax];
+					if (v < bmin[ax]) bmin[ax] = v;
+					if (v > bmax[ax]) bmax[ax] = v;
+				}
+				if (triangleOutsideFrustum(frustum, &vb[a], &vb[b], &vb[c])) continue;
+				visible[visibleIndexCount++] = a;
+				visible[visibleIndexCount++] = b;
+				visible[visibleIndexCount++] = c;
+			}
+			if (g_ctx.currentIOffset > 0) {
+				sceneCenter = (Vector3){ (bmin[0] + bmax[0]) * 0.5f, (bmin[1] + bmax[1]) * 0.5f, (bmin[2] + bmax[2]) * 0.5f };
+				sceneRadius = v3Length((Vector3){ bmax[0] - bmin[0], bmax[1] - bmin[1], bmax[2] - bmin[2] }) * 0.5f;
+				if (sceneRadius < 1.0f) sceneRadius = 1.0f;
+			}
+		}
+		lastVisibleVertices = visibleIndexCount;
 
 		uint8_t haveShadowLight = (lightCount > 0 && g_settings.shadows);
 		if (haveShadowLight) {
@@ -1482,14 +1590,14 @@ int qgpuCreate(const uint width, const uint height, const char* title, void (*in
 			const float lrange = L0->posRange[3], farZ = lrange > 1.0f ? lrange : 100.0f;
 			float lightView[16], lightProj[16];
 			if (L0->typeAngle[0] == QGPU_LIGHT_DIRECTIONAL) {
-				const float extent = 20.0f;
-				mat4LookAt(lightView, v3Sub(camTarget, v3Scale(ldir, extent * 2.0f)), camTarget, (Vector3){0.0f, 1.0f, 0.0f});
+				const float extent = sceneRadius;
+				mat4LookAt(lightView, v3Sub(sceneCenter, v3Scale(ldir, extent * 2.0f)), sceneCenter, (Vector3){0.0f, 1.0f, 0.0f});
 				mat4Ortho(lightProj, -extent, extent, -extent, extent, 0.1f, extent * 4.0f);
 			} else if (L0->typeAngle[0] == QGPU_LIGHT_SPOT) {
 				mat4LookAt(lightView, lpos, v3Add(lpos, ldir), (Vector3){0.0f, 1.0f, 0.0f});
 				mat4Perspective(lightProj, qclampf(L0->typeAngle[2] * 2.0f, 2.0f, 170.0f) * (PI / 180.0f), 1.0f, 0.1f, farZ);
 			} else {
-				mat4LookAt(lightView, lpos, camTarget, (Vector3){0.0f, 1.0f, 0.0f});
+				mat4LookAt(lightView, lpos, sceneCenter, (Vector3){0.0f, 1.0f, 0.0f});
 				mat4Perspective(lightProj, 100.0f * (PI / 180.0f), 1.0f, 0.1f, farZ);
 			}
 			mat4Multiply(ubo.lightViewProj, lightProj, lightView);
@@ -1541,7 +1649,7 @@ int qgpuCreate(const uint width, const uint height, const char* title, void (*in
 		const VkDeviceSize offsets[] = {0};
 		vkCmdBindVertexBuffers(g_ctx.currentCmd, 0, 1, &g_ctx.vertexBuffer, offsets);
 		vkCmdBindIndexBuffer(g_ctx.currentCmd, g_ctx.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
-		if (g_ctx.currentIOffset > 0) vkCmdDrawIndexed(g_ctx.currentCmd, g_ctx.currentIOffset, 1, 0, 0, 0);
+		if (visibleIndexCount > 0) vkCmdDrawIndexed(g_ctx.currentCmd, visibleIndexCount, 1, MAX_VERTICES, 0, 0);
 		if (g_ctx.currentUIIOffset > 0) {
 			vkCmdBindPipeline(g_ctx.currentCmd, VK_PIPELINE_BIND_POINT_GRAPHICS, g_ctx.uiPipeline);
 			const float screenSize[2] = { (float)curW, (float)curH };
@@ -1549,7 +1657,20 @@ int qgpuCreate(const uint width, const uint height, const char* title, void (*in
 			const VkDeviceSize uiOffsets[] = {0};
 			vkCmdBindVertexBuffers(g_ctx.currentCmd, 0, 1, &g_ctx.uiVertexBuffer, uiOffsets);
 			vkCmdBindIndexBuffer(g_ctx.currentCmd, g_ctx.uiIndexBuffer, 0, VK_INDEX_TYPE_UINT32);
-			vkCmdDrawIndexed(g_ctx.currentCmd, g_ctx.currentUIIOffset, 1, 0, 0, 0);
+			for (uint32_t b = 0; b < uiBatchCount; b++) {
+				const UIBatch* ub = &uiBatches[b];
+				int sx0 = ifloorf((float)curW * 0.5f + ub->clip[0]), sx1 = iceilf((float)curW * 0.5f + ub->clip[2]),
+					sy0 = ifloorf((float)curH * 0.5f - ub->clip[3]), sy1 = iceilf((float)curH * 0.5f - ub->clip[1]);
+				if (sx0 < 0) sx0 = 0;
+				if (sy0 < 0) sy0 = 0;
+				if (sx1 > curW) sx1 = curW;
+				if (sy1 > curH) sy1 = curH;
+				if (sx1 <= sx0 || sy1 <= sy0) continue;
+				const VkRect2D uiScissor = {{sx0, sy0}, {(uint32_t)(sx1 - sx0), (uint32_t)(sy1 - sy0)}};
+				vkCmdSetScissor(g_ctx.currentCmd, 0, 1, &uiScissor);
+				vkCmdDrawIndexed(g_ctx.currentCmd, ub->indexCount, 1, ub->firstIndex, 0, 0);
+			}
+			vkCmdSetScissor(g_ctx.currentCmd, 0, 1, &scissor);
 		}
 		vkCmdEndRenderPass(g_ctx.currentCmd);
 		vkEndCommandBuffer(g_ctx.currentCmd);
@@ -1579,7 +1700,6 @@ int qgpuCreate(const uint width, const uint height, const char* title, void (*in
 			lastTime = currentTime;
 		}
 	}
-
 	vkDeviceWaitIdle(g_ctx.device);
 	vkUnmapMemory(g_ctx.device, g_ctx.vertexBufferMemory);
 	vkUnmapMemory(g_ctx.device, g_ctx.indexBufferMemory);
@@ -1647,7 +1767,10 @@ void qgResetRotation() {
 	g_ctx.hasRotation = 0;
 }
 void qgAddTriangle(const Vector3 p1, const Vector3 p2, const Vector3 p3, const ColorRGBA clr) {
-	if (g_ctx.currentVOffset + 3 > MAX_VERTICES) { qgWarn("qgAddTriangle: MAX_VERTICES reached, triangle skipped\n"); return; }
+	if (g_ctx.currentVOffset + 3 > MAX_VERTICES) {
+		qgWarn("qgAddTriangle: MAX_VERTICES reached, triangle skipped\n");
+		return;
+	}
 	Vector3 wp[3] = { p1, p2, p3 };
 	for (uint8_t i = 0; i < 3; i++) transformPoint(&wp[i].x, &wp[i].y, &wp[i].z);
 	const Vector3 normal = v3Normalize(v3Cross(v3Sub(wp[2], wp[0]), v3Sub(wp[1], wp[0])));
@@ -1673,7 +1796,10 @@ void qgAddTriangle(const Vector3 p1, const Vector3 p2, const Vector3 p3, const C
 	g_ctx.currentVOffset += 3;
 }
 void qgAddTriangle2D(const Vector2 p1, const Vector2 p2, const Vector2 p3, const ColorRGBA clr) {
-	if (uiTriangleCount >= MAX_UI_TRIANGLES) { qgWarn("qgAddTriangle2D: MAX_UI_VERTICES reached, triangle skipped\n"); return; }
+	if (uiTriangleCount >= MAX_UI_TRIANGLES) {
+		qgWarn("qgAddTriangle2D: MAX_UI_VERTICES reached, triangle skipped\n");
+		return;
+	}
 	UITriangle2D* t = &uiTriangles[uiTriangleCount];
 	t->p[0][0] = p1.x; t->p[0][1] = p1.y;
 	t->p[1][0] = p2.x; t->p[1][1] = p2.y;
@@ -1684,16 +1810,46 @@ void qgAddTriangle2D(const Vector2 p1, const Vector2 p2, const Vector2 p3, const
 	t->color[3] = qclampf(clr.a, 0.0f, 1.0f);
 	t->layer = currentUILayer;
 	t->order = uiTriangleCount;
+	currentClip(t->clip);
 	uiTriangleCount++;
 }
 void qgSetLayerUI(const uint layer) { currentUILayer = layer; }
+void qgPushClip(const Vector2 position, const Vector2 size) {
+	if (clipDepth >= MAX_CLIP_STACK) {
+		clipOverflow++;
+		qgWarn("qgPushClip: Clip stack full (%d), clip ignored\n", MAX_CLIP_STACK);
+		return;
+	}
+	const float hx = (size.x < 0 ? -size.x : size.x) * 0.5f, hy = (size.y < 0 ? -size.y : size.y) * 0.5f;
+	float r[4] = { position.x - hx, position.y - hy, position.x + hx, position.y + hy }, cur[4];
+	currentClip(cur);
+	if (r[0] < cur[0]) r[0] = cur[0];
+	if (r[1] < cur[1]) r[1] = cur[1];
+	if (r[2] > cur[2]) r[2] = cur[2];
+	if (r[3] > cur[3]) r[3] = cur[3];
+	if (r[2] < r[0]) r[2] = r[0];
+	if (r[3] < r[1]) r[3] = r[1];
+	memcpy(clipStack[clipDepth++].rect, r, sizeof(r));
+}
+void qgPopClip() {
+	if (clipOverflow > 0) {
+		clipOverflow--;
+		return;
+	}
+	if (clipDepth == 0) {
+		qgWarn("qgPopClip: No active clip\n");
+		return;
+	}
+	clipDepth--;
+}
+// ===== SHAPES ===========================================================================================================================================================
 void qgAddRect(const Vector2 p, const Vector2 size, const ColorRGBA clr) {
-	const float x = size.x / 2.0f, y = size.y / 2.0f;
+	const float x = size.x * 0.5f, y = size.y * 0.5f;
 	const Vector2
-	mp = {p.x - x, p.y + y},
-	pp = {p.x + x, p.y + y},
-	pm = {p.x + x, p.y - y},
-	mm = {p.x - x, p.y - y};
+		mp = {p.x - x, p.y + y},
+		pp = {p.x + x, p.y + y},
+		pm = {p.x + x, p.y - y},
+		mm = {p.x - x, p.y - y};
 	qgAddTriangle2D(mp, pp, pm, clr);
 	qgAddTriangle2D(mp, pm, mm, clr);
 }
@@ -1710,26 +1866,26 @@ void qgAddCircle(const Vector2 p, const float radius, const uint segments, const
 }
 
 void qgAddPlane(const Vector3 p, const Vector2 size, const ColorRGBA clr) {
-	const float x = size.x / 2.0f, z = size.y / 2.0f;
+	const float x = size.x * 0.5f, z = size.y * 0.5f;
 	const Vector3
-	mm = {p.x - x, p.y, p.z - z},
-	mp = {p.x - x, p.y, p.z + z},
-	pm = {p.x + x, p.y, p.z - z},
-	pp = {p.x + x, p.y, p.z + z};
+		mm = {p.x - x, p.y, p.z - z},
+		mp = {p.x - x, p.y, p.z + z},
+		pm = {p.x + x, p.y, p.z - z},
+		pp = {p.x + x, p.y, p.z + z};
 	qgAddTriangle(mm, pm, pp, clr);
 	qgAddTriangle(mm, pp, mp, clr);
 }
 void qgAddBox(const Vector3 p, const Vector3 size, const ColorRGBA clr) {
-	const float x = size.x / 2.0f, y = size.y / 2.0f, z = size.z / 2.0f;
+	const float x = size.x * 0.5f, y = size.y * 0.5f, z = size.z * 0.5f;
 	const Vector3
-	mmm = {p.x - x, p.y - y, p.z - z},
-	mmp = {p.x - x, p.y - y, p.z + z},
-	mpm = {p.x - x, p.y + y, p.z - z},
-	mpp = {p.x - x, p.y + y, p.z + z},
-	pmm = {p.x + x, p.y - y, p.z - z},
-	pmp = {p.x + x, p.y - y, p.z + z},
-	ppm = {p.x + x, p.y + y, p.z - z},
-	ppp = {p.x + x, p.y + y, p.z + z};
+		mmm = {p.x - x, p.y - y, p.z - z},
+		mmp = {p.x - x, p.y - y, p.z + z},
+		mpm = {p.x - x, p.y + y, p.z - z},
+		mpp = {p.x - x, p.y + y, p.z + z},
+		pmm = {p.x + x, p.y - y, p.z - z},
+		pmp = {p.x + x, p.y - y, p.z + z},
+		ppm = {p.x + x, p.y + y, p.z - z},
+		ppp = {p.x + x, p.y + y, p.z + z};
 	qgAddTriangle(mmm, pmm, ppm, clr);
 	qgAddTriangle(mmm, ppm, mpm, clr);
 	qgAddTriangle(pmm, pmp, ppp, clr);
@@ -1743,9 +1899,91 @@ void qgAddBox(const Vector3 p, const Vector3 size, const ColorRGBA clr) {
 	qgAddTriangle(mmp, pmp, pmm, clr);
 	qgAddTriangle(mmp, pmm, mmm, clr);
 }
-// ===== Lights
+// ===== UI ===============================================================================================================================================================
+static uint8_t inClip(const float x, const float y) {
+	float c[4];
+	currentClip(c);
+	return c[2] > c[0] && c[3] > c[1] && x >= c[0] && x <= c[2] && y >= c[1] && y <= c[3];
+}
+static uint8_t onRect(const Vector2 pos, const Vector2 size) {
+	float x = 0, y = 0;
+	qgGetMousePos(&x, &y);
+	if (!inClip(x, y)) return 0;
+	const float sx = size.x * 0.5f, sy = size.y * 0.5f,
+	t = pos.y + sy, b = pos.y - sy,
+	l = pos.x - sx, r = pos.x + sx;
+	return (t >= y && y >= b) && (l <= x && x <= r);
+}
+
+static const void* activeUI = NULL;
+void qgAddButton(QgButtonAction* action, const Vector2 position, const Vector2 size, const ColorRGBA clr) {
+	if (!action) {
+		qgWarn("qgAddButton: 'action' cannot be NULL\n");
+		return;
+	}
+	const uint8_t
+		wasHover = (*action & QGPU_BTN_Hover) != 0,
+		hover = onRect(position, size);
+	qgAddRect(position, size, clr);
+	*action = QGPU_BTN_Nothing;
+	if (hover) *action |= QGPU_BTN_Hover;
+	if (hover && !wasHover) *action |= QGPU_BTN_MouseEnter;
+	if (!hover && wasHover) *action |= QGPU_BTN_MouseLeave;
+	if (qgOnMouse(LMB) && hover) {
+		activeUI = action;
+		*action |= QGPU_BTN_Press;
+	}
+	if (activeUI == action && !qgGetMouse(LMB)) {
+		if (hover) *action |= QGPU_BTN_Release;
+		activeUI = NULL;
+	}
+}
+uint8_t qgAddSlider(const float min, const float max, float* value, const Vector2 position, const Vector2 size, const Vector2 handleSize, const ColorRGBA clrFill, const ColorRGBA clrBack, const ColorRGBA clrHandle) {
+	if (!value) {
+		qgWarn("qgAddSlider: 'value' cannot be NULL\n");
+		return 0;
+	}
+	const float
+		range = max - min,
+		spx = position.x - size.x * 0.5f,
+		per = range != 0.0f ? qclampf((*value - min) / range, 0.0f, 1.0f) : 0.0f;
+	const Vector2 hp = {spx + size.x * per, position.y};
+	qgAddRect(position, size, clrBack);
+	if (per > 0.0f) qgAddRect((Vector2){spx + size.x * per * 0.5f, position.y}, (Vector2){size.x * per, size.y}, clrFill);
+	qgAddRect(hp, handleSize, clrHandle);
+	if (qgOnMouse(LMB) && (onRect(position, size) || onRect(hp, handleSize))) activeUI = value;
+	if (!qgGetMouse(LMB) && activeUI == value) activeUI = NULL;
+	if (activeUI != value || range == 0.0f) return 0;
+	float mx = 0.0f;
+	qgGetMousePos(&mx, 0);
+	const float nv = qclampf(min + (mx - spx) / size.x * range, min < max ? min : max, min < max ? max : min);
+	const uint8_t changed = nv != *value;
+	*value = nv;
+	return changed;
+}
+void qgAddToggle(uint8_t* state, const Vector2 position, const Vector2 size, const ColorRGBA clr, const ColorRGBA onClr) {
+	if (!state) {
+		qgWarn("qgAddToggle: 'state' cannot be NULL\n");
+		return;
+	}
+	const uint8_t
+		hover = onRect(position, size),
+		getM = qgGetMouse(LMB),
+		onM = qgOnMouse(LMB);
+	if (onM && hover) activeUI = state;
+	if (activeUI == state && !getM) {
+		if (hover) *state = !*state;
+		activeUI = NULL;
+	}
+	qgAddRect(position, size, clr);
+	qgAddRect(position, v2Scale(size, 0.8f), *state ? onClr : CLR_RGBA(0,0,0,0));
+}
+// ===== LIGHTS ===========================================================================================================================================================
 static GPULight* newLight(const char* fn) {
-	if (lightCount >= MAX_LIGHTS) { qgWarn("%s: MAX_LIGHTS reached\n", fn); return NULL; }
+	if (lightCount >= MAX_LIGHTS) {
+		qgWarn("%s: MAX_LIGHTS reached\n", fn);
+		return NULL;
+	}
 	GPULight* L = &lights[lightCount++];
 	memset(L, 0, sizeof(GPULight));
 	return L;
@@ -1780,7 +2018,10 @@ void qgAddLight(const Vector3 position, const float range, const float power) { 
 // ===== TEXT =============================================================================================================================================================
 // ========================================================================================================================================================================
 void qgLoadFont(const char* path) {
-	if (!inInit) { qgWarn("Couldn't load font in Update function! Please load it in Init function.\n"); return; }
+	if (!inInit) {
+		qgWarn("qgLoadFont: Couldn't load font in Update function! Please load it in Init function.\n");
+		return;
+	}
 	qfReadFile(path);
 }
 void qgSetFontData(const float fontSize, const uint8_t style, const ColorRGBA clr) { qfConfigure(fontSize, style, clr.r,clr.g,clr.b,clr.a); }
@@ -1795,7 +2036,7 @@ uint8_t qgGetKey(const uint key) {
 }
 uint8_t qgOnKey(const uint key) {
 	if (!g_ctx.window || key >= GLFW_KEY_LAST) return 0;
-	uint8_t current = glfwGetKey(g_ctx.window, key), last = g_ctx.lastKeyState[key];
+	const uint8_t current = glfwGetKey(g_ctx.window, key), last = g_ctx.lastKeyState[key];
 	return (current == GLFW_PRESS && last == GLFW_RELEASE);
 }
 uint8_t qgGetMouse(const uint button) {
@@ -1804,15 +2045,15 @@ uint8_t qgGetMouse(const uint button) {
 }
 uint8_t qgOnMouse(const uint button) {
 	if (!g_ctx.window || button >= GLFW_MOUSE_BUTTON_LAST) return 0;
-	uint8_t current = glfwGetMouseButton(g_ctx.window, button), last = g_ctx.lastMouseState[button];
+	const uint8_t current = glfwGetMouseButton(g_ctx.window, button), last = g_ctx.lastMouseState[button];
 	return (current == GLFW_PRESS && last == GLFW_RELEASE);
 }
 void qgGetMousePos(float* x, float* y) {
-	if (!g_ctx.window || !x || !y) return;
+	if (!g_ctx.window) return;
 	double lx = 0, ly = 0;
 	glfwGetCursorPos(g_ctx.window, &lx, &ly);
-	*x = lx - (double)qgGetWidth() / 2;
-	*y = -(ly - (double)qgGetHeight() / 2);
+	if (x) *x = (float)lx - (float)qgGetWidth() * 0.5f;
+	if (y) *y = -((float)ly - (float)qgGetHeight() * 0.5f);
 }
 uint qgGetWidth() {
 	if (!g_ctx.window) return 0;

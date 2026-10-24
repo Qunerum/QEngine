@@ -9,6 +9,11 @@
 #ifndef QGPU_H
 #define QGPU_H
 #include <stdint.h>
+
+#define QGPU_VERSION_MAJOR 2
+#define QGPU_VERSION_MINOR 8
+#define QGPU_VERSION_PATCH 0
+#define QGPU_VERSION_TEXT "2.8.0"
 // !===== CONFIGURATION ==================================================================================================================================================!
 #define MAX_VERTICES     65536 // (2^16) Max vertices in one frame
 #define MAX_LIGHTS       1024  // (2^10) Max lights in one frame
@@ -21,8 +26,11 @@ typedef struct { float x, y; } Vector2;
 typedef struct { float x, y, z; } Vector3;
 typedef struct { float r, g, b; } ColorRGB;
 typedef struct { float r, g, b, a; } ColorRGBA;
-#define CLR_RGB(r, g, b) (ColorRGB){(r<.0f?.0f:r>1.0f?1.0f:r), (g<.0f?.0f:g>1.0f?1.0f:g), (b<.0f?.0f:b>1.0f?1.0f:b)}
-#define CLR_RGBA(r, g, b, a) (ColorRGBA){(r<.0f?.0f:r>1.0f?1.0f:r), (g<.0f?.0f:g>1.0f?1.0f:g), (b<.0f?.0f:b>1.0f?1.0f:b), (a<.0f?.0f:a>1.0f?1.0f:a)}
+#define CLR_RGB(r, g, b) (ColorRGB){r, g, b}
+#define CLR_RGBA(r, g, b, a) (ColorRGBA){r, g, b, a}
+#ifndef NULL
+#define NULL ((void *)0)
+#endif
 // !===== Console ========================================================================================================================================================!
 void qgSetColor(const uint8_t color);
 void qgRestoreColor();
@@ -37,17 +45,22 @@ void qgLog(const char* format, ...);
 void qgLogVertices();
 void qgWarn(const char* format, ...);
 void qgError(const char* format, ...);
-#define QGPU_SHOW_BANNER          0
-#define QGPU_SHOW_MADE_WITH_QGPU  1
-#define QGPU_SHOW_INFO            2
-#define QGPU_SHOW_COLORS          3
-#define QGPU_SHOW_LOGS            4
-void qgSetShow(const uint8_t shower, const uint8_t state);
+
+typedef enum __attribute__((__packed__)) {
+	QGPU_SHOW_BANNER = 0,
+	QGPU_SHOW_MADE_WITH_QGPU,
+	QGPU_SHOW_INFO,
+	QGPU_SHOW_COLORS,
+	QGPU_SHOW_LOGS
+} QgShower;
+void qgSetShow(const QgShower shower, const uint8_t state);
 // !===== QGPU ===========================================================================================================================================================!
-#define QGPU_SETTINGS_AMBIENT_OCCLUSION 0
-#define QGPU_SETTINGS_MSAA_LEVEL        1
-#define QGPU_SETTINGS_SHADOWS           2
-void qgSetGraphicsSetting(const uint8_t setting, const uint8_t value);
+typedef enum __attribute__((__packed__)) {
+	QGPU_SETTINGS_AMBIENT_OCCLUSION = 0,
+	QGPU_SETTINGS_MSAA_LEVEL,
+	QGPU_SETTINGS_SHADOWS
+} QgSetting;
+void qgSetGraphicsSetting(const QgSetting setting, const uint8_t value);
 // !===== Init
 int qgpuCreate(const uint width, const uint height, const char* title, void (*initFunc)(), void (*updateFunc)());
 // !===== Window
@@ -57,12 +70,27 @@ void qgSetBackground(const ColorRGB color);
 void qgAddTriangle(const Vector3 p1, const Vector3 p2, const Vector3 p3, const ColorRGBA color);
 void qgAddTriangle2D(const Vector2 p1, const Vector2 p2, const Vector2 p3, const ColorRGBA color);
 void qgSetLayerUI(const uint layer);
+void qgPushClip(const Vector2 position, const Vector2 size);
+void qgPopClip();
 #ifdef QGPU_SHAPES
 void qgAddRect(const Vector2 position, const Vector2 size, const ColorRGBA color);
 void qgAddCircle(const Vector2 position, const float radius, const uint segments, const ColorRGBA color);
 
 void qgAddPlane(const Vector3 position, const Vector2 size, const ColorRGBA color);
 void qgAddBox(const Vector3 position, const Vector3 size, const ColorRGBA color);
+#endif
+#ifdef QGPU_UI
+typedef enum __attribute__((__packed__)) {
+	QGPU_BTN_Nothing    = 0b00000000,
+	QGPU_BTN_Press      = 0b00000001,
+	QGPU_BTN_Release    = 0b00000010,
+	QGPU_BTN_MouseEnter = 0b00000100,
+	QGPU_BTN_Hover      = 0b00001000,
+	QGPU_BTN_MouseLeave = 0b00010000
+} QgButtonAction;
+void qgAddButton(QgButtonAction* action, const Vector2 position, const Vector2 size, const ColorRGBA clr);
+uint8_t qgAddSlider(const float min, const float max, float* value, const Vector2 position, const Vector2 size, const Vector2 handleSize, const ColorRGBA clrFill, const ColorRGBA clrBack, const ColorRGBA clrHandle);
+void qgAddToggle(uint8_t* state, const Vector2 position, const Vector2 size, const ColorRGBA clr, const ColorRGBA onClr);
 #endif
 // !===== Text ===========================================================================================================================================================!
 #define QGPU_FONT_STYLE_REGULAR       0b00000000
@@ -141,7 +169,7 @@ uint qgGetHeight();
 #define QKEY_UP         265
 
 #ifdef QGPU_COLORS
-void qgPrintc(int color, const char* format, ...);
+void qgPrintc(uint8_t color, const char* format, ...);
 // !===== QPrint ==================================================!
 // ANSI escape code using 8-bit color
 #define RST     "\033[0m"
