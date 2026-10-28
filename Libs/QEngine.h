@@ -23,7 +23,7 @@ typedef uint8_t uint8;
 
 typedef uint32 uint;
 typedef uint8 byte;
-// = = = = = state = = = = = = = = = = = = = = = = = = = =
+// = = = = = bools = = = = = = = = = = = = = = = = = = = =
 typedef uint8 state;
 #define false 0
 #define true 1
@@ -197,6 +197,7 @@ void setCameraRot(const Vector3 rotation);
 void setCameraScale(const Vector3 scale);
 
 void addLight(const Vector3 position, const float range, const float intense);
+void setLayer(const uint layer);
 
 void drawTriangle(const Vector3 posA, const Vector3 posB, const Vector3 posC, const Color color);
 void drawRect(const Vector2 position, const Vector2 size, const qeAlignMode align, const Color color);

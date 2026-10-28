@@ -1,5 +1,6 @@
 #define QGPU_UI
 #define QGPU_SHAPES
+
 #define uint quint
 #define Vector2 QV2
 #define Vector3 QV3
@@ -68,7 +69,7 @@ state qPathExists(const char* path) {
 	if (stat(path, &st) == 0) return true;
 	return false;
 }
-char buffer[8192];
+static char buffer[8192];
 state qCopyFile(const char* srcPath, const char* dstPath) {
 	if (!srcPath || !dstPath) return false;
 	FILE* src = fopen(srcPath, "rb");
@@ -166,7 +167,7 @@ void setCameraRot(const Vector3 rotation) { _camera.position = rotation; }
 void setCameraScale(const Vector3 scale) { _camera.position = scale; }
 // = = = = = GRAPHIC = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 void addLight(const Vector3 position, const float range, const float power) { qgAddLight(*(QV3*)&position, range, power); }
-void setLayer(const int layer) { qgSetLayerUI(layer); }
+void setLayer(const uint layer) { qgSetLayerUI(layer); }
 
 static float b01(const byte v) { return v / 255.0f; }
 static void setRot(const Vector3 position, const Vector3 rotation) {
