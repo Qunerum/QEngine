@@ -175,8 +175,8 @@ static void setRot(const Vector3 position, const Vector3 rotation) {
 	qgSetRotation(*(QV3*)&rotation);
 }
 static ColorRGBA vte(const Color c) { return (ColorRGBA){b01(c.r), b01(c.g), b01(c.b), b01(c.a)}; }
-
 void drawTriangle(const Vector3 posA, const Vector3 posB, const Vector3 posC, const Color color) { qgAddTriangle(*(QV3*)&posA, *(QV3*)&posB, *(QV3*)&posC, vte(color)); }
+// = = = = = 2D
 void drawRect(const Vector2 position, const Vector2 size, const qeAlignMode align, const Color color) {
 	const Vector2 p = getPos(position, align);
 	qgAddRect(*(QV2*)&p, *(QV2*)&size, vte(color));
@@ -190,12 +190,20 @@ void drawText(const char* text, const Vector2 position, const float fontSize, co
 	qgSetFontData(fontSize, QGPU_FONT_STYLE_REGULAR, vte(color));
 	qgAddText(*(QV2*)&p, text);
 }
-
+// = = = = = UI
 void drawButton(uint8* value, const Vector2 position, const Vector2 size, const qeAlignMode align, const Color color) {
 	const Vector2 p = getPos(position, align);
 	qgAddButton(value, *(QV2*)&p, *(QV2*)&size, vte(color));
 }
-
+uint8 drawSlider(const float min, const float max, float* value, const Vector2 position, const Vector2 size, qeAlignMode align, const Vector2 handleSize, const Color clrFill, const Color clrBack, const Color clrHandle) {
+	const Vector2 p = getPos(position, align);
+	return qgAddSlider(min, max, value, *(QV2*)&p, *(QV2*)&size, *(QV2*)&handleSize, vte(clrFill), vte(clrBack), vte(clrHandle));
+}
+void drawToggle(uint8* state, const Vector2 position, const Vector2 size, const qeAlignMode align, const Color color, const Color colorOn) {
+	const Vector2 p = getPos(position, align);
+	qgAddToggle(state, *(QV2*)&p, *(QV2*)&size, vte(color), vte(colorOn));
+}
+// = = = = = 3D
 void drawPlane(const Vector3 position, const Vecotr3 rotation, const Vector2 size, const Color color) {
 	setRot(position, rotation);
 	qgAddPlane(*(QV3*)&position, *(QV2*)&size, vte(color));
@@ -207,6 +215,26 @@ void drawBox(const Vector3 position, const Vector3 rotation, const Vector3 size,
 void drawDisk(const Vector3 position, const Vector3 rotation, const float radius, const uint segments, const Color color) {
 	setRot(position, rotation);
 	qgAddCircle3D(*(QV3*)&position, radius, segments, vte(color));
+}
+void drawCone(const Vector3 position, const Vector3 rotation, const Vector2 radiusAndHeight, const uint segments, const Color color) {
+	setRot(position, rotation);
+	qgAddCone(*(QV3*)&position, *(QV2*)&radiusAndHeight, segments, vte(color));
+}
+void drawCylinder(const Vector3 position, const Vector3 rotation, const Vector2 radiusAndHeight, const uint segments, const Color color) {
+	setRot(position, rotation);
+	qgAddCylinder(*(QV3*)&position, *(QV2*)&radiusAndHeight, segments, vte(color));
+}
+void drawHemisphere(const Vector3 position, const Vector3 rotation, const float radius, const uint rings, const uint sectors, const Color color) {
+	setRot(position, rotation);
+	qgAddHemisphere(*(QV3*)&position, radius, rings, sectors, vte(color));
+}
+void drawSphere(const Vector3 position, const Vector3 rotation, const float radius, const uint rings, const uint sectors, const Color color) {
+	setRot(position, rotation);
+	qgAddSphere(*(QV3*)&position, radius, rings, sectors, vte(color));
+}
+void drawCapsule(const Vector3 position, const Vector3 rotation, const Vector2 radiusAndHeight, const uint rings, const uint sectors, const Color color) {
+	setRot(position, rotation);
+	qgAddCapsule(*(QV3*)&position, *(QV2*)&radiusAndHeight, rings, sectors, vte(color));
 }
 // = = = = = AUDIO = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 void convertAudio(const char* qsr_path, const char* qs_path) { qsConvert(qsr_path, qs_path); }
