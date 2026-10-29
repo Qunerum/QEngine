@@ -166,16 +166,21 @@ void setCameraPos(const Vector3 position) { _camera.position = position; }
 void setCameraRot(const Vector3 rotation) { _camera.position = rotation; }
 void setCameraScale(const Vector3 scale) { _camera.position = scale; }
 // = = = = = GRAPHIC = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-void addLight(const Vector3 position, const float range, const float power) { qgAddLight(*(QV3*)&position, range, power); }
-void setLayer(const uint layer) { qgSetLayerUI(layer); }
-
 static float b01(const byte v) { return v / 255.0f; }
 static void setRot(const Vector3 position, const Vector3 rotation) {
 	qgSetRotationPivot(*(QV3*)&position);
 	qgSetRotation(*(QV3*)&rotation);
 }
 static ColorRGBA vte(const Color c) { return (ColorRGBA){b01(c.r), b01(c.g), b01(c.b), b01(c.a)}; }
-void drawTriangle(const Vector3 posA, const Vector3 posB, const Vector3 posC, const Color color) { qgAddTriangle(*(QV3*)&posA, *(QV3*)&posB, *(QV3*)&posC, vte(color)); }
+static ColorRGB vtew(const Color c) { return (ColorRGBA){b01(c.r), b01(c.g), b01(c.b)}; }
+
+void addPointLight(const Vector3 position, const float range, const float power, const Color color) { 
+	qgPointLight(*(QV3*)&position, range, power, vtew(color)); }
+void addSpotLight(const Vector3 position, const Vector3 direction, const float angleDeg, const float range, const float power, const Color color) { 
+	qgSpotLight(*(QV3*)&position, *(QV3*)&direction, angleDeg, range, power, vtew(color)); }
+void addDirectionalLight(const Vector3 direction, const float power, const Color color) { 
+	qgAddDirectionalLight(*(QV3*)&direction, power, vtew(color)); }
+void setLayer(const uint layer) { qgSetLayerUI(layer); }
 // = = = = = 2D
 void drawRect(const Vector2 position, const Vector2 size, const qeAlignMode align, const Color color) {
 	const Vector2 p = getPos(position, align);
@@ -204,6 +209,7 @@ void drawToggle(uint8* state, const Vector2 position, const Vector2 size, const 
 	qgAddToggle(state, *(QV2*)&p, *(QV2*)&size, vte(color), vte(colorOn));
 }
 // = = = = = 3D
+void drawTriangle(const Vector3 posA, const Vector3 posB, const Vector3 posC, const Color color) { qgAddTriangle(*(QV3*)&posA, *(QV3*)&posB, *(QV3*)&posC, vte(color)); }
 void drawPlane(const Vector3 position, const Vecotr3 rotation, const Vector2 size, const Color color) {
 	setRot(position, rotation);
 	qgAddPlane(*(QV3*)&position, *(QV2*)&size, vte(color));
