@@ -196,9 +196,17 @@ void drawButton(uint8* value, const Vector2 position, const Vector2 size, const 
 	qgAddButton(value, *(QV2*)&p, *(QV2*)&size, vte(color));
 }
 
+void drawPlane(const Vector3 position, const Vecotr3 rotation, const Vector2 size, const Color color) {
+	setRot(position, rotation);
+	qgAddPlane(*(QV3*)&position, *(QV2*)&size, vte(color));
+}
 void drawBox(const Vector3 position, const Vector3 rotation, const Vector3 size, const Color color) {
 	setRot(position, rotation);
 	qgAddBox(*(QV3*)&position, *(QV3*)&size, vte(color));
+}
+void drawDisk(const Vector3 position, const Vector3 rotation, const float radius, const uint segments, const Color color) {
+	setRot(position, rotation);
+	qgAddCircle3D(*(QV3*)&position, radius, segments, vte(color));
 }
 // = = = = = AUDIO = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 void convertAudio(const char* qsr_path, const char* qs_path) { qsConvert(qsr_path, qs_path); }
