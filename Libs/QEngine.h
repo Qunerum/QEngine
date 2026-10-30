@@ -194,7 +194,7 @@ Camera getCamera();
 void setCamera(const Camera camera);
 void setCameraPos(const Vector3 position);
 void setCameraRot(const Vector3 rotation);
-void setCameraScale(const Vector3 scale);
+void setCameraFOV(const float fov);
 
 void addPointLight(const Vector3 position, const float range, const float power, const Color color);
 void addSpotLight(const Vector3 position, const Vector3 direction, const float angleDeg, const float range, const float power, const Color color);
@@ -240,6 +240,14 @@ char getPressedKey();
 state getMouseButton(const uint mouseKey);
 state onMouseDown(const uint mouseKey);
 Vector2 getCursorPosition();
+Vector2 getMouseDelta();
+typedef enum __attribute__((__packed__)) {
+	CURSOR_NORMAL = 0,
+	CURSOR_HIDDEN,
+	CURSOR_CAPTURED,
+	CURSOR_DISABLED
+} CursorState;
+void setCursorState(const CursorState state);
 
 #define LMB             0
 #define RMB             1
@@ -284,11 +292,29 @@ Vector2 getCursorPosition();
 
 #ifdef QEngine_Math
 #define PI 3.14159265358979323846f
+#define HALF_PI PI * 0.5f
+
+float qSin_asm(const float rad);
+float qCos_asm(const float rad);
+static inline float qSin(float rad) {
+	if (rad > HALF_PI) return qSin_asm(PI - rad);
+	else if (rad < -HALF_PI) return qSin_asm(-PI - rad);
+	return qSin_asm(rad);
+}
+static inline float qCos(float rad) {
+	if (rad > HALF_PI) return -qCos_asm(PI - rad);
+	else if (rad < -HALF_PI) return -qCos_asm(-PI - rad);
+	return qCos_asm(rad);
+}
 // = = = = = LERP = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 float qLerp_f(const float A, const float B, const float t);
 Vector2 qLerp_v2(const Vector2 A, const Vector2 B, const float t);
 Vector3 qLerp_v3(const Vector3 A, const Vector3 B, const float t);
-#define qLerp(A, B, t) _Generic((A), float:qLerp_f, Vector2:qLerp_v2, Vector3:qLerp_v3 )(A, B, t)
+#define qLerp(A, B, t) _Generic((A), \
+	float: qLerp_f, \
+	Vector2: qLerp_v2, \
+	Vector3: qLerp_v3 \
+)(A, B, t)
 // = = = = = CLAMP = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 static inline int qClamp_i(const int v, const int min, const int max) { return v > max ? max : v < min ? min : v; }
 static inline float qClamp_f(const float v, const float min, const float max) { return v > max ? max : v < min ? min : v; }
@@ -314,7 +340,14 @@ static inline Vector3Int qClamp_v3i(const Vector3Int v, const Vector3Int min, co
 		qClamp_i(v.y, min.y, max.y),
 		qClamp_i(v.z, min.z, max.z)};
 }
-#define qClamp(Value, Min, Max) _Generic((Value), int:qClamp_i, float:qClamp_f, Vector2:qClamp_v2, Vector2Int:qClamp_v2i, Vector3:qClamp_v3, Vector3Int:qClamp_v3i )(Value, Min, Max)
+#define qClamp(Value, Min, Max) _Generic((Value), \
+	int: qClamp_i, \
+	float: qClamp_f, \
+	Vector2: qClamp_v2, \
+	Vector2Int: qClamp_v2i, \
+	Vector3: qClamp_v3, \
+	Vector3Int: qClamp_v3i \
+)(Value, Min, Max)
 // = = = = = MAP = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 static inline float qMap_f(const float v, const float oldMin, const float oldMax, const float newMin, const float newMax) {
 	if (oldMax - oldMin == 0.0f) return newMin;
@@ -331,9 +364,13 @@ static inline Vector3 qMap_v3(const Vector3 v, const Vector3 oldMin, const Vecto
 		qMap_f(v.y, oldMin.y, oldMax.y, newMin.y, newMax.y),
 		qMap_f(v.z, oldMin.z, oldMax.z, newMin.z, newMax.z)};
 }
-#define qMap(Value, oldMin, oldMax, newMin, newMax) _Generic((Value), float:qMap_f, Vector2:qMap_v2, Vector3:qMap_v3 )(Value, oldMin, oldMax, newMin, newMax)
+#define qMap(Value, oldMin, oldMax, newMin, newMax) _Generic((Value), \
+	float: qMap_f, \
+	Vector2: qMap_v2, \
+	Vector3: qMap_v3 \
+)(Value, oldMin, oldMax, newMin, newMax)
 // = = = = = ABS (ABSOLUTE) = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-static inline uint qAbs_i(const int v) { return v < 0 ? -v : v; }
+static inline int qAbs_i(const int v) { return v < 0 ? -v : v; }
 static inline float qAbs_f(const float v) { return v < 0.0f ? -v : v; }
 static inline Vector2 qAbs_v2(const Vector2 v) {
 	return (Vector2){
@@ -357,7 +394,14 @@ static inline Vector3Int qAbs_v3i(const Vector3Int v) {
 		qAbs_i(v.y),
 		qAbs_i(v.z)};
 }
-#define qAbs(V) _Generic((V), int:qAbs_i, float:qAbs_f, Vector2:qAbs_v2, Vector2Int:qAbs_v2i, Vector3:qAbs_v3, Vector3Int:qAbs_v3i )(V)
+#define qAbs(V) _Generic((V), \
+	int: qAbs_i, \
+	float: qAbs_f, \
+	Vector2: qAbs_v2, \
+	Vector2Int: qAbs_v2i, \
+	Vector3: qAbs_v3, \
+	Vector3Int: qAbs_v3i \
+)(V)
 // = = = = = SIGN = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 static inline int8 qSign_i(const int v) { return (v > 0) - (v < 0); }
 static inline float qSign_f(const float v) { return (float)((v > 0.0f) - (v < 0.0f)); }
@@ -383,7 +427,14 @@ static inline Vector3Int qSign_v3i(const Vector3Int v) {
 		qSign_i(v.y),
 		qSign_i(v.z)};
 }
-#define qSign(V) _Generic((V), int:qSign_i, float:qSign_f, Vector2:qSign_v2, Vector2Int:qSign_v2i, Vector3:qSign_v3, Vector3Int:qSign_v3i )(V)
+#define qSign(V) _Generic((V), \
+	int: qSign_i, \
+	float: qSign_f, \
+	Vector2: qSign_v2, \
+	Vector2Int: qSign_v2i, \
+	Vector3: qSign_v3, \
+	Vector3Int: qSign_v3i \
+)(V)
 // = = = = = ROUNDING = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 int qFloor(const float v);
 int qCeil(const float v);
@@ -393,8 +444,8 @@ static inline float qPow(const float base, const int exp) {
 	if (exp == 0) return 1.0f;
 	if (base == 0.0f) return 0.0f;
 	float v = base;
-	int absExp = qAbs_i(exp);
-	for (int i = 1; i < absExp; i++) v *= base;
+	uint absExp = qAbs_i(exp);
+	for (uint i = 1; i < absExp; i++) v *= base;
 	if (exp < 0) v = 1.0f / v;
 	return v;
 }
@@ -403,36 +454,59 @@ float qSqrt(const float number);
 // = = = = = DIST (DISTANCE) = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 static inline float qDist_v2(const Vector2 a, const Vector2 b) { return qSqrt(qPow(b.x - a.x, 2) + qPow(b.y - a.y, 2)); }
 static inline float qDist_v3(const Vector3 a, const Vector3 b) { return qSqrt(qPow(b.x - a.x, 2) + qPow(b.y - a.y, 2) + qPow(b.z - a.z, 2)); }
-#define qDist(A, B) _Generic((A), Vector2:qDist_v2, Vector3:qDist_v3 )(A, B)
+#define qDist(A, B) _Generic((A), \
+	Vector2: qDist_v2, \
+	Vector3: qDist_v3 \
+)(A, B)
 // = = = = = LENGTH = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 static inline float qLength_v2(const Vector2 v) { return qSqrt(v.x * v.x + v.y * v.y); }
 static inline float qLength_v3(const Vector3 v) { return qSqrt(v.x * v.x + v.y * v.y + v.z * v.z); }
-#define qLength(V) _Generic((V), Vector2:qLength_v2, Vector3:qLength_v3 )(V)
+#define qLength(V) _Generic((V), \
+	Vector2: qLength_v2, \
+	Vector3: qLength_v3 \
+)(V)
 // = = = = = NORMALIZE = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 Vector2 qNormalize_v2(const Vector2 v);
 Vector3 qNormalize_v3(const Vector3 v);
-#define qNormalize(V) _Generic((V), Vector2:qNormalize_v2, Vector3:qNormalize_v3 )(V)
+#define qNormalize(V) _Generic((V), \
+	Vector2: qNormalize_v2, \
+	Vector3: qNormalize_v3 \
+)(V)
 // = = = = = DOT (DOT PRODUCT) = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 static inline float qDot_v2(const Vector2 a, const Vector2 b) { return a.x * b.x + a.y * b.y; }
 static inline float qDot_v2i(const Vector2Int a, const Vector2Int b) { return a.x * b.x + a.y * b.y; }
 static inline float qDot_v3(const Vector3 a, const Vector3 b) { return a.x * b.x + a.y * b.y + a.z * b.z; }
 static inline float qDot_v3i(const Vector3Int a, const Vector3Int b) { return a.x * b.x + a.y * b.y + a.z * b.z; }
-#define qDot(A, B) _Generic((A), Vector2:qDot_v2, Vector2Int:qDot_v2i, Vector3:qDot_v3, Vector3Int:qDot_v3i )(A, B)
+#define qDot(A, B) _Generic((A), \
+	Vector2: qDot_v2, \
+	Vector2Int: qDot_v2i, \
+	Vector3: qDot_v3, \
+	Vector3Int: qDot_v3i \
+)(A, B)
 // = = = = = CROSS (CROSS PRODUCT) = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 static inline float qCross_v2(const Vector2 a, const Vector2 b) { return a.x * b.y - a.y * b.x; }
 static inline Vector3 qCross_v3(const Vector3 a, const Vector3 b) { return (Vector3){ a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x }; }
-#define qCross(A, B) _Generic((A), Vector2:qCross_v2, Vector3:qCross_v3 )(A, B)
+#define qCross(A, B) _Generic((A), \
+	Vector2: qCross_v2, \
+	Vector3: qCross_v3 \
+)(A, B)
 // = = = = = DEGREES & RADIANS = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 static inline float qDegToRad(const float deg) { return deg * (PI / 180.0f); }
 static inline float qRadToDeg(const float rad) { return rad * (180.0f / PI); }
 // = = = = = MIN = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 static inline int qMin_i(const int a, const int b) { return a < b ? a : b; }
 static inline float qMin_f(const float a, const float b) { return a < b ? a : b; }
-#define qMin(A, B) _Generic((A), int:qMin_i, float:qMin_f)(A, B)
+#define qMin(A, B) _Generic((A), \
+	int: qMin_i, \
+	float: qMin_f \
+)(A, B)
 // = = = = = MAX = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 static inline int qMax_i(const int a, const int b) { return a > b ? a : b; }
 static inline float qMax_f(const float a, const float b) { return a > b ? a : b; }
-#define qMax(A, B) _Generic((A), int:qMax_i, float:qMax_f)(A, B)
+#define qMax(A, B) _Generic((A), \
+	int: qMax_i, \
+	float: qMax_f \
+)(A, B)
 // = = = = = AABB (2D) = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 static inline state qAABB2D(const Vector2 posA, const Vector2 sizeA, const Vector2 posB, const Vector2 sizeB) {
 	const float minAx = posA.x - sizeA.x * 0.5f, maxAx = posA.x + sizeA.x * 0.5f,
@@ -441,6 +515,7 @@ static inline state qAABB2D(const Vector2 posA, const Vector2 sizeA, const Vecto
 	minBy = posB.y - sizeB.y * 0.5f, maxBy = posB.y + sizeB.y * 0.5f;
 	return (minAx < maxBx && maxAx > minBx && minAy < maxBy && maxAy > minBy);
 }
+
 // = = = = = Math on Vectors = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 static inline Vector2 Vector2_Add(const Vector2 A, const Vector2 B) { return (Vector2){A.x + B.x, A.y + B.y}; }
 static inline Vector2 Vector2_Sub(const Vector2 A, const Vector2 B) { return (Vector2){A.x - B.x, A.y - B.y}; }
@@ -455,6 +530,15 @@ static inline Vector3 Vector3_Mul(const Vector3 A, const float B) { return (Vect
 static inline Vector3 Vector3_Div(const Vector3 A, const float B) { if(B == 0.0f) { print("Cannot divide by zero!\n"); return Vector3_Zero; } return (Vector3){A.x / B, A.y / B, A.z / B}; }
 static inline Vector3Int Vector3Int_Add(const Vector3Int A, const Vector3Int B) { return (Vector3Int){A.x + B.x, A.y + B.y, A.z + B.z}; }
 static inline Vector3Int Vector3Int_Sub(const Vector3Int A, const Vector3Int B) { return (Vector3Int){A.x - B.x, A.y - B.y, A.z - B.z}; }
+
+static inline Vector3 qRotationToDir(const Vector3 rotDeg) {
+	const float pitch = qDegToRad(rotDeg.x), yaw   = qDegToRad(rotDeg.y);
+	return qNormalize_v3((Vector3){
+		.x = qCos(pitch) * qSin(yaw),
+		.y = qSin(pitch),
+		.z = qCos(pitch) * qCos(yaw)
+	});
+}
 #endif
 
 #ifdef QEngine_Memory

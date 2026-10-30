@@ -126,9 +126,15 @@ static state isCaps = false, inputOn = false;
 static char qinput[MAX_INPUT + 1];
 static uint inputLen = 0, userMax = MAX_INPUT;
 static Vector2 prevMP = V2_Zero, deltaMP = V2_Zero;
+static Camera _camera = (Camera){V3_Zero, V3_Zero, 60};
 
 static void qeUpdate() {
-	qgSetCamera((QV3){3.0f,2.0f,6.0f}, (QV3){0,0,0}, 60);
+	while (_camera.rotation.x > 180.0f)  _camera.rotation.x -= 360.0f;
+	while (_camera.rotation.x < -180.0f) _camera.rotation.x += 360.0f;
+	while (_camera.rotation.y > 180.0f)  _camera.rotation.y -= 360.0f;
+	while (_camera.rotation.y < -180.0f) _camera.rotation.y += 360.0f;
+	const Vector3 dir = Vector3_Add(qRotationToDir(_camera.rotation), _camera.position);
+	qgSetCamera(*(QV3*)&_camera.position, *(QV3*)&dir, _camera.fov);
 
 	if (onKeyDown(KEY_CAPSLOCK)) isCaps = !isCaps;
 	const char c = getPressedKey();
@@ -162,14 +168,14 @@ int initEngineProject(const Scene scene) {
 }
 void setScene(const Scene scene) { actualScene = scene; }
 // = = = = = CAMERA = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-static Camera _camera;
+
 uint getWidth() { return qgGetWidth(); }
 uint getHeight() { return qgGetHeight(); }
 Camera getCamera() { return _camera; }
 void setCamera(const Camera camera) { _camera = camera; }
 void setCameraPos(const Vector3 position) { _camera.position = position; }
-void setCameraRot(const Vector3 rotation) { _camera.position = rotation; }
-void setCameraScale(const Vector3 scale) { _camera.position = scale; }
+void setCameraRot(const Vector3 rotation) { _camera.rotation = rotation; }
+void setCameraFOV(const float fov) { _camera.fov = fov; }
 // = = = = = GRAPHIC = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 static float b01(const byte v) { return v / 255.0f; }
 static void setRot(const Vector3 position, const Vector3 rotation) {
@@ -297,3 +303,5 @@ Vector2 getCursorPosition() {
 	qgGetMousePos(&x, &y);
 	return V2(x, y);
 }
+Vector2 getMouseDelta() { return deltaMP; }
+void setCursorState(const CursorState state) { qgSetCursorState((QgCursorState)state); }

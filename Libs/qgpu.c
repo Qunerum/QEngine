@@ -2148,6 +2148,14 @@ void qgGetMousePos(float* x, float* y) {
 	if (x) *x = (float)lx - (float)qgGetWidth() * 0.5f;
 	if (y) *y = -((float)ly - (float)qgGetHeight() * 0.5f);
 }
+void qgSetCursorState(const QgCursorState state) {
+	switch (state) {
+		case QGPU_CURSOR_NORMAL: glfwSetInputMode(g_ctx.window, GLFW_CURSOR, GLFW_CURSOR_NORMAL); return;
+		case QGPU_CURSOR_HIDDEN: glfwSetInputMode(g_ctx.window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN); return;
+		case QGPU_CURSOR_CAPTURED: glfwSetInputMode(g_ctx.window, GLFW_CURSOR, GLFW_CURSOR_CAPTURED); return;
+		case QGPU_CURSOR_DISABLED: glfwSetInputMode(g_ctx.window, GLFW_CURSOR, GLFW_CURSOR_DISABLED); return;
+	}
+}
 uint qgGetWidth() {
 	if (!g_ctx.window) return 0;
 	int w, h;

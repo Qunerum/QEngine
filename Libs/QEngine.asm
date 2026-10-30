@@ -1,5 +1,8 @@
 bits 64
 default rel
+
+global qSin_asm
+global qCos_asm
 ; = = = > LERP
 global qLerp_f
 global qLerp_v2
@@ -19,8 +22,39 @@ global qNormalize_v3
 section .rodata
 	align 16
 	abs_mask dd 0x7FFFFFFF, 0x7FFFFFFF, 0x7FFFFFFF, 0x00000000
+	align 16
+    sin_c1    dd -0.16666667     ; -1 / 3!
+    sin_c2    dd  0.00833333     ;  1 / 5!
+    cos_c1    dd -0.50000000     ; -1 / 2!
+    cos_c2    dd  0.04166667     ;  1 / 4!
+    one_f     dd  1.0
 
 section .text
+
+qSin_asm:
+	movaps  xmm1, xmm0
+	mulss   xmm1, xmm0
+	movss   xmm2, [rel sin_c2]
+	mulss   xmm2, xmm1
+	addss   xmm2, [rel sin_c1]
+	mulss   xmm2, xmm1
+	movss   xmm3, [rel one_f]
+	addss   xmm2, xmm3
+	mulss   xmm0, xmm2
+	ret
+qCos_asm:
+	movaps  xmm1, xmm0
+	mulss   xmm1, xmm0
+
+	movss   xmm2, [rel cos_c2]
+	mulss   xmm2, xmm1
+	addss   xmm2, [rel cos_c1]
+	mulss   xmm2, xmm1
+
+	movss   xmm3, [rel one_f]
+	addss   xmm2, xmm3
+	movaps  xmm0, xmm2
+	ret
 ; = = = > LERP
 qLerp_f:
 	subss xmm1, xmm0

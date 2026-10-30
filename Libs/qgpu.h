@@ -11,7 +11,7 @@
 #include <stdint.h>
 
 #define QGPU_VERSION_MAJOR 2
-#define QGPU_VERSION_MINOR 10
+#define QGPU_VERSION_MINOR 11
 #define QGPU_VERSION_PATCH 0
 
 #define __QGPU_SS(x) #x
@@ -170,6 +170,13 @@ uint8_t qgOnKey(const uint key);
 uint8_t qgGetMouse(const uint button);
 uint8_t qgOnMouse(const uint button);
 void qgGetMousePos(float* x, float* y);
+typedef enum __attribute__((__packed__)) {
+	QGPU_CURSOR_NORMAL = 0,
+	QGPU_CURSOR_HIDDEN,
+	QGPU_CURSOR_CAPTURED,
+	QGPU_CURSOR_DISABLED
+} QgCursorState;
+void qgSetCursorState(const QgCursorState state);
 // !===== Screen =========================================================================================================================================================!
 uint qgGetWidth();
 uint qgGetHeight();
