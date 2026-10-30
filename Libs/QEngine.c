@@ -128,6 +128,8 @@ static uint inputLen = 0, userMax = MAX_INPUT;
 static Vector2 prevMP = V2_Zero, deltaMP = V2_Zero;
 
 static void qeUpdate() {
+	qgSetCamera((QV3){3.0f,2.0f,6.0f}, (QV3){0,0,0}, 60);
+
 	if (onKeyDown(KEY_CAPSLOCK)) isCaps = !isCaps;
 	const char c = getPressedKey();
 	if (c && inputOn) {
@@ -144,18 +146,21 @@ static void qeUpdate() {
 	const Vector2 mp = getCursorPosition();
 	deltaMP = Vector2_Sub(mp, prevMP);
 	prevMP = mp;
-	qgSetCamera((QV3){3,2,6}, (QV3){0,0,0}, 60);
 	if (actualScene.update) actualScene.update();
 }
-int initEngineProject(Scene scene) {
+int initEngineProject(const Scene scene) {
+	#ifdef QEngine_Audio
 	if (!qsInit()) return 1;
+	#endif
 	qgSetBackground(CLR_RGB(.0f, .0f, .0f));
 	actualScene = scene;
 	const int qgpu = qgpuCreate(QEP_START_WIDTH, QEP_START_HEIGHT, QEP_NAME, qeInit, qeUpdate);
+	#ifdef QEngine_Audio
 	qsClose();
+	#endif
 	return qgpu;
 }
-void setScene(Scene scene) { actualScene = scene; }
+void setScene(const Scene scene) { actualScene = scene; }
 // = = = = = CAMERA = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 static Camera _camera;
 uint getWidth() { return qgGetWidth(); }
@@ -172,12 +177,12 @@ static void setRot(const Vector3 position, const Vector3 rotation) {
 	qgSetRotation(*(QV3*)&rotation);
 }
 static ColorRGBA vte(const Color c) { return (ColorRGBA){b01(c.r), b01(c.g), b01(c.b), b01(c.a)}; }
-static ColorRGB vtew(const Color c) { return (ColorRGBA){b01(c.r), b01(c.g), b01(c.b)}; }
+static ColorRGB vtew(const Color c) { return (ColorRGB){b01(c.r), b01(c.g), b01(c.b)}; }
 
 void addPointLight(const Vector3 position, const float range, const float power, const Color color) { 
-	qgPointLight(*(QV3*)&position, range, power, vtew(color)); }
+	qgAddPointLight(*(QV3*)&position, range, power, vtew(color)); }
 void addSpotLight(const Vector3 position, const Vector3 direction, const float angleDeg, const float range, const float power, const Color color) { 
-	qgSpotLight(*(QV3*)&position, *(QV3*)&direction, angleDeg, range, power, vtew(color)); }
+	qgAddSpotLight(*(QV3*)&position, *(QV3*)&direction, angleDeg, range, power, vtew(color)); }
 void addDirectionalLight(const Vector3 direction, const float power, const Color color) { 
 	qgAddDirectionalLight(*(QV3*)&direction, power, vtew(color)); }
 void setLayer(const uint layer) { qgSetLayerUI(layer); }
@@ -200,7 +205,7 @@ void drawButton(uint8* value, const Vector2 position, const Vector2 size, const 
 	const Vector2 p = getPos(position, align);
 	qgAddButton(value, *(QV2*)&p, *(QV2*)&size, vte(color));
 }
-uint8 drawSlider(const float min, const float max, float* value, const Vector2 position, const Vector2 size, qeAlignMode align, const Vector2 handleSize, const Color clrFill, const Color clrBack, const Color clrHandle) {
+state drawSlider(const float min, const float max, float* value, const Vector2 position, const Vector2 size, qeAlignMode align, const Vector2 handleSize, const Color clrFill, const Color clrBack, const Color clrHandle) {
 	const Vector2 p = getPos(position, align);
 	return qgAddSlider(min, max, value, *(QV2*)&p, *(QV2*)&size, *(QV2*)&handleSize, vte(clrFill), vte(clrBack), vte(clrHandle));
 }
@@ -210,7 +215,7 @@ void drawToggle(uint8* state, const Vector2 position, const Vector2 size, const 
 }
 // = = = = = 3D
 void drawTriangle(const Vector3 posA, const Vector3 posB, const Vector3 posC, const Color color) { qgAddTriangle(*(QV3*)&posA, *(QV3*)&posB, *(QV3*)&posC, vte(color)); }
-void drawPlane(const Vector3 position, const Vecotr3 rotation, const Vector2 size, const Color color) {
+void drawPlane(const Vector3 position, const Vector3 rotation, const Vector2 size, const Color color) {
 	setRot(position, rotation);
 	qgAddPlane(*(QV3*)&position, *(QV2*)&size, vte(color));
 }

@@ -8,7 +8,7 @@
 
 void init() { }
 void update() {
-	addLight(V3(2, 0, 2), 50, 1);
+	addPointLight(V3(2, 0, 2), 50, 1, Color_White);
 	static float r = 0;
 	r += 0.5f;
 	drawBox(V3_Zero, V3(30, r, 0), V3(1, 0.5f, 1), Color_Red);

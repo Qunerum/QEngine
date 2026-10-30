@@ -6,8 +6,8 @@
 #include "../Data/PROJECT.h"
 
 #define QENGINE_VERSION_MAJOR 0
-#define QENGINE_VERSION_MINOR 4
-#define QENGINE_VERSION_PATCH 10
+#define QENGINE_VERSION_MINOR 5
+#define QENGINE_VERSION_PATCH 0
 
 typedef enum { World, UI } qeDrawingMode;
 typedef enum { Top_Left, Top, Top_Right, Left, Center, Right, Bottom_Left, Bottom, Bottom_Right } qeAlignMode;
@@ -136,9 +136,9 @@ typedef struct {
 	state isActive;
 } QObject;
 // = = = = = Scene = = = = = = = = = = = = = = = = = = = =
-typedef struct {
-	void (*init)();
-	void (*update)();
+typedef struct { void
+	(*init)(),
+	(*update)();
 } Scene;
 // = = = = = COLOR = = = = = = = = = = = = = = = = = = = =
 typedef struct { byte r, g, b, a; } Color;
@@ -196,17 +196,28 @@ void setCameraPos(const Vector3 position);
 void setCameraRot(const Vector3 rotation);
 void setCameraScale(const Vector3 scale);
 
-void addLight(const Vector3 position, const float range, const float intense);
+void addPointLight(const Vector3 position, const float range, const float power, const Color color);
+void addSpotLight(const Vector3 position, const Vector3 direction, const float angleDeg, const float range, const float power, const Color color);
+void addDirectionalLight(const Vector3 direction, const float power, const Color color);
 void setLayer(const uint layer);
 
-void drawTriangle(const Vector3 posA, const Vector3 posB, const Vector3 posC, const Color color);
 void drawRect(const Vector2 position, const Vector2 size, const qeAlignMode align, const Color color);
 void drawCircle(const Vector2 position, const uint segments, const float radius, const qeAlignMode align, const Color color);
 void drawText(const char* text, const Vector2 position, const float fontSize, const qeAlignMode align, const Color color);
 
 void drawButton(uint8* value, const Vector2 position, const Vector2 size, const qeAlignMode align, const Color color);
+state drawSlider(const float min, const float max, float* value, const Vector2 position, const Vector2 size, qeAlignMode align, const Vector2 handleSize, const Color clrFill, const Color clrBack, const Color clrHandle);
+void drawToggle(uint8* state, const Vector2 position, const Vector2 size, const qeAlignMode align, const Color color, const Color colorOn);
 
+void drawTriangle(const Vector3 posA, const Vector3 posB, const Vector3 posC, const Color color);
+void drawPlane(const Vector3 position, const Vector3 rotation, const Vector2 size, const Color color);
 void drawBox(const Vector3 position, const Vector3 rotation, const Vector3 size, const Color color);
+void drawDisk(const Vector3 position, const Vector3 rotation, const float radius, const uint segments, const Color color);
+void drawCone(const Vector3 position, const Vector3 rotation, const Vector2 radiusAndHeight, const uint segments, const Color color);
+void drawCylinder(const Vector3 position, const Vector3 rotation, const Vector2 radiusAndHeight, const uint segments, const Color color);
+void drawHemisphere(const Vector3 position, const Vector3 rotation, const float radius, const uint rings, const uint sectors, const Color color);
+void drawSphere(const Vector3 position, const Vector3 rotation, const float radius, const uint rings, const uint sectors, const Color color);
+void drawCapsule(const Vector3 position, const Vector3 rotation, const Vector2 radiusAndHeight, const uint rings, const uint sectors, const Color color);
 
 #ifdef QEngine_Audio
 void convertAudio(const char* qsr_path, const char* qs_path);
